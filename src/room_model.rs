@@ -113,8 +113,8 @@ impl RoomModel {
 
 // QAbstractListModel glue.
 impl qmetaobject::QAbstractListModel for RoomModel {
-    fn row_count(&self) -> usize {
-        self.entries.borrow().len()
+    fn row_count(&self) -> i32 {
+        self.entries.borrow().len() as i32
     }
     fn data(&self, index: qmetaobject::QModelIndex, role: i32) -> qmetaobject::QVariant {
         let i = index.row() as usize;

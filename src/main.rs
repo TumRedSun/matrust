@@ -3,6 +3,7 @@
 //! Boots the Tokio runtime, registers all QML singletons and types,
 //! and starts the Qt UI event loop.
 
+use cstr::cstr;
 use qmetaobject::{qrc, QPointer, QObject, QmlEngine, qt_base_class};
 use std::sync::Arc;
 use tokio::runtime::Runtime;
@@ -23,22 +24,21 @@ use crate::theme::Theme;
 
 // Embed the QML directory into the binary so the app is self-contained.
 qrc! {
-    pub qml_resources {
-        "/qml" {
-            "qml/main.qml",
-            "qml/LoginPage.qml",
-            "qml/ChatPage.qml",
-            "qml/SpacesPage.qml",
-            "qml/RoomsSidebar.qml",
-            "qml/MessageBubble.qml",
-            "qml/ProfilePage.qml",
-            "qml/SettingsPage.qml",
-            "qml/AppearancePage.qml",
-        },
-        "/assets" {
-            "assets/logo.svg",
-            "assets/default-avatar.svg",
-        }
+    pub qml_resources,
+    "qml" as "/qml" {
+        "main.qml",
+        "LoginPage.qml",
+        "ChatPage.qml",
+        "SpacesPage.qml",
+        "RoomsSidebar.qml",
+        "MessageBubble.qml",
+        "ProfilePage.qml",
+        "SettingsPage.qml",
+        "AppearancePage.qml",
+    },
+    "assets" as "/assets" {
+        "logo.svg",
+        "default-avatar.svg",
     }
 }
 
@@ -55,10 +55,9 @@ impl Backend {
     pub fn runtime(&self) -> &Arc<Runtime> {
         self.runtime.as_ref().expect("runtime initialized")
     }
-}
 
-impl qmetaobject::Singleton for Backend {
-    fn get() -> qmetaobject::QPointer<Backend> {
+    /// Global singleton accessor (replaces the removed qmetaobject::Singleton trait).
+    pub fn get() -> QPointer<Backend> {
         use std::sync::Once;
         static INIT: Once = Once::new();
         static mut INSTANCE: Option<QPointer<Backend>> = None;
@@ -75,6 +74,10 @@ impl qmetaobject::Singleton for Backend {
     }
 }
 
+impl qmetaobject::QSingletonInit for Backend {
+    fn init(&mut self) {}
+}
+
 fn main() {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
         .format_timestamp_secs()
@@ -88,18 +91,18 @@ fn main() {
     // Ensure the Backend (shared Tokio runtime) is initialized up-front.
     Backend::get();
 
-    // Register singletons. qmetaobject 0.2 uses the free function
-    // `register_singleton_type::<T>(&mut engine, uri, major, minor, name)`.
-    qmetaobject::register_singleton_type::<Backend>(&mut engine, "MatrixClient", 1, 0, "Backend");
-    qmetaobject::register_singleton_type::<Theme>(&mut engine, "MatrixClient", 1, 0, "Theme");
-    qmetaobject::register_singleton_type::<MatrixClient>(&mut engine, "MatrixClient", 1, 0, "MatrixClient");
+    // Register singletons. qmetaobject 0.2 uses qml_register_singleton_type
+    // with cstr!() and no &mut engine parameter.
+    qmetaobject::qml_register_singleton_type::<Backend>(cstr!("MatrixClient"), 1, 0, cstr!("Backend"));
+    qmetaobject::qml_register_singleton_type::<Theme>(cstr!("MatrixClient"), 1, 0, cstr!("Theme"));
+    qmetaobject::qml_register_singleton_type::<MatrixClient>(cstr!("MatrixClient"), 1, 0, cstr!("MatrixClient"));
 
     // Register instantiable types.
-    qmetaobject::register_type::<room_model::RoomModel>(&mut engine, "MatrixClient", 1, 0, "RoomModel");
-    qmetaobject::register_type::<message_model::MessageModel>(&mut engine, "MatrixClient", 1, 0, "MessageModel");
-    qmetaobject::register_type::<spaces::SpaceModel>(&mut engine, "MatrixClient", 1, 0, "SpaceModel");
-    qmetaobject::register_type::<profile::ProfileManager>(&mut engine, "MatrixClient", 1, 0, "ProfileManager");
+    qmetaobject::qml_register_type::<room_model::RoomModel>(cstr!("MatrixClient"), 1, 0, cstr!("RoomModel"));
+    qmetaobject::qml_register_type::<message_model::MessageModel>(cstr!("MatrixClient"), 1, 0, cstr!("MessageModel"));
+    qmetaobject::qml_register_type::<spaces::SpaceModel>(cstr!("MatrixClient"), 1, 0, cstr!("SpaceModel"));
+    qmetaobject::qml_register_type::<profile::ProfileManager>(cstr!("MatrixClient"), 1, 0, cstr!("ProfileManager"));
 
-    engine.load_file("qrc:/qml/main.qml");
+    engine.load_file("qrc:/qml/main.qml".into());
     engine.exec();
 }

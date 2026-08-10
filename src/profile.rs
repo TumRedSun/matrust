@@ -1,8 +1,6 @@
 //! Profile management: display name, avatar, presence.
 
 use qmetaobject::*;
-use std::sync::Arc;
-use tokio::sync::Mutex;
 
 #[derive(QObject, Default)]
 pub struct ProfileManager {
@@ -19,6 +17,10 @@ pub struct ProfileManager {
     user_id_changed: qt_signal!(),
     presence_changed: qt_signal!(),
     status_message_changed: qt_signal!(),
+
+    // QML-callable method declarations.
+    refresh: qt_method!(fn(&self)),
+    set_presence: qt_method!(fn(&self, presence: QString, status_msg: QString)),
 }
 
 impl ProfileManager {
@@ -40,7 +42,6 @@ impl ProfileManager {
 
     /// Pull the latest profile from the server. Called when the user opens
     /// the profile page.
-    #[qt_method]
     pub fn refresh(&self) {
         let qptr = QPointer::from(self);
         crate::Backend::get().runtime().spawn(async move {
@@ -79,7 +80,6 @@ impl ProfileManager {
     /// when starting the sync loop.
     ///
     /// This implementation uses the direct ruma API call.
-    #[qt_method]
     pub fn set_presence(&self, presence: QString, status_msg: QString) {
         let p = presence.to_string();
         let s = status_msg.to_string();

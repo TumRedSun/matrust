@@ -141,6 +141,14 @@ pub struct Theme {
     /// to rebind bound expressions.
     theme_changed: qt_signal!(),
 
+    // QML-callable method declarations (qt_method! is a function-like macro
+    // in qmetaobject 0.2; the actual bodies live in the impl block below).
+    apply_preset: qt_method!(fn(&self, name: QString)),
+    reset: qt_method!(fn(&self)),
+    export_json: qt_method!(fn(&self) -> QString),
+    import_json: qt_method!(fn(&self, json: QString) -> bool),
+    available_presets: qt_method!(fn(&self) -> QString),
+
     state: RefCell<ThemeState>,
 }
 
@@ -290,7 +298,6 @@ impl Theme {
         self.theme_changed();
     }
 
-    #[qt_method]
     pub fn apply_preset(&self, name: QString) {
         let s = preset(&name.to_string());
         *self.state.borrow_mut() = s;
@@ -298,20 +305,17 @@ impl Theme {
         self.save_to_disk();
     }
 
-    #[qt_method]
     pub fn reset(&self) {
         self.apply_defaults();
         self.fire_all_signals();
         self.save_to_disk();
     }
 
-    #[qt_method]
     pub fn export_json(&self) -> QString {
         let s = self.state.borrow().clone();
         QString::from(serde_json::to_string_pretty(&s).unwrap_or_default().as_str())
     }
 
-    #[qt_method]
     pub fn import_json(&self, json: QString) -> bool {
         match serde_json::from_str::<ThemeState>(&json.to_string()) {
             Ok(s) => {
@@ -325,7 +329,6 @@ impl Theme {
     }
 
     // --- List of available presets, for QML dropdowns ---
-    #[qt_method]
     pub fn available_presets(&self) -> QString {
         QString::from(
             r#"["Material Dark","Solarized Dark","Tokyo Night","Nordic","Dracula","Gruvbox","Catppuccin Mocha","Sunset","Matrix Green"]"#,
@@ -462,8 +465,9 @@ bool_accessors! {
     animate_bubbles, animate_bubbles_changed;
 }
 
-impl qmetaobject::Singleton for Theme {
-    fn get() -> QPointer<Theme> {
+impl Theme {
+    /// Global singleton accessor (replaces the removed qmetaobject::Singleton trait).
+    pub fn get() -> QPointer<Theme> {
         use std::sync::Once;
         static INIT: Once = Once::new();
         static mut INSTANCE: Option<QPointer<Theme>> = None;
@@ -474,6 +478,10 @@ impl qmetaobject::Singleton for Theme {
         });
         unsafe { INSTANCE.clone().unwrap() }
     }
+}
+
+impl qmetaobject::QSingletonInit for Theme {
+    fn init(&mut self) {}
 }
 
 /// Built-in color presets. Each returns a fully-populated `ThemeState`.

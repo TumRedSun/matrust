@@ -2,6 +2,7 @@
 
 use matrix_sdk::ruma::OwnedRoomId;
 use std::path::{Path, PathBuf};
+use qmetaobject::{QPointer, QString};
 
 use crate::errors::{AppError, AppResult};
 
@@ -55,13 +56,13 @@ pub async fn send_attachment(
         "image" => {
             let uploaded = c.media().upload(&mime_val, bytes, None).await?;
             let mut img = ImageMessageEventContent::plain(file_name, uploaded.content_uri);
-            img.info = Some(Box::new(matrix_sdk::ruma::events::room::message::ImageInfo::new()));
+            img.info = Some(Box::new(ruma::events::room::message::ImageInfo::default()));
             RoomMessageEventContent::new(MessageType::Image(img))
         }
         "video" => {
             let uploaded = c.media().upload(&mime_val, bytes, None).await?;
             let mut v = VideoMessageEventContent::plain(file_name, uploaded.content_uri);
-            v.info = Some(Box::new(matrix_sdk::ruma::events::room::message::VideoInfo::new()));
+            v.info = Some(Box::new(ruma::events::room::message::VideoInfo::default()));
             RoomMessageEventContent::new(MessageType::Video(v))
         }
         "audio" => {

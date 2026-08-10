@@ -70,6 +70,25 @@ pub struct MatrixClient {
     /// Emitted when a media download finishes. The third arg is the local
     /// filesystem path the file was saved to.
     file_downloaded: qt_signal!(room_id: QString, mxc: QString, local_path: QString),
+
+    // QML-callable method declarations (qt_method! is a function-like macro
+    // in qmetaobject 0.2; the actual bodies live in the impl block below).
+    auto_login: qt_method!(fn(&self)),
+    login_with_password: qt_method!(fn(&self, homeserver: QString, username: QString, password: QString, force_ipv6: bool)),
+    login_with_token: qt_method!(fn(&self, homeserver: QString, user_id: QString, device_id: QString, access_token: QString, force_ipv6: bool)),
+    logout: qt_method!(fn(&self)),
+    send_text: qt_method!(fn(&self, room_id: QString, body: QString)),
+    send_file: qt_method!(fn(&self, room_id: QString, local_path: QString, mime: QString, kind: QString)),
+    download_media: qt_method!(fn(&self, room_id: QString, mxc: QString, suggested_name: QString)),
+    set_display_name: qt_method!(fn(&self, name: QString)),
+    set_avatar: qt_method!(fn(&self, local_path: QString)),
+    set_force_ipv6: qt_method!(fn(&self, on: bool)),
+    room_model: qt_method!(fn(&self) -> QPointer<RoomModel>),
+    space_model: qt_method!(fn(&self) -> QPointer<SpaceModel>),
+    message_model: qt_method!(fn(&self) -> QPointer<MessageModel>),
+    profile_manager: qt_method!(fn(&self) -> QPointer<ProfileManager>),
+    load_room_messages: qt_method!(fn(&self, room_id: QString)),
+    refresh_rooms: qt_method!(fn(&self)),
 }
 
 impl MatrixClient {
@@ -112,7 +131,9 @@ impl MatrixClient {
             match fut.await {
                 Ok(_) => {}
                 Err(e) => {
-                    log::warn!("async error: {e}");
+                    // Use ::log to disambiguate from the `log` module
+                    // re-exported by qmetaobject's glob import.
+                    ::log::warn!("async error: {e}");
                     if let Some(this) = qptr.as_ref() {
                         this.set_error(e.to_string());
                     }
@@ -127,7 +148,6 @@ impl MatrixClient {
 impl MatrixClient {
     /// Try to resume a saved session (auto-login via stored access token).
     /// Called from QML on startup.
-    #[qt_method]
     pub fn auto_login(&self) {
         let path = Self::session_file_path();
         match std::fs::read_to_string(&path) {
@@ -152,7 +172,6 @@ impl MatrixClient {
 
     /// Login with username + password. `force_ipv6` toggles the IPv6-only
     /// transport.
-    #[qt_method]
     pub fn login_with_password(
         &self,
         homeserver: QString,
@@ -172,7 +191,6 @@ impl MatrixClient {
 
     /// Login with a pre-existing access token (e.g. imported from another
     /// client, or stored on disk by `auto_login`).
-    #[qt_method]
     pub fn login_with_token(
         &self,
         homeserver: QString,
@@ -193,7 +211,6 @@ impl MatrixClient {
     }
 
     /// Logout and clear the on-disk session.
-    #[qt_method]
     pub fn logout(&self) {
         let path = Self::session_file_path();
         let _ = std::fs::remove_file(&path);
@@ -214,7 +231,6 @@ impl MatrixClient {
     }
 
     /// Send a text message (markdown supported).
-    #[qt_method]
     pub fn send_text(&self, room_id: QString, body: QString) {
         let room_id = room_id.to_string();
         let body = body.to_string();
@@ -232,7 +248,6 @@ impl MatrixClient {
 
     /// Upload a file and send it as a message attachment.
     /// `mime` is a MIME string, `kind` is one of "file" | "image" | "video" | "audio".
-    #[qt_method]
     pub fn send_file(&self, room_id: QString, local_path: QString, mime: QString, kind: QString) {
         let room_id = room_id.to_string();
         let path = local_path.to_string();
@@ -245,7 +260,6 @@ impl MatrixClient {
 
     /// Download an `mxc://` URI to disk; returns the local path via the
     /// `fileDownloaded(roomId, mxc, localPath)` signal.
-    #[qt_method]
     pub fn download_media(&self, room_id: QString, mxc: QString, suggested_name: QString) {
         let room_id = room_id.to_string();
         let mxc = mxc.to_string();
@@ -256,7 +270,6 @@ impl MatrixClient {
     }
 
     /// Set display name.
-    #[qt_method]
     pub fn set_display_name(&self, name: QString) {
         let name = name.to_string();
         self.spawn(async move {
@@ -268,7 +281,6 @@ impl MatrixClient {
     }
 
     /// Upload and set avatar from a local file.
-    #[qt_method]
     pub fn set_avatar(&self, local_path: QString) {
         let path = local_path.to_string();
         self.spawn(async move {
@@ -280,7 +292,6 @@ impl MatrixClient {
 
     /// Toggle IPv6-only mode at runtime. Forces a client rebuild on next
     /// sync.
-    #[qt_method]
     pub fn set_force_ipv6(&self, on: bool) {
         if let Some(s) = self.session.borrow_mut().as_mut() {
             s.force_ipv6 = on;
@@ -288,7 +299,6 @@ impl MatrixClient {
         }
     }
 
-    #[qt_method]
     pub fn room_model(&self) -> QPointer<RoomModel> {
         if self.rooms.is_null() {
             self.rooms = QPointer::from(RoomModel::default());
@@ -296,7 +306,6 @@ impl MatrixClient {
         self.rooms.clone()
     }
 
-    #[qt_method]
     pub fn space_model(&self) -> QPointer<SpaceModel> {
         if self.spaces.is_null() {
             self.spaces = QPointer::from(SpaceModel::default());
@@ -304,7 +313,6 @@ impl MatrixClient {
         self.spaces.clone()
     }
 
-    #[qt_method]
     pub fn message_model(&self) -> QPointer<MessageModel> {
         if self.messages.is_null() {
             self.messages = QPointer::from(MessageModel::default());
@@ -312,7 +320,6 @@ impl MatrixClient {
         self.messages.clone()
     }
 
-    #[qt_method]
     pub fn profile_manager(&self) -> QPointer<ProfileManager> {
         if self.profile.is_null() {
             self.profile = QPointer::from(ProfileManager::default());
@@ -322,7 +329,6 @@ impl MatrixClient {
 
     /// Load messages for a room; the model will be populated asynchronously
     /// via signals.
-    #[qt_method]
     pub fn load_room_messages(&self, room_id: QString) {
         let room_id = room_id.to_string();
         self.spawn(async move {
@@ -337,7 +343,6 @@ impl MatrixClient {
     }
 
     /// Refresh the room list and spaces tree from cache + sync.
-    #[qt_method]
     pub fn refresh_rooms(&self) {
         self.spawn(async move {
             let this = MatrixClient::singleton_ptr();
@@ -355,10 +360,20 @@ impl MatrixClient {
 
 // Internal helpers (not exposed to QML).
 impl MatrixClient {
-    /// Returns the global singleton pointer. Implemented through the
-    /// `qmetaobject::Singleton` trait.
+    /// Returns the global singleton pointer.
     pub fn singleton_ptr() -> QPointer<MatrixClient> {
-        <Self as qmetaobject::Singleton>::get()
+        Self::get()
+    }
+
+    /// Global singleton accessor (replaces the removed qmetaobject::Singleton trait).
+    pub fn get() -> QPointer<MatrixClient> {
+        use std::sync::Once;
+        static INIT: Once = Once::new();
+        static mut INSTANCE: Option<QPointer<MatrixClient>> = None;
+        INIT.call_once(|| unsafe {
+            INSTANCE = Some(QPointer::from(MatrixClient::default()));
+        });
+        unsafe { INSTANCE.clone().unwrap() }
     }
 
     async fn require_client(&self) -> AppResult<Arc<Mutex<matrix_sdk::Client>>> {
@@ -542,14 +557,6 @@ impl MatrixClient {
     }
 }
 
-impl qmetaobject::Singleton for MatrixClient {
-    fn get() -> QPointer<MatrixClient> {
-        use std::sync::Once;
-        static INIT: Once = Once::new();
-        static mut INSTANCE: Option<QPointer<MatrixClient>> = None;
-        INIT.call_once(|| unsafe {
-            INSTANCE = Some(QPointer::from(MatrixClient::default()));
-        });
-        unsafe { INSTANCE.clone().unwrap() }
-    }
+impl qmetaobject::QSingletonInit for MatrixClient {
+    fn init(&mut self) {}
 }
