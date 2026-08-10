@@ -95,7 +95,7 @@ impl RoomModel {
 
     /// Apply pre-fetched entries on the Qt thread.
     /// Must only be called from the Qt event loop (e.g. inside a queued_callback).
-    pub fn apply_entries(&self, entries: Vec<RoomEntry>) {
+    pub fn apply_entries(&mut self, entries: Vec<RoomEntry>) {
         self.begin_reset_model();
         *self.entries.borrow_mut() = entries;
         self.end_reset_model();

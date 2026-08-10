@@ -213,7 +213,7 @@ impl MessageModel {
 
     /// Apply a pre-fetched list of entries on the Qt thread.
     /// Must only be called from the Qt event loop (e.g. inside a queued_callback).
-    pub fn apply_entries(&self, entries: Vec<MessageEntry>, room_id: &str) {
+    pub fn apply_entries(&mut self, entries: Vec<MessageEntry>, room_id: &str) {
         self.begin_reset_model();
         *self.entries.borrow_mut() = entries;
         self.end_reset_model();
