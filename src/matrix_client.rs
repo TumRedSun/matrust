@@ -18,9 +18,9 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use crate::errors::AppResult;
-use crate::room_model::RoomModel;
-use crate::message_model::MessageModel;
-use crate::spaces::SpaceModel;
+use crate::room_model::{RoomModel, RoomEntry};
+use crate::message_model::{MessageModel, MessageEntry};
+use crate::spaces::{SpaceModel, SpaceEntry};
 use crate::profile::ProfileManager;
 
 /// Server-side configuration that survives restarts.
@@ -344,16 +344,23 @@ impl MatrixClient {
     }
 
     pub fn load_room_messages(&self, room_id: QString) {
-        let room_id = room_id.to_string();
+        let room_id_str = room_id.to_string();
         let model = self.messages.clone();
         let client_arc = match self.inner.borrow().clone() {
             Some(c) => c,
             None => return,
         };
-        self.spawn(async move {
+        // Create the queued_callback BEFORE spawn so QPointer is wrapped
+        // by qmetaobject (which makes the callback itself Send).
+        let rid_for_signal = room_id_str.clone();
+        let cb = qmetaobject::queued_callback(move |entries: Vec<MessageEntry>| {
             if let Some(m) = model.as_pinned() {
-                m.borrow_mut().load_for_room(client_arc, room_id).await?;
+                m.borrow_mut().apply_entries(entries, &rid_for_signal);
             }
+        });
+        self.spawn(async move {
+            let entries = MessageModel::fetch_messages(client_arc, room_id_str).await?;
+            cb(entries);
             AppResult::Ok(())
         });
     }
@@ -365,13 +372,23 @@ impl MatrixClient {
             Some(c) => c,
             None => return,
         };
-        self.spawn(async move {
+        // Create queued_callbacks BEFORE spawn so QPointer is wrapped
+        // by qmetaobject (which makes the callbacks themselves Send).
+        let rooms_cb = qmetaobject::queued_callback(move |entries: Vec<RoomEntry>| {
             if let Some(r) = rooms_ptr.as_pinned() {
-                r.borrow_mut().refresh(client_arc.clone()).await?;
+                r.borrow_mut().apply_entries(entries);
             }
+        });
+        let spaces_cb = qmetaobject::queued_callback(move |entries: Vec<SpaceEntry>| {
             if let Some(s) = spaces_ptr.as_pinned() {
-                s.borrow_mut().refresh(client_arc).await?;
+                s.borrow_mut().apply_entries(entries);
             }
+        });
+        self.spawn(async move {
+            let room_entries = RoomModel::fetch_rooms(client_arc.clone()).await?;
+            rooms_cb(room_entries);
+            let space_entries = SpaceModel::fetch_spaces(client_arc).await?;
+            spaces_cb(space_entries);
             AppResult::Ok(())
         });
     }

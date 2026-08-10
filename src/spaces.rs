@@ -41,7 +41,11 @@ impl SpaceModel {
         self.entries.borrow().len() as i64
     }
 
-    pub async fn refresh(&self, client: Arc<Mutex<matrix_sdk::Client>>) -> crate::errors::AppResult<()> {
+    /// Pure async data fetching — does NOT take `&self` so the future is `Send`.
+    /// Returns the space entries; the caller applies them on the Qt thread.
+    pub async fn fetch_spaces(
+        client: Arc<Mutex<matrix_sdk::Client>>,
+    ) -> crate::errors::AppResult<Vec<SpaceEntry>> {
         let c = client.lock().await;
         let rooms = c.rooms();
         drop(c);
@@ -175,20 +179,17 @@ impl SpaceModel {
             ka.cmp(&kb).then_with(|| a.name.to_string().cmp(&b.name.to_string()))
         });
 
-        let qptr = QPointer::from(&*self);
-        let cb = qmetaobject::queued_callback(move |entries: Vec<SpaceEntry>| {
-            if let Some(this) = qptr.as_pinned() {
-                let mut model = this.borrow_mut();
-                model.begin_reset_model();
-                *model.entries.borrow_mut() = entries;
-                model.end_reset_model();
-                model.count_changed();
-                model.tree_changed();
-            }
-        });
-        cb(out);
+        Ok(out)
+    }
 
-        Ok(())
+    /// Apply pre-fetched entries on the Qt thread.
+    /// Must only be called from the Qt event loop (e.g. inside a queued_callback).
+    pub fn apply_entries(&self, entries: Vec<SpaceEntry>) {
+        self.begin_reset_model();
+        *self.entries.borrow_mut() = entries;
+        self.end_reset_model();
+        self.count_changed();
+        self.tree_changed();
     }
 }
 

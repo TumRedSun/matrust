@@ -54,11 +54,13 @@ impl MessageModel {
         self.entries.borrow().len() as i64
     }
 
-    pub async fn load_for_room(
-        &self,
+    /// Pure async data fetching — does NOT take `&self` so the future is `Send`.
+    /// Returns the parsed message entries; the caller is responsible for
+    /// applying them to the model on the Qt thread (e.g. via queued_callback).
+    pub async fn fetch_messages(
         client: Arc<Mutex<matrix_sdk::Client>>,
         room_id: String,
-    ) -> crate::errors::AppResult<()> {
+    ) -> crate::errors::AppResult<Vec<MessageEntry>> {
         let c = client.lock().await;
         let rid: ruma::OwnedRoomId = room_id
             .parse()
@@ -89,7 +91,7 @@ impl MessageModel {
             // In matrix-sdk 0.18, TimelineEventKind has three variants:
             // PlainText { event }, UnableToDecrypt { event, .. }, Decrypted(DecryptedRoomEvent).
             use matrix_sdk::deserialized_responses::TimelineEventKind;
-            use matrix_sdk::ruma::events::{AnySyncTimelineEvent, AnyTimelineEvent};
+            use matrix_sdk::ruma::events::AnySyncTimelineEvent;
 
             let any_event: AnySyncTimelineEvent = match timeline_event.kind {
                 TimelineEventKind::PlainText { event } => {
@@ -206,22 +208,17 @@ impl MessageModel {
             messages.push(entry);
         }
 
-        // Apply on the Qt thread via a queued callback.
-        let qptr = QPointer::from(&*self);
-        let rid_clone = room_id.clone();
-        let cb = qmetaobject::queued_callback(move |entries: Vec<MessageEntry>| {
-            if let Some(this) = qptr.as_pinned() {
-                let mut model = this.borrow_mut();
-                model.begin_reset_model();
-                *model.entries.borrow_mut() = entries;
-                model.end_reset_model();
-                model.count_changed();
-                model.history_loaded(QString::from(rid_clone.as_str()));
-            }
-        });
-        cb(messages);
+        Ok(messages)
+    }
 
-        Ok(())
+    /// Apply a pre-fetched list of entries on the Qt thread.
+    /// Must only be called from the Qt event loop (e.g. inside a queued_callback).
+    pub fn apply_entries(&self, entries: Vec<MessageEntry>, room_id: &str) {
+        self.begin_reset_model();
+        *self.entries.borrow_mut() = entries;
+        self.end_reset_model();
+        self.count_changed();
+        self.history_loaded(QString::from(room_id));
     }
 }
 

@@ -33,7 +33,11 @@ pub struct RoomModel {
 }
 
 impl RoomModel {
-    pub async fn refresh(&self, client: Arc<Mutex<matrix_sdk::Client>>) -> crate::errors::AppResult<()> {
+    /// Pure async data fetching — does NOT take `&self` so the future is `Send`.
+    /// Returns the room entries; the caller applies them on the Qt thread.
+    pub async fn fetch_rooms(
+        client: Arc<Mutex<matrix_sdk::Client>>,
+    ) -> crate::errors::AppResult<Vec<RoomEntry>> {
         let c = client.lock().await;
         let rooms = c.rooms();
         drop(c);
@@ -86,25 +90,17 @@ impl RoomModel {
         }
 
         new_entries.sort_by(|a, b| b.last_event_ts.cmp(&a.last_event_ts));
+        Ok(new_entries)
+    }
 
-        // Apply the new entries on the Qt event loop thread via a queued
-        // callback. qmetaobject's `queued_callback` returns a function we
-        // can invoke from any thread; the closure it returns runs on the Qt
-        // thread, which is required for begin/end_reset_model.
-        let qptr = QPointer::from(&*self);
-        let cb = qmetaobject::queued_callback(move |entries: Vec<RoomEntry>| {
-            if let Some(this) = qptr.as_pinned() {
-                let mut model = this.borrow_mut();
-                model.begin_reset_model();
-                *model.entries.borrow_mut() = entries;
-                model.end_reset_model();
-                model.count_changed();
-                model.rows_changed();
-            }
-        });
-        cb(new_entries);
-
-        Ok(())
+    /// Apply pre-fetched entries on the Qt thread.
+    /// Must only be called from the Qt event loop (e.g. inside a queued_callback).
+    pub fn apply_entries(&self, entries: Vec<RoomEntry>) {
+        self.begin_reset_model();
+        *self.entries.borrow_mut() = entries;
+        self.end_reset_model();
+        self.count_changed();
+        self.rows_changed();
     }
 
     pub fn count(&self) -> i64 {
