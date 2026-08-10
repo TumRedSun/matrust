@@ -139,12 +139,20 @@ impl MatrixClient {
         self.logged_out();
     }
 
+    /// Spawn a future on the Tokio runtime. Errors are forwarded to the UI
+    /// via a `queued_callback` so the `QPointer` is never sent across threads
+    /// (QPointer is !Send).
     fn spawn<F, T>(&self, fut: F)
     where
         F: std::future::Future<Output = AppResult<T>> + Send + 'static,
         T: Send + 'static,
     {
         let qptr = QPointer::from(&*self);
+        let error_cb = qmetaobject::queued_callback(move |msg: String| {
+            if let Some(this) = qptr.as_pinned() {
+                this.borrow_mut().set_error(msg);
+            }
+        });
         let rt = crate::Backend::get().as_ref()
             .expect("Backend not initialized").runtime().clone();
         rt.spawn(async move {
@@ -152,9 +160,7 @@ impl MatrixClient {
                 Ok(_) => {}
                 Err(e) => {
                     ::log::warn!("async error: {e}");
-                    if let Some(this) = qptr.as_pinned() {
-                        this.borrow_mut().set_error(e.to_string());
-                    }
+                    error_cb(e.to_string());
                 }
             }
         });
@@ -239,12 +245,7 @@ impl MatrixClient {
         let _ = std::fs::remove_file(&path);
         let client_arc = self.inner.borrow().clone();
         let qptr = QPointer::from(&*self);
-        let rt = crate::Backend::get().as_ref()
-            .expect("Backend not initialized").runtime().clone();
-        rt.spawn(async move {
-            if let Some(c) = client_arc {
-                let _ = c.lock().await.logout().await;
-            }
+        let logout_cb = qmetaobject::queued_callback(move |_: ()| {
             if let Some(this) = qptr.as_pinned() {
                 let mut mc = this.borrow_mut();
                 *mc.inner.borrow_mut() = None;
@@ -253,6 +254,14 @@ impl MatrixClient {
                 mc.set_ready(false);
                 mc.emit_logged_out();
             }
+        });
+        let rt = crate::Backend::get().as_ref()
+            .expect("Backend not initialized").runtime().clone();
+        rt.spawn(async move {
+            if let Some(c) = client_arc {
+                let _ = c.lock().await.logout().await;
+            }
+            logout_cb(());
             let _: AppResult<()> = Ok(());
         });
     }
@@ -263,8 +272,10 @@ impl MatrixClient {
         self.spawn(async move {
             let client_arc = Self::require_client().await?;
             let c = client_arc.lock().await;
+            let rid: ruma::OwnedRoomId = room_id.parse()
+                .map_err(|e: ruma::IdParseError| crate::errors::AppError::Other(e.to_string()))?;
             let room = c
-                .get_room(&room_id.parse().map_err(|e: ruma::IdParseError| crate::errors::AppError::Other(e.to_string()))?)
+                .get_room(&rid)
                 .ok_or_else(|| crate::errors::AppError::RoomNotFound(room_id.clone()))?;
             room.send(matrix_sdk::ruma::events::room::message::RoomMessageEventContent::text_markdown(body))
                 .await?;
@@ -317,34 +328,18 @@ impl MatrixClient {
     }
 
     pub fn room_model(&self) -> QPointer<RoomModel> {
-        if self.rooms.is_null() {
-            let rm = RoomModel::default();
-            self.rooms = QPointer::from(&rm);
-        }
         self.rooms.clone()
     }
 
     pub fn space_model(&self) -> QPointer<SpaceModel> {
-        if self.spaces.is_null() {
-            let sm = SpaceModel::default();
-            self.spaces = QPointer::from(&sm);
-        }
         self.spaces.clone()
     }
 
     pub fn message_model(&self) -> QPointer<MessageModel> {
-        if self.messages.is_null() {
-            let mm = MessageModel::default();
-            self.messages = QPointer::from(&mm);
-        }
         self.messages.clone()
     }
 
     pub fn profile_manager(&self) -> QPointer<ProfileManager> {
-        if self.profile.is_null() {
-            let pm = ProfileManager::default();
-            self.profile = QPointer::from(&pm);
-        }
         self.profile.clone()
     }
 
@@ -356,9 +351,8 @@ impl MatrixClient {
             None => return,
         };
         self.spawn(async move {
-            let c = client_arc.lock().await;
             if let Some(m) = model.as_pinned() {
-                m.borrow_mut().load_for_room(c, room_id).await?;
+                m.borrow_mut().load_for_room(client_arc, room_id).await?;
             }
             AppResult::Ok(())
         });
@@ -372,12 +366,11 @@ impl MatrixClient {
             None => return,
         };
         self.spawn(async move {
-            let c = client_arc.lock().await;
             if let Some(r) = rooms_ptr.as_pinned() {
-                r.borrow_mut().refresh(c.clone()).await?;
+                r.borrow_mut().refresh(client_arc.clone()).await?;
             }
             if let Some(s) = spaces_ptr.as_pinned() {
-                s.borrow_mut().refresh(c.clone()).await?;
+                s.borrow_mut().refresh(client_arc).await?;
             }
             AppResult::Ok(())
         });
@@ -575,17 +568,21 @@ impl MatrixClient {
         }
 
         // Kick off the sync loop in the background.
+        // Use queued_callback so QPointer is never sent across threads.
         let arc2 = arc.clone();
         let qptr2 = qptr.clone();
+        let sync_done_cb = qmetaobject::queued_callback(move |_: ()| {
+            if let Some(this) = qptr2.as_pinned() {
+                this.borrow().emit_sync_done(QString::from("{}"));
+            }
+        });
         let rt = crate::Backend::get().as_ref()
             .expect("Backend not initialized").runtime().clone();
         rt.spawn(async move {
             let c = arc2.lock().await;
             c.sync(matrix_sdk::config::SyncSettings::default()).await.ok();
             drop(c);
-            if let Some(this) = qptr2.as_ref() {
-                this.emit_sync_done(QString::from("{}"));
-            }
+            sync_done_cb(());
         });
 
         Ok(())

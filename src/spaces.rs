@@ -97,10 +97,16 @@ impl SpaceModel {
                 let mut stream = std::pin::pin!(parent_stream);
                 while let Some(parent_result) = stream.next().await {
                     if let Ok(parent_space) = parent_result {
-                        // In matrix-sdk 0.18, ParentSpace is an enum.
+                        // In matrix-sdk 0.18, ParentSpace has variants:
+                        // Reciprocal(Room), WithPowerlevel(Room),
+                        // Illegitimate(Room), Unverifiable(OwnedRoomId).
                         let parent_id = match &parent_space {
-                            matrix_sdk::room::ParentSpace::Space(room) => room.room_id().to_string(),
-                            matrix_sdk::room::ParentSpace::Unknown(id) => id.to_string(),
+                            matrix_sdk::room::ParentSpace::Reciprocal(room)
+                            | matrix_sdk::room::ParentSpace::WithPowerlevel(room)
+                            | matrix_sdk::room::ParentSpace::Illegitimate(room) => {
+                                room.room_id().to_string()
+                            }
+                            matrix_sdk::room::ParentSpace::Unverifiable(id) => id.to_string(),
                         };
                         if space_ids.contains(&parent_id) {
                             matching_parents.push(parent_id);
@@ -196,9 +202,11 @@ impl qmetaobject::QAbstractListModel for SpaceModel {
         if i >= entries.len() {
             return QVariant::default();
         }
-        entries[i].to_qvariant(role)
+        entries[i].get(role)
     }
     fn role_names(&self) -> std::collections::HashMap<i32, QByteArray> {
-        SpaceEntry::names()
+        SpaceEntry::names().into_iter().enumerate()
+            .map(|(i, name)| (qmetaobject::USER_ROLE + i as i32, name))
+            .collect()
     }
 }

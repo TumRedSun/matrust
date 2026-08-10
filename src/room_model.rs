@@ -123,9 +123,11 @@ impl qmetaobject::QAbstractListModel for RoomModel {
         if i >= entries.len() {
             return QVariant::default();
         }
-        entries[i].to_qvariant(role)
+        entries[i].get(role)
     }
     fn role_names(&self) -> std::collections::HashMap<i32, QByteArray> {
-        RoomEntry::names()
+        RoomEntry::names().into_iter().enumerate()
+            .map(|(i, name)| (qmetaobject::USER_ROLE + i as i32, name))
+            .collect()
     }
 }

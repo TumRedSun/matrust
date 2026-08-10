@@ -86,19 +86,28 @@ impl MessageModel {
         taken.reverse();
 
         for timeline_event in taken {
-            // In matrix-sdk 0.18, TimelineEvent has .kind field of type
-            // TimelineEventKind which wraps the raw event.
-            // We need to deserialize the raw event from the kind.
-            use matrix_sdk::ruma::events::AnySyncTimelineEvent;
+            // In matrix-sdk 0.18, TimelineEventKind has three variants:
+            // PlainText { event }, UnableToDecrypt { event, .. }, Decrypted(DecryptedRoomEvent).
+            use matrix_sdk::deserialized_responses::TimelineEventKind;
+            use matrix_sdk::ruma::events::{AnySyncTimelineEvent, AnyTimelineEvent};
+
             let any_event: AnySyncTimelineEvent = match timeline_event.kind {
-                matrix_sdk::deserialized_responses::TimelineEventKind::MessageLike { event, .. } => {
+                TimelineEventKind::PlainText { event } => {
                     match event.deserialize() {
                         Ok(e) => e,
                         Err(_) => continue,
                     }
                 }
-                matrix_sdk::deserialized_responses::TimelineEventKind::State { event, .. } => {
+                TimelineEventKind::UnableToDecrypt { event, .. } => {
                     match event.deserialize() {
+                        Ok(e) => e,
+                        Err(_) => continue,
+                    }
+                }
+                TimelineEventKind::Decrypted(decrypted) => {
+                    // DecryptedRoomEvent has Raw<AnyTimelineEvent>;
+                    // cast to the sync variant for uniform handling.
+                    match decrypted.event.cast::<AnySyncTimelineEvent>().deserialize() {
                         Ok(e) => e,
                         Err(_) => continue,
                     }
@@ -120,8 +129,6 @@ impl MessageModel {
             };
 
             // Match on the event to extract content.
-            // AnySyncTimelineEvent in ruma 0.16 can be split into
-            // MessageLike and State variants.
             use matrix_sdk::ruma::events::AnySyncMessageLikeEvent;
             match &any_event {
                 AnySyncTimelineEvent::MessageLike(msg_like) => {
@@ -218,6 +225,13 @@ impl MessageModel {
     }
 }
 
+/// Build a role-names HashMap from a SimpleListItem's Vec<QByteArray>.
+fn role_names_from_vec(names: Vec<QByteArray>) -> std::collections::HashMap<i32, QByteArray> {
+    names.into_iter().enumerate()
+        .map(|(i, name)| (qmetaobject::USER_ROLE + i as i32, name))
+        .collect()
+}
+
 impl qmetaobject::QAbstractListModel for MessageModel {
     fn row_count(&self) -> i32 {
         self.entries.borrow().len() as i32
@@ -228,9 +242,9 @@ impl qmetaobject::QAbstractListModel for MessageModel {
         if i >= entries.len() {
             return QVariant::default();
         }
-        entries[i].to_qvariant(role)
+        entries[i].get(role)
     }
     fn role_names(&self) -> std::collections::HashMap<i32, QByteArray> {
-        MessageEntry::names()
+        role_names_from_vec(MessageEntry::names())
     }
 }

@@ -44,33 +44,42 @@ impl ProfileManager {
     /// the profile page.
     pub fn refresh(&self) {
         let qptr = QPointer::from(&*self);
+        let profile_cb = qmetaobject::queued_callback(
+            move |data: (Option<String>, Option<String>, String)| {
+                if let Some(this) = qptr.as_pinned() {
+                    let mut pm = this.borrow_mut();
+                    pm.display_name = QString::from(data.0.as_deref().unwrap_or(""));
+                    pm.display_name_changed();
+                    pm.avatar_url = QString::from(
+                        data.1.as_deref().unwrap_or_default(),
+                    );
+                    pm.avatar_url_changed();
+                    pm.user_id = QString::from(data.2.as_str());
+                    pm.user_id_changed();
+                }
+            },
+        );
         let rt = crate::Backend::get().as_ref()
             .expect("Backend not initialized").runtime().clone();
         rt.spawn(async move {
             let client_arc = crate::MatrixClient::require_client().await?;
             let c = client_arc.lock().await;
-            let uid = c.user_id().ok_or(crate::errors::AppError::NotLoggedIn)?.to_owned();
+            let uid = c.user_id()
+                .ok_or(crate::errors::AppError::NotLoggedIn)?
+                .to_owned();
 
             // In matrix-sdk 0.18: get_profile() was renamed to fetch_user_profile().
+            // The Response type uses dynamic field access via .get("field_name")
+            // instead of direct struct fields.
             let profile = c.account().fetch_user_profile().await?;
+            let displayname: Option<String> = profile
+                .get("displayname")
+                .and_then(|v| v.as_str().map(|s| s.to_owned()));
+            let avatar_url_str: Option<String> = profile
+                .get("avatar_url")
+                .and_then(|v| v.as_str().map(|s| s.to_owned()));
 
-            if let Some(this) = qptr.as_pinned() {
-                let mut pm = this.borrow_mut();
-                pm.display_name = QString::from(profile.displayname.as_deref().unwrap_or("").to_string().as_str());
-                pm.display_name_changed();
-
-                pm.avatar_url = QString::from(
-                    profile
-                        .avatar_url
-                        .map(|u| u.to_string())
-                        .unwrap_or_default()
-                        .as_str(),
-                );
-                pm.avatar_url_changed();
-
-                pm.user_id = QString::from(uid.as_str());
-                pm.user_id_changed();
-            }
+            profile_cb((displayname, avatar_url_str, uid.to_string()));
             crate::errors::AppResult::Ok(())
         });
     }
@@ -87,6 +96,15 @@ impl ProfileManager {
         let p = presence.to_string();
         let s = status_msg.to_string();
         let qptr = QPointer::from(&*self);
+        let presence_cb = qmetaobject::queued_callback(move |data: (String, String)| {
+            if let Some(this) = qptr.as_pinned() {
+                let mut pm = this.borrow_mut();
+                pm.presence = QString::from(data.0.as_str());
+                pm.presence_changed();
+                pm.status_message = QString::from(data.1.as_str());
+                pm.status_message_changed();
+            }
+        });
         let rt = crate::Backend::get().as_ref()
             .expect("Backend not initialized").runtime().clone();
         rt.spawn(async move {
@@ -102,20 +120,11 @@ impl ProfileManager {
 
             // Send presence update via the ruma set_presence endpoint.
             use matrix_sdk::ruma::api::client::presence::set_presence::v3::Request as SetPresenceRequest;
-            // In ruma 0.16, SetPresenceRequest::new takes OwnedUserId (not &OwnedUserId)
             let mut request = SetPresenceRequest::new(user_id, presence_enum);
             request.status_msg = if s.is_empty() { None } else { Some(s.as_str().to_owned()) };
-            // In matrix-sdk 0.18+, client.send() takes only the request
-            // (no timeout parameter). Returns a builder that implements IntoFuture.
             c.send(request).await?;
 
-            if let Some(this) = qptr.as_pinned() {
-                let mut pm = this.borrow_mut();
-                pm.presence = QString::from(p.as_str());
-                pm.presence_changed();
-                pm.status_message = QString::from(s.as_str());
-                pm.status_message_changed();
-            }
+            presence_cb((p, s));
             crate::errors::AppResult::Ok(())
         });
     }
