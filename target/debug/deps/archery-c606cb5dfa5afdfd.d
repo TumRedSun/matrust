@@ -1,0 +1,10 @@
+/home/z/my-project/matrix-client-repo/target/debug/deps/archery-c606cb5dfa5afdfd.d: /home/z/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/archery-1.2.3/src/lib.rs /home/z/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/archery-1.2.3/src/shared_pointer/mod.rs /home/z/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/archery-1.2.3/src/shared_pointer/kind/mod.rs /home/z/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/archery-1.2.3/src/shared_pointer/kind/arc/mod.rs /home/z/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/archery-1.2.3/src/shared_pointer/kind/erased_ptr.rs /home/z/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/archery-1.2.3/src/shared_pointer/kind/rc/mod.rs
+
+/home/z/my-project/matrix-client-repo/target/debug/deps/libarchery-c606cb5dfa5afdfd.rmeta: /home/z/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/archery-1.2.3/src/lib.rs /home/z/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/archery-1.2.3/src/shared_pointer/mod.rs /home/z/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/archery-1.2.3/src/shared_pointer/kind/mod.rs /home/z/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/archery-1.2.3/src/shared_pointer/kind/arc/mod.rs /home/z/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/archery-1.2.3/src/shared_pointer/kind/erased_ptr.rs /home/z/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/archery-1.2.3/src/shared_pointer/kind/rc/mod.rs
+
+/home/z/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/archery-1.2.3/src/lib.rs:
+/home/z/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/archery-1.2.3/src/shared_pointer/mod.rs:
+/home/z/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/archery-1.2.3/src/shared_pointer/kind/mod.rs:
+/home/z/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/archery-1.2.3/src/shared_pointer/kind/arc/mod.rs:
+/home/z/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/archery-1.2.3/src/shared_pointer/kind/erased_ptr.rs:
+/home/z/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/archery-1.2.3/src/shared_pointer/kind/rc/mod.rs:

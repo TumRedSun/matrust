@@ -1,0 +1,72 @@
+[package]
+name = "matrix-client"
+version = "0.1.0"
+edition = "2021"
+authors = ["Your Name <you@example.com>"]
+description = "Highly customizable Matrix client for Linux built with Rust and Qt/QML"
+license = "GPL-3.0-or-later"
+rust-version = "1.80"
+
+[[bin]]
+name = "matrix-client"
+path = "src/main.rs"
+
+[dependencies]
+# Matrix protocol
+matrix-sdk = { version = "0.18", default-features = false, features = [
+    "e2e-encryption",
+    "sqlite",
+    "qrcode",
+    "automatic-room-key-forwarding",
+    "markdown",
+] }
+matrix-sdk-ui = { version = "0.18", default-features = false }
+ruma = { version = "0.16", features = ["client-api-c"] }
+
+# Qt bindings (pure Rust, no C++ glue)
+qmetaobject = "0.2"
+qttypes = "0.2"
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+futures = "0.3"
+async-trait = "0.1"
+
+# HTTP client (used directly for IPv6-only transport)
+reqwest = { version = "0.13", features = ["hickory-dns"] }
+
+# Utilities
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+anyhow = "1"
+thiserror = "2"
+url = "2"
+uuid = { version = "1", features = ["v4"] }
+chrono = { version = "0.4", features = ["serde"] }
+log = "0.4"
+env_logger = "0.11"
+directories = "6"
+keyring = { version = "4", optional = true }
+mime = "0.3"
+mime_guess = "2"
+bytes = "1"
+percent-encoding = "2"
+indexmap = "2"
+parking_lot = "0.12"
+sha2 = "0.11"
+hickory-resolver = "0.26"
+hickory-proto = "0.26"
+paste = "1"
+
+[features]
+default = ["keyring-secret"]
+keyring-secret = ["dep:keyring"]
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = "symbols"
+
+[profile.dev]
+opt-level = 1

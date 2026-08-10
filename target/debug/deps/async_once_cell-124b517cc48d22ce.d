@@ -1,0 +1,5 @@
+/home/z/my-project/matrix-client-repo/target/debug/deps/async_once_cell-124b517cc48d22ce.d: /home/z/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-once-cell-0.5.4/src/lib.rs
+
+/home/z/my-project/matrix-client-repo/target/debug/deps/libasync_once_cell-124b517cc48d22ce.rmeta: /home/z/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-once-cell-0.5.4/src/lib.rs
+
+/home/z/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async-once-cell-0.5.4/src/lib.rs:

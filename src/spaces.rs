@@ -1,0 +1,199 @@
+//! `SpaceModel` — a tree model exposing Spaces → Rooms hierarchy.
+//!
+//! Currently a flat list per space; QML expands it into a tree using the
+//! `parent_id` field. This keeps the Rust side simple and avoids
+//! QAbstractItemModel's full 2D index machinery.
+//!
+//! In matrix-sdk 0.18+, Room::parent_spaces() is still available.
+//! We determine the space→room relationship by checking each room's
+//! parent_spaces() and matching against known space IDs.
+
+use qmetaobject::*;
+use std::cell::RefCell;
+use std::sync::Arc;
+use tokio::sync::Mutex;
+
+#[derive(Default, Clone, qmetaobject::SimpleListItem)]
+pub struct SpaceEntry {
+    pub id: QString,
+    pub parent_id: QString,
+    pub kind: QString,           // "space" | "room"
+    pub name: QString,
+    pub avatar_url: QString,
+    pub unread: i64,
+    pub highlight: i64,
+    pub is_direct: bool,
+    pub last_ts: i64,
+}
+
+#[derive(QObject, Default)]
+pub struct SpaceModel {
+    base: qt_base_class!(trait QAbstractListModel),
+    entries: RefCell<Vec<SpaceEntry>>,
+
+    count: qt_property!(i64; READ count NOTIFY count_changed),
+    count_changed: qt_signal!(),
+    tree_changed: qt_signal!(),
+}
+
+impl SpaceModel {
+    pub fn count(&self) -> i64 {
+        self.entries.borrow().len() as i64
+    }
+
+    pub async fn refresh(&self, client: Arc<Mutex<matrix_sdk::Client>>) -> crate::errors::AppResult<()> {
+        let c = client.lock().await;
+        let rooms = c.rooms();
+        drop(c);
+
+        let mut out: Vec<SpaceEntry> = Vec::new();
+
+        // First pass: collect spaces themselves.
+        let spaces: Vec<_> = rooms
+            .iter()
+            .filter(|r| r.is_space() && r.state() == matrix_sdk::RoomState::Joined)
+            .cloned()
+            .collect();
+
+        // Build a set of space IDs for quick lookup.
+        let space_ids: std::collections::HashSet<String> = spaces
+            .iter()
+            .map(|s| s.room_id().to_string())
+            .collect();
+
+        for sp in &spaces {
+            let name = sp.display_name().await
+                .map(|dn| dn.to_string())
+                .unwrap_or_default();
+            let av = sp.avatar_url().map(|u| u.to_string()).unwrap_or_default();
+            out.push(SpaceEntry {
+                id: QString::from(sp.room_id().as_str()),
+                parent_id: QString::default(),
+                kind: QString::from("space"),
+                name: QString::from(name.as_str()),
+                avatar_url: QString::from(av.as_str()),
+                unread: 0,
+                highlight: 0,
+                is_direct: false,
+                last_ts: 0,
+            });
+        }
+
+        // Second pass: determine which rooms belong to which spaces.
+        // matrix-sdk 0.18+ still provides room.parent_spaces() which
+        // returns a stream of parent space rooms.
+        let mut assigned_rooms: std::collections::HashSet<String> = std::collections::HashSet::new();
+
+        for room in &rooms {
+            if room.is_space() || room.state() != matrix_sdk::RoomState::Joined {
+                continue;
+            }
+
+            // Check parent_spaces() to see if this room belongs to any
+            // of our known spaces.
+            let mut matching_parents: Vec<String> = Vec::new();
+            if let Ok(parent_stream) = room.parent_spaces().await {
+                use futures::StreamExt;
+                let mut stream = std::pin::pin!(parent_stream);
+                while let Some(parent_result) = stream.next().await {
+                    if let Ok(parent_space) = parent_result {
+                        let parent_id = parent_space.room_id().to_string();
+                        if space_ids.contains(&parent_id) {
+                            matching_parents.push(parent_id);
+                        }
+                    }
+                }
+            }
+
+            if !matching_parents.is_empty() {
+                let name = room.display_name().await
+                    .map(|dn| dn.to_string())
+                    .unwrap_or_default();
+                let av = room.avatar_url().map(|u| u.to_string()).unwrap_or_default();
+                let unread = room.unread_notification_counts();
+                let is_direct = room.is_dm() || room.direct_targets().len() > 0;
+
+                for parent_id in matching_parents {
+                    out.push(SpaceEntry {
+                        id: QString::from(room.room_id().as_str()),
+                        parent_id: QString::from(parent_id.as_str()),
+                        kind: QString::from("room"),
+                        name: QString::from(name.as_str()),
+                        avatar_url: QString::from(av.as_str()),
+                        unread: unread.notification_count as i64,
+                        highlight: unread.highlight_count as i64,
+                        is_direct,
+                        last_ts: 0,
+                    });
+                }
+                assigned_rooms.insert(room.room_id().to_string());
+            }
+        }
+
+        // Rooms with no parent space (still appear at the top level).
+        for r in &rooms {
+            if r.is_space() || r.state() != matrix_sdk::RoomState::Joined {
+                continue;
+            }
+            let rid = r.room_id().to_string();
+            if assigned_rooms.contains(&rid) {
+                continue;
+            }
+            let name = r.display_name().await
+                .map(|dn| dn.to_string())
+                .unwrap_or_default();
+            let av = r.avatar_url().map(|u| u.to_string()).unwrap_or_default();
+            let unread = r.unread_notification_counts();
+            let is_direct = r.is_dm() || r.direct_targets().len() > 0;
+            out.push(SpaceEntry {
+                id: QString::from(r.room_id().as_str()),
+                parent_id: QString::default(),
+                kind: QString::from("room"),
+                name: QString::from(name.as_str()),
+                avatar_url: QString::from(av.as_str()),
+                unread: unread.notification_count as i64,
+                highlight: unread.highlight_count as i64,
+                is_direct,
+                last_ts: 0,
+            });
+        }
+
+        out.sort_by(|a, b| {
+            // Sort by kind (spaces first), then by name.
+            let ka = if a.kind.to_string() == "space" { 0 } else { 1 };
+            let kb = if b.kind.to_string() == "space" { 0 } else { 1 };
+            ka.cmp(&kb).then_with(|| a.name.to_string().cmp(&b.name.to_string()))
+        });
+
+        let qptr = QPointer::from(self);
+        let cb = qmetaobject::queued_callback(move |entries: Vec<SpaceEntry>| {
+            if let Some(this) = qptr.as_ref() {
+                this.begin_reset_model();
+                *this.entries.borrow_mut() = entries;
+                this.end_reset_model();
+                this.count_changed();
+                this.tree_changed();
+            }
+        });
+        cb(out);
+
+        Ok(())
+    }
+}
+
+impl qmetaobject::QAbstractListModel for SpaceModel {
+    fn row_count(&self) -> usize {
+        self.entries.borrow().len()
+    }
+    fn data(&self, index: qmetaobject::QModelIndex, role: i32) -> qmetaobject::QVariant {
+        let i = index.row() as usize;
+        let entries = self.entries.borrow();
+        if i >= entries.len() {
+            return QVariant::default();
+        }
+        entries[i].to_qvariant(role)
+    }
+    fn role_names(&self) -> std::collections::HashMap<i32, QByteArray> {
+        SpaceEntry::role_names()
+    }
+}
