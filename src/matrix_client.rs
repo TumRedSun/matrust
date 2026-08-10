@@ -406,8 +406,9 @@ impl MatrixClient {
     pub async fn require_client() -> AppResult<Arc<Mutex<matrix_sdk::Client>>> {
         let qptr = Self::singleton_ptr();
         let pinned = qptr.as_pinned().ok_or(crate::errors::AppError::NotLoggedIn)?;
-        pinned.borrow().inner.borrow().clone()
-            .ok_or(crate::errors::AppError::NotLoggedIn)
+        let result = pinned.borrow().inner.borrow().clone()
+            .ok_or(crate::errors::AppError::NotLoggedIn);
+        result
     }
 
     fn persist_session(&self) {

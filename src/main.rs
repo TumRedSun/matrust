@@ -1,3 +1,5 @@
+#![recursion_limit = "256"]
+
 //! matrix-client — entry point.
 //!
 //! Boots the Tokio runtime, registers all QML singletons and types,

@@ -91,13 +91,13 @@ impl MessageModel {
             // We need to deserialize the raw event from the kind.
             use matrix_sdk::ruma::events::AnySyncTimelineEvent;
             let any_event: AnySyncTimelineEvent = match timeline_event.kind {
-                matrix_sdk::room::timeline::TimelineEventKind::MessageLike { event, .. } => {
+                matrix_sdk::deserialized_responses::TimelineEventKind::MessageLike { event, .. } => {
                     match event.deserialize() {
                         Ok(e) => e,
                         Err(_) => continue,
                     }
                 }
-                matrix_sdk::room::timeline::TimelineEventKind::State { event, .. } => {
+                matrix_sdk::deserialized_responses::TimelineEventKind::State { event, .. } => {
                     match event.deserialize() {
                         Ok(e) => e,
                         Err(_) => continue,

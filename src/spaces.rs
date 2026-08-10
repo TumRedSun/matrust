@@ -99,8 +99,8 @@ impl SpaceModel {
                     if let Ok(parent_space) = parent_result {
                         // In matrix-sdk 0.18, ParentSpace is an enum.
                         let parent_id = match &parent_space {
-                            matrix_sdk::ParentSpace::Space(room) => room.room_id().to_string(),
-                            matrix_sdk::ParentSpace::Unknown(id) => id.to_string(),
+                            matrix_sdk::room::ParentSpace::Space(room) => room.room_id().to_string(),
+                            matrix_sdk::room::ParentSpace::Unknown(id) => id.to_string(),
                         };
                         if space_ids.contains(&parent_id) {
                             matching_parents.push(parent_id);
