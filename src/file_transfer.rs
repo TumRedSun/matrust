@@ -7,11 +7,17 @@ use qmetaobject::{QPointer, QString};
 use crate::errors::{AppError, AppResult};
 
 /// Parse an mxc:// URI string into OwnedMxcUri.
-/// In ruma 0.16, OwnedMxcUri no longer implements FromStr.
-/// Use TryInto<&str> instead.
 fn parse_mxc(s: &str) -> AppResult<matrix_sdk::ruma::OwnedMxcUri> {
     s.try_into()
         .map_err(|e| AppError::Other(format!("invalid mxc URI '{}': {:?}", s, e)))
+}
+
+/// Helper to extract a URL string from a MediaSource enum.
+fn media_source_url(source: &matrix_sdk::ruma::events::room::MediaSource) -> Option<String> {
+    match source {
+        matrix_sdk::ruma::events::room::MediaSource::Plain(uri) => Some(uri.to_string()),
+        matrix_sdk::ruma::events::room::MediaSource::Encrypted(_) => None,
+    }
 }
 
 /// Send a local file as an attachment in `room_id`.
@@ -21,9 +27,8 @@ pub async fn send_attachment(
     mime: String,
     kind: String,
 ) -> AppResult<()> {
-    let mc = crate::MatrixClient::singleton_ptr();
-    let client = mc.require_client().await?;
-    let c = client.lock().await;
+    let client_arc = crate::MatrixClient::require_client().await?;
+    let c = client_arc.lock().await;
 
     let rid: OwnedRoomId = room_id
         .parse()
@@ -51,18 +56,17 @@ pub async fn send_attachment(
         MessageType, RoomMessageEventContent, VideoMessageEventContent,
     };
 
-    // In matrix-sdk 0.18, upload() takes 3 args: (mime, data, Option<RequestConfig>)
     let content = match kind.as_str() {
         "image" => {
             let uploaded = c.media().upload(&mime_val, bytes, None).await?;
             let mut img = ImageMessageEventContent::plain(file_name, uploaded.content_uri);
-            img.info = Some(Box::new(ruma::events::room::message::ImageInfo::default()));
+            img.info = Some(Box::new(ruma::events::room::ImageInfo::default()));
             RoomMessageEventContent::new(MessageType::Image(img))
         }
         "video" => {
             let uploaded = c.media().upload(&mime_val, bytes, None).await?;
             let mut v = VideoMessageEventContent::plain(file_name, uploaded.content_uri);
-            v.info = Some(Box::new(ruma::events::room::message::VideoInfo::default()));
+            v.info = Some(Box::new(ruma::events::room::VideoInfo::default()));
             RoomMessageEventContent::new(MessageType::Video(v))
         }
         "audio" => {
@@ -88,13 +92,11 @@ pub async fn download_media(
     mxc: String,
     suggested_name: String,
 ) -> AppResult<()> {
-    let mc = crate::MatrixClient::singleton_ptr();
-    let client = mc.require_client().await?;
-    let c = client.lock().await;
+    let client_arc = crate::MatrixClient::require_client().await?;
+    let c = client_arc.lock().await;
 
     let uri = parse_mxc(&mxc)?;
 
-    // In matrix-sdk 0.18, MediaRequestParameters has `source` (not `uri`).
     use matrix_sdk::media::{MediaRequestParameters, MediaFormat};
     use matrix_sdk::ruma::events::room::MediaSource;
     let request_params = MediaRequestParameters {
@@ -130,20 +132,22 @@ pub async fn download_media(
     }
     std::fs::write(&path, &bytes)?;
 
-    // Surface back to QML through a queued signal.
-    let qptr = QPointer::from(crate::MatrixClient::singleton_ptr());
+    // Surface back to QML through a queued callback.
+    let qptr = crate::MatrixClient::singleton_ptr();
     let p = path.to_string_lossy().to_string();
     let rid = room_id.clone();
     let mxc_url = mxc.clone();
-    crate::Backend::get().runtime().spawn(async move {
-        if let Some(this) = qptr.as_ref() {
-            this.file_downloaded(
+    let cb = qmetaobject::queued_callback(move |_: ()| {
+        if let Some(this) = qptr.as_pinned() {
+            this.borrow_mut().emit_file_downloaded(
                 QString::from(rid.as_str()),
                 QString::from(mxc_url.as_str()),
                 QString::from(p.as_str()),
             );
         }
-    }).await.ok();
+    });
+    cb(());
+
     Ok(())
 }
 

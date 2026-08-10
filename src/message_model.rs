@@ -41,6 +41,14 @@ pub struct MessageModel {
     event_appended: qt_signal!(event_id: QString),
 }
 
+/// Helper to extract a URL string from a MediaSource enum.
+fn media_source_url(source: &matrix_sdk::ruma::events::room::MediaSource) -> Option<&str> {
+    match source {
+        matrix_sdk::ruma::events::room::MediaSource::Plain(uri) => Some(uri.as_str()),
+        matrix_sdk::ruma::events::room::MediaSource::Encrypted(_) => None,
+    }
+}
+
 impl MessageModel {
     pub fn count(&self) -> i64 {
         self.entries.borrow().len() as i64
@@ -72,28 +80,35 @@ impl MessageModel {
         let result = room.messages(options).await?;
 
         // result.chunk contains TimelineEvent items.
-        // In 0.18+, TimelineEvent wraps a Raw<AnySyncTimelineEvent> (note:
-        // Sync, not the old AnyTimelineEvent). We must deserialize the
-        // raw event ourselves.
+        // In 0.18+, TimelineEvent has .kind (TimelineEventKind) instead of .event.
         let mut taken: Vec<_> = result.chunk.into_iter().take(50).collect();
         // Reverse for chronological order (backward query returns newest first).
         taken.reverse();
 
         for timeline_event in taken {
-            // Deserialize the raw event.
-            // In ruma 0.16 / matrix-sdk 0.18, the event is a
-            // Raw<AnySyncTimelineEvent>. We deserialize it as
-            // AnySyncMessageLikeEvent for message content extraction.
+            // In matrix-sdk 0.18, TimelineEvent has .kind field of type
+            // TimelineEventKind which wraps the raw event.
+            // We need to deserialize the raw event from the kind.
             use matrix_sdk::ruma::events::AnySyncTimelineEvent;
-            let any_event: AnySyncTimelineEvent = match timeline_event.event.deserialize() {
-                Ok(e) => e,
-                Err(_) => continue,
+            let any_event: AnySyncTimelineEvent = match timeline_event.kind {
+                matrix_sdk::room::timeline::TimelineEventKind::MessageLike { event, .. } => {
+                    match event.deserialize() {
+                        Ok(e) => e,
+                        Err(_) => continue,
+                    }
+                }
+                matrix_sdk::room::timeline::TimelineEventKind::State { event, .. } => {
+                    match event.deserialize() {
+                        Ok(e) => e,
+                        Err(_) => continue,
+                    }
+                }
             };
 
             // Extract common fields from the deserialized event.
             let event_id_str = any_event.event_id().to_string();
             let sender_str = any_event.sender().to_string();
-            let ts_val = any_event.origin_server_ts().0 as i64;
+            let ts_val = u64::from(any_event.origin_server_ts().0) as i64;
             let is_own = any_event.sender() == me;
 
             let mut entry = MessageEntry {
@@ -133,29 +148,40 @@ impl MessageModel {
                                 }
                                 MessageType::Image(t) => {
                                     entry.kind = QString::from("image");
-                                    entry.mxc_url = QString::from(t.source.url().map(|u| u.as_str()).unwrap_or(""));
+                                    entry.mxc_url = QString::from(media_source_url(&t.source).unwrap_or(""));
                                     entry.body = QString::from(t.body.as_str());
                                     entry.file_name = QString::from(t.body.as_str());
-                                    entry.mime_type = QString::from(t.info.mimetype.as_deref().unwrap_or("image/*"));
+                                    entry.mime_type = QString::from(
+                                        t.info.as_ref().and_then(|i| i.mimetype.as_deref()).unwrap_or("image/*")
+                                    );
                                 }
                                 MessageType::Video(t) => {
                                     entry.kind = QString::from("video");
-                                    entry.mxc_url = QString::from(t.source.url().map(|u| u.as_str()).unwrap_or(""));
+                                    entry.mxc_url = QString::from(media_source_url(&t.source).unwrap_or(""));
                                     entry.file_name = QString::from(t.body.as_str());
-                                    entry.mime_type = QString::from(t.info.mimetype.as_deref().unwrap_or("video/*"));
+                                    entry.mime_type = QString::from(
+                                        t.info.as_ref().and_then(|i| i.mimetype.as_deref()).unwrap_or("video/*")
+                                    );
                                 }
                                 MessageType::File(t) => {
                                     entry.kind = QString::from("file");
-                                    entry.mxc_url = QString::from(t.source.url().map(|u| u.as_str()).unwrap_or(""));
+                                    entry.mxc_url = QString::from(media_source_url(&t.source).unwrap_or(""));
                                     entry.file_name = QString::from(t.body.as_str());
-                                    entry.mime_type = QString::from(t.info.mimetype.as_deref().unwrap_or("application/octet-stream"));
-                                    entry.file_size = t.info.size.map(|s| s as i64).unwrap_or(0);
+                                    entry.mime_type = QString::from(
+                                        t.info.as_ref().and_then(|i| i.mimetype.as_deref()).unwrap_or("application/octet-stream")
+                                    );
+                                    entry.file_size = t.info.as_ref()
+                                        .and_then(|i| i.size)
+                                        .map(|s| u64::from(s) as i64)
+                                        .unwrap_or(0);
                                 }
                                 MessageType::Audio(t) => {
                                     entry.kind = QString::from("audio");
-                                    entry.mxc_url = QString::from(t.source.url().map(|u| u.as_str()).unwrap_or(""));
+                                    entry.mxc_url = QString::from(media_source_url(&t.source).unwrap_or(""));
                                     entry.file_name = QString::from(t.body.as_str());
-                                    entry.mime_type = QString::from(t.info.mimetype.as_deref().unwrap_or("audio/*"));
+                                    entry.mime_type = QString::from(
+                                        t.info.as_ref().and_then(|i| i.mimetype.as_deref()).unwrap_or("audio/*")
+                                    );
                                 }
                                 _ => continue,
                             }
@@ -174,15 +200,16 @@ impl MessageModel {
         }
 
         // Apply on the Qt thread via a queued callback.
-        let qptr = QPointer::from(self);
+        let qptr = QPointer::from(&*self);
         let rid_clone = room_id.clone();
         let cb = qmetaobject::queued_callback(move |entries: Vec<MessageEntry>| {
-            if let Some(this) = qptr.as_ref() {
-                this.begin_reset_model();
-                *this.entries.borrow_mut() = entries;
-                this.end_reset_model();
-                this.count_changed();
-                this.history_loaded(QString::from(rid_clone.as_str()));
+            if let Some(this) = qptr.as_pinned() {
+                let mut model = this.borrow_mut();
+                model.begin_reset_model();
+                *model.entries.borrow_mut() = entries;
+                model.end_reset_model();
+                model.count_changed();
+                model.history_loaded(QString::from(rid_clone.as_str()));
             }
         });
         cb(messages);
@@ -204,6 +231,6 @@ impl qmetaobject::QAbstractListModel for MessageModel {
         entries[i].to_qvariant(role)
     }
     fn role_names(&self) -> std::collections::HashMap<i32, QByteArray> {
-        MessageEntry::role_names()
+        MessageEntry::names()
     }
 }

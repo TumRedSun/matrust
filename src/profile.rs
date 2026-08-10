@@ -6,11 +6,11 @@ use qmetaobject::*;
 pub struct ProfileManager {
     base: qt_base_class!(trait QObject),
 
-    display_name: qt_property!(QString; NOTIFY display_name_changed READ display_name),
-    avatar_url: qt_property!(QString; NOTIFY avatar_url_changed READ avatar_url),
-    user_id: qt_property!(QString; NOTIFY user_id_changed READ user_id),
-    presence: qt_property!(QString; NOTIFY presence_changed READ presence),
-    status_message: qt_property!(QString; NOTIFY status_message_changed READ status_message),
+    display_name: qt_property!(QString; NOTIFY display_name_changed),
+    avatar_url: qt_property!(QString; NOTIFY avatar_url_changed),
+    user_id: qt_property!(QString; NOTIFY user_id_changed),
+    presence: qt_property!(QString; NOTIFY presence_changed),
+    status_message: qt_property!(QString; NOTIFY status_message_changed),
 
     display_name_changed: qt_signal!(),
     avatar_url_changed: qt_signal!(),
@@ -43,30 +43,33 @@ impl ProfileManager {
     /// Pull the latest profile from the server. Called when the user opens
     /// the profile page.
     pub fn refresh(&self) {
-        let qptr = QPointer::from(self);
-        crate::Backend::get().runtime().spawn(async move {
-            let mc = crate::MatrixClient::singleton_ptr();
-            let client = mc.require_client().await?;
-            let uid = client.user_id().ok_or(crate::errors::AppError::NotLoggedIn)?.to_owned();
+        let qptr = QPointer::from(&*self);
+        let rt = crate::Backend::get().as_ref()
+            .expect("Backend not initialized").runtime().clone();
+        rt.spawn(async move {
+            let client_arc = crate::MatrixClient::require_client().await?;
+            let c = client_arc.lock().await;
+            let uid = c.user_id().ok_or(crate::errors::AppError::NotLoggedIn)?.to_owned();
 
             // In matrix-sdk 0.18: get_profile() was renamed to fetch_user_profile().
-            let profile = client.account().fetch_user_profile().await?;
+            let profile = c.account().fetch_user_profile().await?;
 
-            if let Some(this) = qptr.as_ref() {
-                this.display_name = QString::from(profile.displayname.as_deref().unwrap_or("").to_string().as_str());
-                this.display_name_changed();
+            if let Some(this) = qptr.as_pinned() {
+                let mut pm = this.borrow_mut();
+                pm.display_name = QString::from(profile.displayname.as_deref().unwrap_or("").to_string().as_str());
+                pm.display_name_changed();
 
-                this.avatar_url = QString::from(
+                pm.avatar_url = QString::from(
                     profile
                         .avatar_url
                         .map(|u| u.to_string())
                         .unwrap_or_default()
                         .as_str(),
                 );
-                this.avatar_url_changed();
+                pm.avatar_url_changed();
 
-                this.user_id = QString::from(uid.as_str());
-                this.user_id_changed();
+                pm.user_id = QString::from(uid.as_str());
+                pm.user_id_changed();
             }
             crate::errors::AppResult::Ok(())
         });
@@ -83,11 +86,13 @@ impl ProfileManager {
     pub fn set_presence(&self, presence: QString, status_msg: QString) {
         let p = presence.to_string();
         let s = status_msg.to_string();
-        let qptr = QPointer::from(self);
-        crate::Backend::get().runtime().spawn(async move {
-            let mc = crate::MatrixClient::singleton_ptr();
-            let client = mc.require_client().await?;
-            let user_id = client.user_id().ok_or(crate::errors::AppError::NotLoggedIn)?.to_owned();
+        let qptr = QPointer::from(&*self);
+        let rt = crate::Backend::get().as_ref()
+            .expect("Backend not initialized").runtime().clone();
+        rt.spawn(async move {
+            let client_arc = crate::MatrixClient::require_client().await?;
+            let c = client_arc.lock().await;
+            let user_id = c.user_id().ok_or(crate::errors::AppError::NotLoggedIn)?.to_owned();
 
             let presence_enum = match p.as_str() {
                 "online" => matrix_sdk::ruma::presence::PresenceState::Online,
@@ -102,13 +107,14 @@ impl ProfileManager {
             request.status_msg = if s.is_empty() { None } else { Some(s.as_str().to_owned()) };
             // In matrix-sdk 0.18+, client.send() takes only the request
             // (no timeout parameter). Returns a builder that implements IntoFuture.
-            client.send(request).await?;
+            c.send(request).await?;
 
-            if let Some(this) = qptr.as_ref() {
-                this.presence = QString::from(p.as_str());
-                this.presence_changed();
-                this.status_message = QString::from(s.as_str());
-                this.status_message_changed();
+            if let Some(this) = qptr.as_pinned() {
+                let mut pm = this.borrow_mut();
+                pm.presence = QString::from(p.as_str());
+                pm.presence_changed();
+                pm.status_message = QString::from(s.as_str());
+                pm.status_message_changed();
             }
             crate::errors::AppResult::Ok(())
         });

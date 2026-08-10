@@ -400,7 +400,7 @@ macro_rules! int_accessors {
             pub fn $name(&self) -> i32 { self.state.borrow().$name }
             pub fn [<set_ $name>](&self, v: i32) {
                 self.state.borrow_mut().$name = v;
-                self.$sig;
+                self.$sig();
                 self.save_to_disk();
             }
         }
@@ -448,7 +448,7 @@ macro_rules! bool_accessors {
             pub fn $name(&self) -> bool { self.state.borrow().$name }
             pub fn [<set_ $name>](&self, v: bool) {
                 self.state.borrow_mut().$name = v;
-                self.$sig;
+                self.$sig();
                 self.save_to_disk();
             }
         }
@@ -474,7 +474,7 @@ impl Theme {
         INIT.call_once(|| unsafe {
             let t = Theme::default();
             t.load_from_disk();
-            INSTANCE = Some(QPointer::from(t));
+            INSTANCE = Some(QPointer::from(&t));
         });
         unsafe { INSTANCE.clone().unwrap() }
     }

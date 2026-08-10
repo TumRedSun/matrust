@@ -91,14 +91,15 @@ impl RoomModel {
         // callback. qmetaobject's `queued_callback` returns a function we
         // can invoke from any thread; the closure it returns runs on the Qt
         // thread, which is required for begin/end_reset_model.
-        let qptr = QPointer::from(self);
+        let qptr = QPointer::from(&*self);
         let cb = qmetaobject::queued_callback(move |entries: Vec<RoomEntry>| {
-            if let Some(this) = qptr.as_ref() {
-                this.begin_reset_model();
-                *this.entries.borrow_mut() = entries;
-                this.end_reset_model();
-                this.count_changed();
-                this.rows_changed();
+            if let Some(this) = qptr.as_pinned() {
+                let mut model = this.borrow_mut();
+                model.begin_reset_model();
+                *model.entries.borrow_mut() = entries;
+                model.end_reset_model();
+                model.count_changed();
+                model.rows_changed();
             }
         });
         cb(new_entries);
@@ -125,6 +126,6 @@ impl qmetaobject::QAbstractListModel for RoomModel {
         entries[i].to_qvariant(role)
     }
     fn role_names(&self) -> std::collections::HashMap<i32, QByteArray> {
-        RoomEntry::role_names()
+        RoomEntry::names()
     }
 }

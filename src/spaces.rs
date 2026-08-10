@@ -97,7 +97,11 @@ impl SpaceModel {
                 let mut stream = std::pin::pin!(parent_stream);
                 while let Some(parent_result) = stream.next().await {
                     if let Ok(parent_space) = parent_result {
-                        let parent_id = parent_space.room_id().to_string();
+                        // In matrix-sdk 0.18, ParentSpace is an enum.
+                        let parent_id = match &parent_space {
+                            matrix_sdk::ParentSpace::Space(room) => room.room_id().to_string(),
+                            matrix_sdk::ParentSpace::Unknown(id) => id.to_string(),
+                        };
                         if space_ids.contains(&parent_id) {
                             matching_parents.push(parent_id);
                         }
@@ -165,14 +169,15 @@ impl SpaceModel {
             ka.cmp(&kb).then_with(|| a.name.to_string().cmp(&b.name.to_string()))
         });
 
-        let qptr = QPointer::from(self);
+        let qptr = QPointer::from(&*self);
         let cb = qmetaobject::queued_callback(move |entries: Vec<SpaceEntry>| {
-            if let Some(this) = qptr.as_ref() {
-                this.begin_reset_model();
-                *this.entries.borrow_mut() = entries;
-                this.end_reset_model();
-                this.count_changed();
-                this.tree_changed();
+            if let Some(this) = qptr.as_pinned() {
+                let mut model = this.borrow_mut();
+                model.begin_reset_model();
+                *model.entries.borrow_mut() = entries;
+                model.end_reset_model();
+                model.count_changed();
+                model.tree_changed();
             }
         });
         cb(out);
@@ -194,6 +199,6 @@ impl qmetaobject::QAbstractListModel for SpaceModel {
         entries[i].to_qvariant(role)
     }
     fn role_names(&self) -> std::collections::HashMap<i32, QByteArray> {
-        SpaceEntry::role_names()
+        SpaceEntry::names()
     }
 }

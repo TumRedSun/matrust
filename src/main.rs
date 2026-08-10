@@ -68,7 +68,7 @@ impl Backend {
             );
             let mut b = Backend::default();
             b.runtime = Some(rt);
-            unsafe { INSTANCE = Some(QPointer::from(b)); }
+            unsafe { INSTANCE = Some(QPointer::from(&b)); }
         });
         unsafe { INSTANCE.clone().unwrap() }
     }

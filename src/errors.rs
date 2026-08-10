@@ -28,6 +28,9 @@ pub enum AppError {
     #[error("file error: {0}")]
     File(String),
 
+    #[error("anyhow error: {0}")]
+    Anyhow(#[from] anyhow::Error),
+
     #[error("{0}")]
     Other(String),
 }
