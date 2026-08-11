@@ -5,11 +5,11 @@ import QtQuick.Layouts
 import MatrixClient
 
 Rectangle {
-    color: Theme.window_bg
+    color: Theme.windowBg
 
     ColumnLayout {
         anchors.centerIn: parent
-        spacing: Theme.spacing_lg
+        spacing: Theme.spacingLg
         width: Math.min(440, parent.width - 32)
 
         Image {
@@ -21,8 +21,8 @@ Rectangle {
         Label {
             Layout.alignment: Qt.AlignHCenter
             text: qsTr("Sign in to Matrix")
-            font.pixelSize: Theme.font_size_xl
-            color: Theme.window_fg
+            font.pixelSize: Theme.fontSizeXl
+            color: Theme.windowFg
         }
 
         TabBar {
@@ -43,17 +43,17 @@ Rectangle {
             // Password form
             ColumnLayout {
                 Layout.fillWidth: true
-                spacing: Theme.spacing_sm
+                spacing: Theme.spacingSm
 
                 TextField {
                     id: homeserverField
                     Layout.fillWidth: true
                     placeholderText: qsTr("Homeserver (https://matrix.org)")
                     text: "https://matrix.org"
-                    color: Theme.window_fg
+                    color: Theme.windowFg
                     background: Rectangle {
-                        color: Theme.sidebar_bg
-                        radius: Theme.radius_sm
+                        color: Theme.sidebarBg
+                        radius: Theme.radiusSm
                         border.color: Theme.border
                         border.width: 1
                     }
@@ -62,9 +62,9 @@ Rectangle {
                     id: usernameField
                     Layout.fillWidth: true
                     placeholderText: qsTr("Username")
-                    color: Theme.window_fg
+                    color: Theme.windowFg
                     background: Rectangle {
-                        color: Theme.sidebar_bg; radius: Theme.radius_sm
+                        color: Theme.sidebarBg; radius: Theme.radiusSm
                         border.color: Theme.border; border.width: 1
                     }
                 }
@@ -73,9 +73,9 @@ Rectangle {
                     Layout.fillWidth: true
                     placeholderText: qsTr("Password")
                     echoMode: TextInput.Password
-                    color: Theme.window_fg
+                    color: Theme.windowFg
                     background: Rectangle {
-                        color: Theme.sidebar_bg; radius: Theme.radius_sm
+                        color: Theme.sidebarBg; radius: Theme.radiusSm
                         border.color: Theme.border; border.width: 1
                     }
                 }
@@ -86,9 +86,9 @@ Rectangle {
                         text: qsTr("Force IPv6 (only AAAA records)")
                         checked: false
                         contentItem: Label {
-                            text: parent.parent.text
-                            color: Theme.window_fg
-                            leftPadding: parent.indicator.width + parent.spacing
+                            text: ipv6Box.text
+                            color: Theme.windowFg
+                            leftPadding: ipv6Box.indicator.width + ipv6Box.spacing
                         }
                     }
                     Item { Layout.fillWidth: true }
@@ -97,13 +97,13 @@ Rectangle {
                         enabled: !MatrixClient.busy
                         background: Rectangle {
                             color: parent.enabled ? Theme.accent : Theme.muted
-                            radius: Theme.radius_sm
+                            radius: Theme.radiusSm
                         }
                         contentItem: Label {
                             text: parent.text
-                            color: Theme.accent_fg
+                            color: Theme.accentFg
                         }
-                        onClicked: MatrixClient.login_with_password(
+                        onClicked: MatrixClient.loginWithPassword(
                             homeserverField.text, usernameField.text,
                             passwordField.text, ipv6Box.checked)
                     }
@@ -113,14 +113,14 @@ Rectangle {
             // Token form
             ColumnLayout {
                 Layout.fillWidth: true
-                spacing: Theme.spacing_sm
+                spacing: Theme.spacingSm
 
                 Label {
                     text: qsTr("Auto-login via stored token. Paste the same access token your other client uses — no password is sent.")
                     color: Theme.muted
                     wrapMode: Text.Wrap
                     Layout.fillWidth: true
-                    font.pixelSize: Theme.font_size_sm
+                    font.pixelSize: Theme.fontSizeSm
                 }
 
                 TextField {
@@ -128,30 +128,30 @@ Rectangle {
                     Layout.fillWidth: true
                     placeholderText: qsTr("Homeserver URL")
                     text: "https://matrix.org"
-                    color: Theme.window_fg
-                    background: Rectangle { color: Theme.sidebar_bg; radius: Theme.radius_sm; border.color: Theme.border; border.width: 1 }
+                    color: Theme.windowFg
+                    background: Rectangle { color: Theme.sidebarBg; radius: Theme.radiusSm; border.color: Theme.border; border.width: 1 }
                 }
                 TextField {
                     id: tokUser
                     Layout.fillWidth: true
                     placeholderText: qsTr("User ID (@you:server)")
-                    color: Theme.window_fg
-                    background: Rectangle { color: Theme.sidebar_bg; radius: Theme.radius_sm; border.color: Theme.border; border.width: 1 }
+                    color: Theme.windowFg
+                    background: Rectangle { color: Theme.sidebarBg; radius: Theme.radiusSm; border.color: Theme.border; border.width: 1 }
                 }
                 TextField {
                     id: tokDevice
                     Layout.fillWidth: true
                     placeholderText: qsTr("Device ID (optional)")
-                    color: Theme.window_fg
-                    background: Rectangle { color: Theme.sidebar_bg; radius: Theme.radius_sm; border.color: Theme.border; border.width: 1 }
+                    color: Theme.windowFg
+                    background: Rectangle { color: Theme.sidebarBg; radius: Theme.radiusSm; border.color: Theme.border; border.width: 1 }
                 }
                 TextField {
                     id: tokToken
                     Layout.fillWidth: true
                     placeholderText: qsTr("Access token (syt_… / MDA… etc.)")
                     echoMode: TextInput.Password
-                    color: Theme.window_fg
-                    background: Rectangle { color: Theme.sidebar_bg; radius: Theme.radius_sm; border.color: Theme.border; border.width: 1 }
+                    color: Theme.windowFg
+                    background: Rectangle { color: Theme.sidebarBg; radius: Theme.radiusSm; border.color: Theme.border; border.width: 1 }
                 }
                 RowLayout {
                     Layout.fillWidth: true
@@ -163,9 +163,9 @@ Rectangle {
                     Button {
                         text: qsTr("Sign in")
                         enabled: !MatrixClient.busy
-                        background: Rectangle { color: parent.enabled ? Theme.accent : Theme.muted; radius: Theme.radius_sm }
-                        contentItem: Label { text: parent.text; color: Theme.accent_fg }
-                        onClicked: MatrixClient.login_with_token(
+                        background: Rectangle { color: parent.enabled ? Theme.accent : Theme.muted; radius: Theme.radiusSm }
+                        contentItem: Label { text: parent.text; color: Theme.accentFg }
+                        onClicked: MatrixClient.loginWithToken(
                             tokHs.text, tokUser.text, tokDevice.text, tokToken.text, tokIpv6.checked)
                     }
                 }

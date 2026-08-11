@@ -10,6 +10,7 @@ use qmetaobject::{qrc, QPointer, QObject, QmlEngine, qt_base_class};
 use std::sync::Arc;
 use tokio::runtime::Runtime;
 
+mod singleton;
 mod matrix_client;
 mod auth;
 mod room_model;
@@ -23,6 +24,9 @@ mod errors;
 
 use crate::matrix_client::MatrixClient;
 use crate::theme::Theme;
+
+/// Module-level singleton storage for Backend.
+static BACKEND_SINGLETON: singleton::QtSingleton<QPointer<Backend>> = singleton::QtSingleton::new();
 
 // Embed the QML directory into the binary so the app is self-contained.
 qrc! {
@@ -58,24 +62,24 @@ impl Backend {
         self.runtime.as_ref().expect("runtime initialized")
     }
 
-    /// Global singleton accessor (replaces the removed qmetaobject::Singleton trait).
+    /// Global singleton accessor.
+    /// Returns the QPointer stored when the QML engine created the singleton.
     pub fn get() -> QPointer<Backend> {
-        use std::sync::OnceLock;
-        static INSTANCE: OnceLock<QPointer<Backend>> = OnceLock::new();
-        INSTANCE.get_or_init(|| {
-            let rt = Arc::new(
-                Runtime::new()
-                    .expect("failed to build Tokio runtime"),
-            );
-            let mut b = Backend::default();
-            b.runtime = Some(rt);
-            QPointer::from(&b)
-        }).clone()
+        BACKEND_SINGLETON.get_or_init(|| QPointer::default()).clone()
     }
 }
 
 impl qmetaobject::QSingletonInit for Backend {
-    fn init(&mut self) {}
+    fn init(&mut self) {
+        // Set up the Tokio runtime on the engine-created singleton.
+        if self.runtime.is_none() {
+            self.runtime = Some(Arc::new(
+                Runtime::new().expect("failed to build Tokio runtime"),
+            ));
+        }
+        // Store the QPointer for global access.
+        BACKEND_SINGLETON.set(QPointer::from(&*self));
+    }
 }
 
 fn main() {
@@ -88,11 +92,11 @@ fn main() {
 
     let mut engine = QmlEngine::new();
 
-    // Ensure the Backend (shared Tokio runtime) is initialized up-front.
-    Backend::get();
-
     // Register singletons. qmetaobject 0.2 uses qml_register_singleton_type
     // with cstr!() and no &mut engine parameter.
+    // The QML engine will create each singleton on first access and
+    // call QSingletonInit::init(), which stores the QPointer and
+    // performs any setup (e.g. starting the Tokio runtime for Backend).
     qmetaobject::qml_register_singleton_type::<Backend>(cstr!("MatrixClient"), 1, 0, cstr!("Backend"));
     qmetaobject::qml_register_singleton_type::<Theme>(cstr!("MatrixClient"), 1, 0, cstr!("Theme"));
     qmetaobject::qml_register_singleton_type::<MatrixClient>(cstr!("MatrixClient"), 1, 0, cstr!("MatrixClient"));

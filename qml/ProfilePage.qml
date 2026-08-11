@@ -6,35 +6,35 @@ import QtQuick.Dialogs
 import MatrixClient
 
 Rectangle {
-    color: Theme.window_bg
+    color: Theme.windowBg
 
     ColumnLayout {
         anchors.centerIn: parent
-        spacing: Theme.spacing_lg
+        spacing: Theme.spacingLg
         width: Math.min(560, parent.width - 32)
 
         Label {
             Layout.alignment: Qt.AlignHCenter
             text: qsTr("Your profile")
-            color: Theme.window_fg
-            font.pixelSize: Theme.font_size_xl
+            color: Theme.windowFg
+            font.pixelSize: Theme.fontSizeXl
         }
 
         // Avatar with upload button
         Rectangle {
             Layout.alignment: Qt.AlignHCenter
-            Layout.preferredWidth: Theme.avatar_size_lg * 2
-            Layout.preferredHeight: Theme.avatar_size_lg * 2
-            radius: Theme.avatar_shape === "circle" ? (Theme.avatar_size_lg * 2) / 2
-                    : (Theme.avatar_shape === "square" ? 0 : Theme.radius_lg)
+            Layout.preferredWidth: Theme.avatarSizeLg * 2
+            Layout.preferredHeight: Theme.avatarSizeLg * 2
+            radius: Theme.avatarShape === "circle" ? (Theme.avatarSizeLg * 2) / 2
+                    : (Theme.avatarShape === "square" ? 0 : Theme.radiusLg)
             color: Theme.accent
             opacity: 0.3
 
             Label {
                 anchors.centerIn: parent
-                text: MatrixClient.user_id.length > 0 ? MatrixClient.user_id.charAt(1).toUpperCase() : "?"
-                color: Theme.accent_fg
-                font.pixelSize: Theme.font_size_xl * 2
+                text: MatrixClient.userId.length > 0 ? MatrixClient.userId.charAt(1).toUpperCase() : "?"
+                color: Theme.accentFg
+                font.pixelSize: Theme.fontSizeXl * 2
                 font.bold: true
             }
 
@@ -52,42 +52,42 @@ Rectangle {
             onAccepted: {
                 var p = avatarDialog.currentFile.toString()
                 if (p.startsWith("file://")) p = p.substring(7)
-                MatrixClient.set_avatar(p)
+                MatrixClient.setAvatar(p)
             }
         }
 
         Label {
             Layout.alignment: Qt.AlignHCenter
-            text: MatrixClient.profile_manager().user_id
+            text: MatrixClient.profileManager().userId
             color: Theme.muted
-            font.pixelSize: Theme.font_size_sm
+            font.pixelSize: Theme.fontSizeSm
         }
 
         // Display name editor
         RowLayout {
             Layout.fillWidth: true
-            spacing: Theme.spacing_sm
-            Label { text: qsTr("Display name"); color: Theme.window_fg; Layout.preferredWidth: 120 }
+            spacing: Theme.spacingSm
+            Label { text: qsTr("Display name"); color: Theme.windowFg; Layout.preferredWidth: 120 }
             TextField {
                 id: dnField
                 Layout.fillWidth: true
-                text: MatrixClient.profile_manager().display_name
-                color: Theme.window_fg
-                background: Rectangle { color: Theme.sidebar_bg; radius: Theme.radius_sm; border.color: Theme.border; border.width: 1 }
+                text: MatrixClient.profileManager().displayName
+                color: Theme.windowFg
+                background: Rectangle { color: Theme.sidebarBg; radius: Theme.radiusSm; border.color: Theme.border; border.width: 1 }
             }
             Button {
                 text: qsTr("Save")
-                background: Rectangle { color: Theme.accent; radius: Theme.radius_sm }
-                contentItem: Label { text: parent.text; color: Theme.accent_fg }
-                onClicked: MatrixClient.set_display_name(dnField.text)
+                background: Rectangle { color: Theme.accent; radius: Theme.radiusSm }
+                contentItem: Label { text: parent.text; color: Theme.accentFg }
+                onClicked: MatrixClient.setDisplayName(dnField.text)
             }
         }
 
         // Presence
-        Label { text: qsTr("Presence"); color: Theme.window_fg; font.bold: true }
+        Label { text: qsTr("Presence"); color: Theme.windowFg; font.bold: true }
         RowLayout {
             Layout.fillWidth: true
-            spacing: Theme.spacing_sm
+            spacing: Theme.spacingSm
             ComboBox {
                 id: presenceBox
                 model: ["online", "unavailable", "offline"]
@@ -97,22 +97,22 @@ Rectangle {
                 id: statusField
                 Layout.fillWidth: true
                 placeholderText: qsTr("Status message (optional)")
-                color: Theme.window_fg
-                background: Rectangle { color: Theme.sidebar_bg; radius: Theme.radius_sm; border.color: Theme.border; border.width: 1 }
+                color: Theme.windowFg
+                background: Rectangle { color: Theme.sidebarBg; radius: Theme.radiusSm; border.color: Theme.border; border.width: 1 }
             }
             Button {
                 text: qsTr("Set")
-                background: Rectangle { color: Theme.accent; radius: Theme.radius_sm }
-                contentItem: Label { text: parent.text; color: Theme.accent_fg }
-                onClicked: MatrixClient.profile_manager().set_presence(presenceBox.currentText, statusField.text)
+                background: Rectangle { color: Theme.accent; radius: Theme.radiusSm }
+                contentItem: Label { text: parent.text; color: Theme.accentFg }
+                onClicked: MatrixClient.profileManager().setPresence(presenceBox.currentText, statusField.text)
             }
         }
 
         Button {
             text: qsTr("Refresh profile")
-            onClicked: MatrixClient.profile_manager().refresh()
+            onClicked: MatrixClient.profileManager().refresh()
         }
     }
 
-    Component.onCompleted: MatrixClient.profile_manager().refresh()
+    Component.onCompleted: MatrixClient.profileManager().refresh()
 }

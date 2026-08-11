@@ -5,7 +5,7 @@ import QtQuick.Layouts
 import MatrixClient
 
 Rectangle {
-    color: Theme.sidebar_bg
+    color: Theme.sidebarBg
     signal roomSelected(string roomId)
     property string activeRoomId: ""
 
@@ -15,12 +15,12 @@ Rectangle {
 
         Label {
             Layout.fillWidth: true
-            Layout.leftMargin: Theme.padding_md
-            Layout.topMargin: Theme.padding_md
-            Layout.bottomMargin: Theme.padding_sm
+            Layout.leftMargin: Theme.paddingMd
+            Layout.topMargin: Theme.paddingMd
+            Layout.bottomMargin: Theme.paddingSm
             text: qsTr("Direct messages & Rooms")
-            color: Theme.sidebar_fg
-            font.pixelSize: Theme.font_size_lg
+            color: Theme.sidebarFg
+            font.pixelSize: Theme.fontSizeLg
             font.bold: true
         }
 
@@ -30,7 +30,7 @@ Rectangle {
             clip: true
 
             ListView {
-                model: MatrixClient.room_model()
+                model: MatrixClient.roomModel()
                 spacing: 0
                 delegate: Item {
                     width: ListView.view.width
@@ -44,21 +44,21 @@ Rectangle {
 
                     RowLayout {
                         anchors.fill: parent
-                        anchors.leftMargin: Theme.padding_md
-                        anchors.rightMargin: Theme.padding_sm
-                        spacing: Theme.spacing_sm
+                        anchors.leftMargin: Theme.paddingMd
+                        anchors.rightMargin: Theme.paddingSm
+                        spacing: Theme.spacingSm
 
                         Rectangle {
-                            Layout.preferredWidth: Theme.avatar_size_md
-                            Layout.preferredHeight: Theme.avatar_size_md
-                            radius: Theme.avatar_shape === "circle" ? Theme.avatar_size_md/2 : (Theme.avatar_shape === "square" ? 0 : Theme.avatar_radius)
+                            Layout.preferredWidth: Theme.avatarSizeMd
+                            Layout.preferredHeight: Theme.avatarSizeMd
+                            radius: Theme.avatarShape === "circle" ? Theme.avatarSizeMd/2 : (Theme.avatarShape === "square" ? 0 : Theme.avatarRadius)
                             color: Theme.accent
                             opacity: 0.3
                             Label {
                                 anchors.centerIn: parent
                                 text: model.name.length > 0 ? model.name.charAt(0).toUpperCase() : "?"
-                                color: Theme.accent_fg
-                                font.pixelSize: Theme.font_size_md
+                                color: Theme.accentFg
+                                font.pixelSize: Theme.fontSizeMd
                                 font.bold: true
                             }
                         }
@@ -68,9 +68,9 @@ Rectangle {
                             Label {
                                 Layout.fillWidth: true
                                 text: model.name.length > 0 ? model.name : model.room_id
-                                color: Theme.sidebar_fg
+                                color: Theme.sidebarFg
                                 elide: Text.ElideRight
-                                font.pixelSize: Theme.font_size_sm
+                                font.pixelSize: Theme.fontSizeSm
                                 font.bold: model.has_unread
                             }
                             Label {
@@ -78,7 +78,7 @@ Rectangle {
                                 text: model.last_event
                                 color: Theme.muted
                                 elide: Text.ElideRight
-                                font.pixelSize: Theme.font_size_xs
+                                font.pixelSize: Theme.fontSizeXs
                                 visible: !model.has_unread
                             }
                         }
@@ -91,8 +91,8 @@ Rectangle {
                             Label {
                                 anchors.centerIn: parent
                                 text: model.unread_count
-                                color: Theme.accent_fg
-                                font.pixelSize: Theme.font_size_xs
+                                color: Theme.accentFg
+                                font.pixelSize: Theme.fontSizeXs
                                 font.bold: true
                             }
                         }

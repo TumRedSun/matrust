@@ -7,7 +7,7 @@ import MatrixClient
 
 Rectangle {
     id: appearanceRoot
-    color: Theme.window_bg
+    color: Theme.windowBg
 
     ScrollView {
         anchors.fill: parent
@@ -16,25 +16,25 @@ Rectangle {
         ColumnLayout {
             id: editor
             width: parent.width
-            spacing: Theme.spacing_md
+            spacing: Theme.spacingMd
 
             // ── Header & preset picker ──
             Label {
-                Layout.leftMargin: Theme.padding_lg
-                Layout.topMargin: Theme.padding_lg
+                Layout.leftMargin: Theme.paddingLg
+                Layout.topMargin: Theme.paddingLg
                 text: qsTr("Appearance")
-                color: Theme.window_fg
-                font.pixelSize: Theme.font_size_xl
+                color: Theme.windowFg
+                font.pixelSize: Theme.fontSizeXl
                 font.bold: true
             }
 
             RowLayout {
-                Layout.leftMargin: Theme.padding_lg
-                Layout.rightMargin: Theme.padding_lg
+                Layout.leftMargin: Theme.paddingLg
+                Layout.rightMargin: Theme.paddingLg
                 Layout.fillWidth: true
-                spacing: Theme.spacing_sm
+                spacing: Theme.spacingSm
 
-                Label { text: qsTr("Preset"); color: Theme.window_fg; Layout.preferredWidth: 100 }
+                Label { text: qsTr("Preset"); color: Theme.windowFg; Layout.preferredWidth: 100 }
                 ComboBox {
                     id: presetCombo
                     model: JSON.parse(Theme.availablePresets())
@@ -63,30 +63,30 @@ Rectangle {
             SectionCard {
                 title: qsTr("Colors")
                 Layout.fillWidth: true
-                Layout.leftMargin: Theme.padding_lg
-                Layout.rightMargin: Theme.padding_lg
+                Layout.leftMargin: Theme.paddingLg
+                Layout.rightMargin: Theme.paddingLg
 
                 GridLayout {
                     columns: 2
                     Layout.fillWidth: true
-                    rowSpacing: Theme.spacing_sm
-                    columnSpacing: Theme.spacing_lg
+                    rowSpacing: Theme.spacingSm
+                    columnSpacing: Theme.spacingLg
 
-                    ColorRow { label: qsTr("Window background"); bind: "window_bg" }
-                    ColorRow { label: qsTr("Window text");       bind: "window_fg" }
-                    ColorRow { label: qsTr("Sidebar background"); bind: "sidebar_bg" }
-                    ColorRow { label: qsTr("Sidebar text");      bind: "sidebar_fg" }
+                    ColorRow { label: qsTr("Window background"); bind: "windowBg" }
+                    ColorRow { label: qsTr("Window text");       bind: "windowFg" }
+                    ColorRow { label: qsTr("Sidebar background"); bind: "sidebarBg" }
+                    ColorRow { label: qsTr("Sidebar text");      bind: "sidebarFg" }
                     ColorRow { label: qsTr("Accent");            bind: "accent" }
-                    ColorRow { label: qsTr("Accent text");       bind: "accent_fg" }
+                    ColorRow { label: qsTr("Accent text");       bind: "accentFg" }
                     ColorRow { label: qsTr("Danger");            bind: "danger" }
                     ColorRow { label: qsTr("Success");           bind: "success" }
                     ColorRow { label: qsTr("Warning");           bind: "warning" }
                     ColorRow { label: qsTr("Muted");             bind: "muted" }
                     ColorRow { label: qsTr("Border");            bind: "border" }
-                    ColorRow { label: qsTr("Bubble — own bg");   bind: "bubble_bg_me" }
-                    ColorRow { label: qsTr("Bubble — own fg");   bind: "bubble_fg_me" }
-                    ColorRow { label: qsTr("Bubble — other bg"); bind: "bubble_bg_them" }
-                    ColorRow { label: qsTr("Bubble — other fg"); bind: "bubble_fg_them" }
+                    ColorRow { label: qsTr("Bubble — own bg");   bind: "bubbleBgMe" }
+                    ColorRow { label: qsTr("Bubble — own fg");   bind: "bubbleFgMe" }
+                    ColorRow { label: qsTr("Bubble — other bg"); bind: "bubbleBgThem" }
+                    ColorRow { label: qsTr("Bubble — other fg"); bind: "bubbleFgThem" }
                 }
             }
 
@@ -94,42 +94,42 @@ Rectangle {
             SectionCard {
                 title: qsTr("Typography")
                 Layout.fillWidth: true
-                Layout.leftMargin: Theme.padding_lg
-                Layout.rightMargin: Theme.padding_lg
+                Layout.leftMargin: Theme.paddingLg
+                Layout.rightMargin: Theme.paddingLg
 
                 GridLayout {
                     columns: 2
                     Layout.fillWidth: true
-                    rowSpacing: Theme.spacing_sm
-                    columnSpacing: Theme.spacing_lg
+                    rowSpacing: Theme.spacingSm
+                    columnSpacing: Theme.spacingLg
 
                     RowLayout {
                         Layout.fillWidth: true
-                        Label { text: qsTr("Font family"); color: Theme.window_fg; Layout.preferredWidth: 140 }
+                        Label { text: qsTr("Font family"); color: Theme.windowFg; Layout.preferredWidth: 140 }
                         TextField {
                             Layout.fillWidth: true
-                            text: Theme.font_family
-                            color: Theme.window_fg
-                            onEditingFinished: Theme.font_family = text
-                            background: Rectangle { color: Theme.sidebar_bg; radius: Theme.radius_sm; border.color: Theme.border; border.width: 1 }
+                            text: Theme.fontFamily
+                            color: Theme.windowFg
+                            onEditingFinished: Theme.fontFamily = text
+                            background: Rectangle { color: Theme.sidebarBg; radius: Theme.radiusSm; border.color: Theme.border; border.width: 1 }
                         }
                     }
                     RowLayout {
                         Layout.fillWidth: true
-                        Label { text: qsTr("Monospace family"); color: Theme.window_fg; Layout.preferredWidth: 140 }
+                        Label { text: qsTr("Monospace family"); color: Theme.windowFg; Layout.preferredWidth: 140 }
                         TextField {
                             Layout.fillWidth: true
-                            text: Theme.font_family_mono
-                            color: Theme.window_fg
-                            onEditingFinished: Theme.font_family_mono = text
-                            background: Rectangle { color: Theme.sidebar_bg; radius: Theme.radius_sm; border.color: Theme.border; border.width: 1 }
+                            text: Theme.fontFamilyMono
+                            color: Theme.windowFg
+                            onEditingFinished: Theme.fontFamilyMono = text
+                            background: Rectangle { color: Theme.sidebarBg; radius: Theme.radiusSm; border.color: Theme.border; border.width: 1 }
                         }
                     }
-                    IntRow { label: qsTr("Size XS"); bind: "font_size_xs"; minValue: 6; maxValue: 32 }
-                    IntRow { label: qsTr("Size SM"); bind: "font_size_sm"; minValue: 6; maxValue: 32 }
-                    IntRow { label: qsTr("Size MD"); bind: "font_size_md"; minValue: 6; maxValue: 32 }
-                    IntRow { label: qsTr("Size LG"); bind: "font_size_lg"; minValue: 6; maxValue: 32 }
-                    IntRow { label: qsTr("Size XL"); bind: "font_size_xl"; minValue: 6; maxValue: 64 }
+                    IntRow { label: qsTr("Size XS"); bind: "fontSizeXs"; minValue: 6; maxValue: 32 }
+                    IntRow { label: qsTr("Size SM"); bind: "fontSizeSm"; minValue: 6; maxValue: 32 }
+                    IntRow { label: qsTr("Size MD"); bind: "fontSizeMd"; minValue: 6; maxValue: 32 }
+                    IntRow { label: qsTr("Size LG"); bind: "fontSizeLg"; minValue: 6; maxValue: 32 }
+                    IntRow { label: qsTr("Size XL"); bind: "fontSizeXl"; minValue: 6; maxValue: 64 }
                 }
             }
 
@@ -137,26 +137,26 @@ Rectangle {
             SectionCard {
                 title: qsTr("Geometry")
                 Layout.fillWidth: true
-                Layout.leftMargin: Theme.padding_lg
-                Layout.rightMargin: Theme.padding_lg
+                Layout.leftMargin: Theme.paddingLg
+                Layout.rightMargin: Theme.paddingLg
 
                 GridLayout {
                     columns: 2
                     Layout.fillWidth: true
-                    rowSpacing: Theme.spacing_sm
-                    columnSpacing: Theme.spacing_lg
+                    rowSpacing: Theme.spacingSm
+                    columnSpacing: Theme.spacingLg
 
-                    IntRow { label: qsTr("Radius SM"); bind: "radius_sm"; minValue: 0; maxValue: 64 }
-                    IntRow { label: qsTr("Radius MD"); bind: "radius_md"; minValue: 0; maxValue: 64 }
-                    IntRow { label: qsTr("Radius LG"); bind: "radius_lg"; minValue: 0; maxValue: 64 }
-                    IntRow { label: qsTr("Padding XS"); bind: "padding_xs"; minValue: 0; maxValue: 64 }
-                    IntRow { label: qsTr("Padding SM"); bind: "padding_sm"; minValue: 0; maxValue: 64 }
-                    IntRow { label: qsTr("Padding MD"); bind: "padding_md"; minValue: 0; maxValue: 64 }
-                    IntRow { label: qsTr("Padding LG"); bind: "padding_lg"; minValue: 0; maxValue: 64 }
-                    IntRow { label: qsTr("Spacing XS"); bind: "spacing_xs"; minValue: 0; maxValue: 64 }
-                    IntRow { label: qsTr("Spacing SM"); bind: "spacing_sm"; minValue: 0; maxValue: 64 }
-                    IntRow { label: qsTr("Spacing MD"); bind: "spacing_md"; minValue: 0; maxValue: 64 }
-                    IntRow { label: qsTr("Spacing LG"); bind: "spacing_lg"; minValue: 0; maxValue: 64 }
+                    IntRow { label: qsTr("Radius SM"); bind: "radiusSm"; minValue: 0; maxValue: 64 }
+                    IntRow { label: qsTr("Radius MD"); bind: "radiusMd"; minValue: 0; maxValue: 64 }
+                    IntRow { label: qsTr("Radius LG"); bind: "radiusLg"; minValue: 0; maxValue: 64 }
+                    IntRow { label: qsTr("Padding XS"); bind: "paddingXs"; minValue: 0; maxValue: 64 }
+                    IntRow { label: qsTr("Padding SM"); bind: "paddingSm"; minValue: 0; maxValue: 64 }
+                    IntRow { label: qsTr("Padding MD"); bind: "paddingMd"; minValue: 0; maxValue: 64 }
+                    IntRow { label: qsTr("Padding LG"); bind: "paddingLg"; minValue: 0; maxValue: 64 }
+                    IntRow { label: qsTr("Spacing XS"); bind: "spacingXs"; minValue: 0; maxValue: 64 }
+                    IntRow { label: qsTr("Spacing SM"); bind: "spacingSm"; minValue: 0; maxValue: 64 }
+                    IntRow { label: qsTr("Spacing MD"); bind: "spacingMd"; minValue: 0; maxValue: 64 }
+                    IntRow { label: qsTr("Spacing LG"); bind: "spacingLg"; minValue: 0; maxValue: 64 }
                 }
             }
 
@@ -164,32 +164,32 @@ Rectangle {
             SectionCard {
                 title: qsTr("Message bubbles")
                 Layout.fillWidth: true
-                Layout.leftMargin: Theme.padding_lg
-                Layout.rightMargin: Theme.padding_lg
+                Layout.leftMargin: Theme.paddingLg
+                Layout.rightMargin: Theme.paddingLg
 
                 GridLayout {
                     columns: 2
                     Layout.fillWidth: true
-                    rowSpacing: Theme.spacing_sm
-                    columnSpacing: Theme.spacing_lg
+                    rowSpacing: Theme.spacingSm
+                    columnSpacing: Theme.spacingLg
 
-                    IntRow { label: qsTr("Bubble radius");     bind: "bubble_radius";       minValue: 0; maxValue: 64 }
-                    IntRow { label: qsTr("Bubble padding H");  bind: "bubble_padding_h";    minValue: 0; maxValue: 64 }
-                    IntRow { label: qsTr("Bubble padding V");  bind: "bubble_padding_v";    minValue: 0; maxValue: 64 }
-                    IntRow { label: qsTr("Bubble max width %"); bind: "bubble_max_width_pct"; minValue: 30; maxValue: 100 }
+                    IntRow { label: qsTr("Bubble radius");     bind: "bubbleRadius";       minValue: 0; maxValue: 64 }
+                    IntRow { label: qsTr("Bubble padding H");  bind: "bubblePaddingH";    minValue: 0; maxValue: 64 }
+                    IntRow { label: qsTr("Bubble padding V");  bind: "bubblePaddingV";    minValue: 0; maxValue: 64 }
+                    IntRow { label: qsTr("Bubble max width %"); bind: "bubbleMaxWidthPct"; minValue: 30; maxValue: 100 }
 
                     RowLayout {
                         Layout.fillWidth: true
                         Switch {
                             id: tailSwitch
                             text: qsTr("Bubble tail")
-                            checked: Theme.bubble_tail
+                            checked: Theme.bubbleTail
                             contentItem: Label {
                                 text: tailSwitch.text
-                                color: Theme.window_fg
+                                color: Theme.windowFg
                                 leftPadding: tailSwitch.indicator.width + tailSwitch.spacing
                             }
-                            onToggled: Theme.bubble_tail = checked
+                            onToggled: Theme.bubbleTail = checked
                         }
                     }
                 }
@@ -199,28 +199,28 @@ Rectangle {
             SectionCard {
                 title: qsTr("Avatars")
                 Layout.fillWidth: true
-                Layout.leftMargin: Theme.padding_lg
-                Layout.rightMargin: Theme.padding_lg
+                Layout.leftMargin: Theme.paddingLg
+                Layout.rightMargin: Theme.paddingLg
 
                 GridLayout {
                     columns: 2
                     Layout.fillWidth: true
-                    rowSpacing: Theme.spacing_sm
-                    columnSpacing: Theme.spacing_lg
+                    rowSpacing: Theme.spacingSm
+                    columnSpacing: Theme.spacingLg
 
-                    IntRow { label: qsTr("Size SM");        bind: "avatar_size_sm"; minValue: 16; maxValue: 96 }
-                    IntRow { label: qsTr("Size MD");        bind: "avatar_size_md"; minValue: 16; maxValue: 128 }
-                    IntRow { label: qsTr("Size LG");        bind: "avatar_size_lg"; minValue: 16; maxValue: 256 }
-                    IntRow { label: qsTr("Corner radius");  bind: "avatar_radius";  minValue: 0; maxValue: 128 }
+                    IntRow { label: qsTr("Size SM");        bind: "avatarSizeSm"; minValue: 16; maxValue: 96 }
+                    IntRow { label: qsTr("Size MD");        bind: "avatarSizeMd"; minValue: 16; maxValue: 128 }
+                    IntRow { label: qsTr("Size LG");        bind: "avatarSizeLg"; minValue: 16; maxValue: 256 }
+                    IntRow { label: qsTr("Corner radius");  bind: "avatarRadius";  minValue: 0; maxValue: 128 }
 
                     RowLayout {
                         Layout.fillWidth: true
-                        Label { text: qsTr("Shape"); color: Theme.window_fg; Layout.preferredWidth: 140 }
+                        Label { text: qsTr("Shape"); color: Theme.windowFg; Layout.preferredWidth: 140 }
                         ComboBox {
                             id: shapeCombo
                             model: ["circle", "rounded", "square"]
-                            currentIndex: model.indexOf(Theme.avatar_shape)
-                            onActivated: Theme.avatar_shape = currentText
+                            currentIndex: model.indexOf(Theme.avatarShape)
+                            onActivated: Theme.avatarShape = currentText
                         }
                     }
                 }
@@ -230,24 +230,24 @@ Rectangle {
             SectionCard {
                 title: qsTr("Behavior")
                 Layout.fillWidth: true
-                Layout.leftMargin: Theme.padding_lg
-                Layout.rightMargin: Theme.padding_lg
+                Layout.leftMargin: Theme.paddingLg
+                Layout.rightMargin: Theme.paddingLg
 
                 GridLayout {
                     columns: 2
                     Layout.fillWidth: true
-                    rowSpacing: Theme.spacing_sm
-                    columnSpacing: Theme.spacing_lg
+                    rowSpacing: Theme.spacingSm
+                    columnSpacing: Theme.spacingLg
 
-                    Switch { id: compactSwitch; text: qsTr("Compact mode"); checked: Theme.compact_mode; onToggled: Theme.compact_mode = checked
-                        contentItem: Label { text: compactSwitch.text; color: Theme.window_fg; leftPadding: compactSwitch.indicator.width + compactSwitch.spacing } }
-                    Switch { id: tsSwitch; text: qsTr("Show timestamps"); checked: Theme.show_timestamps; onToggled: Theme.show_timestamps = checked
-                        contentItem: Label { text: tsSwitch.text; color: Theme.window_fg; leftPadding: tsSwitch.indicator.width + tsSwitch.spacing } }
-                    Switch { id: avSwitch; text: qsTr("Show avatars"); checked: Theme.show_avatars; onToggled: Theme.show_avatars = checked
-                        contentItem: Label { text: avSwitch.text; color: Theme.window_fg; leftPadding: avSwitch.indicator.width + avSwitch.spacing } }
-                    Switch { id: animSwitch; text: qsTr("Animate bubbles"); checked: Theme.animate_bubbles; onToggled: Theme.animate_bubbles = checked
-                        contentItem: Label { text: animSwitch.text; color: Theme.window_fg; leftPadding: animSwitch.indicator.width + animSwitch.spacing } }
-                    IntRow { label: qsTr("Animation duration (ms)"); bind: "animation_duration_ms"; minValue: 0; maxValue: 1000 }
+                    Switch { id: compactSwitch; text: qsTr("Compact mode"); checked: Theme.compactMode; onToggled: Theme.compactMode = checked
+                        contentItem: Label { text: compactSwitch.text; color: Theme.windowFg; leftPadding: compactSwitch.indicator.width + compactSwitch.spacing } }
+                    Switch { id: tsSwitch; text: qsTr("Show timestamps"); checked: Theme.showTimestamps; onToggled: Theme.showTimestamps = checked
+                        contentItem: Label { text: tsSwitch.text; color: Theme.windowFg; leftPadding: tsSwitch.indicator.width + tsSwitch.spacing } }
+                    Switch { id: avSwitch; text: qsTr("Show avatars"); checked: Theme.showAvatars; onToggled: Theme.showAvatars = checked
+                        contentItem: Label { text: avSwitch.text; color: Theme.windowFg; leftPadding: avSwitch.indicator.width + avSwitch.spacing } }
+                    Switch { id: animSwitch; text: qsTr("Animate bubbles"); checked: Theme.animateBubbles; onToggled: Theme.animateBubbles = checked
+                        contentItem: Label { text: animSwitch.text; color: Theme.windowFg; leftPadding: animSwitch.indicator.width + animSwitch.spacing } }
+                    IntRow { label: qsTr("Animation duration (ms)"); bind: "animationDurationMs"; minValue: 0; maxValue: 1000 }
                 }
             }
 
@@ -255,16 +255,16 @@ Rectangle {
             SectionCard {
                 title: qsTr("Scrollbars")
                 Layout.fillWidth: true
-                Layout.leftMargin: Theme.padding_lg
-                Layout.rightMargin: Theme.padding_lg
+                Layout.leftMargin: Theme.paddingLg
+                Layout.rightMargin: Theme.paddingLg
 
                 GridLayout {
                     columns: 2
                     Layout.fillWidth: true
-                    rowSpacing: Theme.spacing_sm
-                    columnSpacing: Theme.spacing_lg
-                    IntRow { label: qsTr("Width");  bind: "scrollbar_size";   minValue: 2; maxValue: 32 }
-                    IntRow { label: qsTr("Radius"); bind: "scrollbar_radius"; minValue: 0; maxValue: 16 }
+                    rowSpacing: Theme.spacingSm
+                    columnSpacing: Theme.spacingLg
+                    IntRow { label: qsTr("Width");  bind: "scrollbarSize";   minValue: 2; maxValue: 32 }
+                    IntRow { label: qsTr("Radius"); bind: "scrollbarRadius"; minValue: 0; maxValue: 16 }
                 }
             }
 
@@ -278,20 +278,20 @@ Rectangle {
     component SectionCard: Rectangle {
         id: card
         property string title: ""
-        color: Theme.sidebar_bg
-        radius: Theme.radius_md
-        implicitHeight: sectionInner.implicitHeight + Theme.padding_md * 2
+        color: Theme.sidebarBg
+        radius: Theme.radiusMd
+        implicitHeight: sectionInner.implicitHeight + Theme.paddingMd * 2
 
         ColumnLayout {
             id: sectionInner
             anchors.fill: parent
-            anchors.margins: Theme.padding_md
-            spacing: Theme.spacing_sm
+            anchors.margins: Theme.paddingMd
+            spacing: Theme.spacingSm
 
             Label {
                 text: card.title
                 color: Theme.accent
-                font.pixelSize: Theme.font_size_md
+                font.pixelSize: Theme.fontSizeMd
                 font.bold: true
             }
         }
@@ -302,9 +302,9 @@ Rectangle {
         property string label
         property string bind
         Layout.fillWidth: true
-        spacing: Theme.spacing_sm
+        spacing: Theme.spacingSm
 
-        Label { text: label; color: Theme.window_fg; Layout.preferredWidth: 200 }
+        Label { text: label; color: Theme.windowFg; Layout.preferredWidth: 200 }
 
         Rectangle {
             Layout.preferredWidth: 32
@@ -318,7 +318,7 @@ Rectangle {
             id: hexField
             Layout.fillWidth: true
             text: Theme[bind]
-            color: Theme.window_fg
+            color: Theme.windowFg
             onEditingFinished: {
                 var v = text.trim()
                 if (/^#[0-9a-fA-F]{3,8}$/.test(v)) {
@@ -327,7 +327,7 @@ Rectangle {
                     text = Theme[bind]
                 }
             }
-            background: Rectangle { color: Theme.sidebar_bg; radius: Theme.radius_sm; border.color: Theme.border; border.width: 1 }
+            background: Rectangle { color: Theme.sidebarBg; radius: Theme.radiusSm; border.color: Theme.border; border.width: 1 }
         }
 
         Button {
@@ -347,9 +347,9 @@ Rectangle {
         property int minValue: 0
         property int maxValue: 100
         Layout.fillWidth: true
-        spacing: Theme.spacing_sm
+        spacing: Theme.spacingSm
 
-        Label { text: label; color: Theme.window_fg; Layout.preferredWidth: 200 }
+        Label { text: label; color: Theme.windowFg; Layout.preferredWidth: 200 }
 
         Button {
             text: "−"
@@ -359,7 +359,7 @@ Rectangle {
         Label {
             Layout.preferredWidth: 60
             text: Theme[bind]
-            color: Theme.window_fg
+            color: Theme.windowFg
             horizontalAlignment: Qt.AlignHCenter
         }
         Button {
@@ -398,8 +398,8 @@ Rectangle {
                 text: exportDialog.text
                 readOnly: true
                 wrapMode: TextArea.Wrap
-                color: Theme.window_fg
-                background: Rectangle { color: Theme.sidebar_bg; radius: Theme.radius_sm }
+                color: Theme.windowFg
+                background: Rectangle { color: Theme.sidebarBg; radius: Theme.radiusSm }
             }
         }
         standardButtons: Dialog.Close
@@ -414,8 +414,8 @@ Rectangle {
         contentItem: TextArea {
             id: importField
             wrapMode: TextArea.Wrap
-            color: Theme.window_fg
-            background: Rectangle { color: Theme.sidebar_bg; radius: Theme.radius_sm }
+            color: Theme.windowFg
+            background: Rectangle { color: Theme.sidebarBg; radius: Theme.radiusSm }
         }
         standardButtons: Dialog.Ok | Dialog.Cancel
         onAccepted: {

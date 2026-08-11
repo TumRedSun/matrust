@@ -26,24 +26,24 @@ Item {
     RowLayout {
         id: layout
         anchors.fill: parent
-        spacing: Theme.spacing_sm
+        spacing: Theme.spacingSm
         layoutDirection: root.isOwn ? Qt.RightToLeft : Qt.LeftToRight
 
         // Avatar (optional)
         Rectangle {
-            visible: Theme.show_avatars && !root.isOwn
-            Layout.preferredWidth: Theme.avatar_size_sm
-            Layout.preferredHeight: Theme.avatar_size_sm
+            visible: Theme.showAvatars && !root.isOwn
+            Layout.preferredWidth: Theme.avatarSizeSm
+            Layout.preferredHeight: Theme.avatarSizeSm
             Layout.alignment: Qt.AlignTop
-            radius: Theme.avatar_shape === "circle" ? Theme.avatar_size_sm/2
-                    : (Theme.avatar_shape === "square" ? 0 : Theme.avatar_radius)
+            radius: Theme.avatarShape === "circle" ? Theme.avatarSizeSm/2
+                    : (Theme.avatarShape === "square" ? 0 : Theme.avatarRadius)
             color: Theme.accent
             opacity: 0.3
             Label {
                 anchors.centerIn: parent
                 text: root.sender.length > 0 ? root.sender.charAt(0).toUpperCase() : "?"
-                color: Theme.accent_fg
-                font.pixelSize: Theme.font_size_sm
+                color: Theme.accentFg
+                font.pixelSize: Theme.fontSizeSm
                 font.bold: true
             }
         }
@@ -51,13 +51,13 @@ Item {
         // Bubble
         Rectangle {
             Layout.fillWidth: true
-            Layout.maximumWidth: parent.width * (Theme.bubble_max_width_pct / 100.0)
+            Layout.maximumWidth: parent.width * (Theme.bubbleMaxWidthPct / 100.0)
             Layout.alignment: root.isOwn ? Qt.AlignRight : Qt.AlignLeft
-            color: root.isOwn ? Theme.bubble_bg_me : Theme.bubble_bg_them
-            radius: Theme.bubble_radius
+            color: root.isOwn ? Theme.bubbleBgMe : Theme.bubbleBgThem
+            radius: Theme.bubbleRadius
             // Tail (subtle asymmetric corner)
             Rectangle {
-                visible: Theme.bubble_tail
+                visible: Theme.bubbleTail
                 anchors.bottom: parent.bottom
                 anchors.left: root.isOwn ? undefined : parent.left
                 anchors.right: root.isOwn ? parent.right : undefined
@@ -77,13 +77,13 @@ Item {
                 // Sender label (for non-own messages only)
                 Label {
                     Layout.fillWidth: true
-                    Layout.leftMargin: Theme.bubble_padding_h
-                    Layout.rightMargin: Theme.bubble_padding_h
-                    Layout.topMargin: Theme.bubble_padding_v
+                    Layout.leftMargin: Theme.bubblePaddingH
+                    Layout.rightMargin: Theme.bubblePaddingH
+                    Layout.topMargin: Theme.bubblePaddingV
                     visible: !root.isOwn && root.sender.length > 0
                     text: root.sender
                     color: Theme.accent
-                    font.pixelSize: Theme.font_size_xs
+                    font.pixelSize: Theme.fontSizeXs
                     font.bold: true
                     elide: Text.ElideRight
                 }
@@ -91,11 +91,11 @@ Item {
                 // Content area
                 Loader {
                     Layout.fillWidth: true
-                    Layout.leftMargin: Theme.bubble_padding_h
-                    Layout.rightMargin: Theme.bubble_padding_h
+                    Layout.leftMargin: Theme.bubblePaddingH
+                    Layout.rightMargin: Theme.bubblePaddingH
                     Layout.topMargin: root.isOwn || root.sender.length === 0
-                                      ? Theme.bubble_padding_v : 2
-                    Layout.bottomMargin: Theme.bubble_padding_v
+                                      ? Theme.bubblePaddingV : 2
+                    Layout.bottomMargin: Theme.bubblePaddingV
                     sourceComponent: {
                         switch (root.kind) {
                             case "image": return imageComp
@@ -123,15 +123,15 @@ Item {
                 wrapMode: Text.Wrap
                 readOnly: true
                 selectByMouse: true
-                color: root.isOwn ? Theme.bubble_fg_me : Theme.bubble_fg_them
-                font.pixelSize: Theme.font_size_md
+                color: root.isOwn ? Theme.bubbleFgMe : Theme.bubbleFgThem
+                font.pixelSize: Theme.fontSizeMd
                 onLinkActivated: Qt.openUrlExternally(link)
             }
             Label {
-                visible: Theme.show_timestamps && root.ts > 0
+                visible: Theme.showTimestamps && root.ts > 0
                 text: formatTime(root.ts)
-                color: root.isOwn ? Theme.bubble_fg_me : Theme.muted
-                font.pixelSize: Theme.font_size_xs
+                color: root.isOwn ? Theme.bubbleFgMe : Theme.muted
+                font.pixelSize: Theme.fontSizeXs
                 Layout.alignment: Qt.AlignRight
             }
         }
@@ -155,10 +155,10 @@ Item {
             }
             Label {
                 Layout.alignment: Qt.AlignRight
-                visible: Theme.show_timestamps && root.ts > 0
+                visible: Theme.showTimestamps && root.ts > 0
                 text: formatTime(root.ts)
-                color: root.isOwn ? Theme.bubble_fg_me : Theme.muted
-                font.pixelSize: Theme.font_size_xs
+                color: root.isOwn ? Theme.bubbleFgMe : Theme.muted
+                font.pixelSize: Theme.fontSizeXs
             }
         }
     }
@@ -169,20 +169,20 @@ Item {
             spacing: 4
             RowLayout {
                 Layout.fillWidth: true
-                spacing: Theme.spacing_sm
-                Label { text: "🎬"; font.pixelSize: Theme.font_size_lg }
+                spacing: Theme.spacingSm
+                Label { text: "🎬"; font.pixelSize: Theme.fontSizeLg }
                 ColumnLayout {
                     Layout.fillWidth: true
                     Label {
                         text: root.fileName
-                        color: root.isOwn ? Theme.bubble_fg_me : Theme.bubble_fg_them
+                        color: root.isOwn ? Theme.bubbleFgMe : Theme.bubbleFgThem
                         elide: Text.ElideRight
                         Layout.fillWidth: true
                     }
                     Label {
                         text: qsTr("Video · click to download")
                         color: Theme.muted
-                        font.pixelSize: Theme.font_size_xs
+                        font.pixelSize: Theme.fontSizeXs
                     }
                 }
                 Button {
@@ -191,8 +191,8 @@ Item {
                 }
             }
             Label {
-                visible: Theme.show_timestamps && root.ts > 0
-                text: formatTime(root.ts); color: Theme.muted; font.pixelSize: Theme.font_size_xs
+                visible: Theme.showTimestamps && root.ts > 0
+                text: formatTime(root.ts); color: Theme.muted; font.pixelSize: Theme.fontSizeXs
                 Layout.alignment: Qt.AlignRight
             }
         }
@@ -201,11 +201,11 @@ Item {
     Component {
         id: audioComp
         RowLayout {
-            spacing: Theme.spacing_sm
-            Label { text: "🎵"; font.pixelSize: Theme.font_size_lg }
+            spacing: Theme.spacingSm
+            Label { text: "🎵"; font.pixelSize: Theme.fontSizeLg }
             Label {
                 text: root.fileName + " · " + formatBytes(root.fileSize)
-                color: root.isOwn ? Theme.bubble_fg_me : Theme.bubble_fg_them
+                color: root.isOwn ? Theme.bubbleFgMe : Theme.bubbleFgThem
                 Layout.fillWidth: true; elide: Text.ElideRight
             }
             Button { text: qsTr("↓"); onClicked: MatrixClient.downloadMedia(root.roomId, root.mxcUrl, root.fileName) }
@@ -215,20 +215,20 @@ Item {
     Component {
         id: fileComp
         RowLayout {
-            spacing: Theme.spacing_sm
-            Label { text: "📄"; font.pixelSize: Theme.font_size_lg }
+            spacing: Theme.spacingSm
+            Label { text: "📄"; font.pixelSize: Theme.fontSizeLg }
             ColumnLayout {
                 Layout.fillWidth: true
                 Label {
                     text: root.fileName
-                    color: root.isOwn ? Theme.bubble_fg_me : Theme.bubble_fg_them
+                    color: root.isOwn ? Theme.bubbleFgMe : Theme.bubbleFgThem
                     elide: Text.ElideRight
                     Layout.fillWidth: true
                 }
                 Label {
                     text: formatBytes(root.fileSize) + (root.mimeType.length > 0 ? " · " + root.mimeType : "")
                     color: Theme.muted
-                    font.pixelSize: Theme.font_size_xs
+                    font.pixelSize: Theme.fontSizeXs
                 }
             }
             Button {
@@ -243,7 +243,7 @@ Item {
         Label {
             text: root.body
             color: Theme.muted
-            font.pixelSize: Theme.font_size_xs
+            font.pixelSize: Theme.fontSizeXs
             font.italic: true
             Layout.alignment: Qt.AlignHCenter
         }

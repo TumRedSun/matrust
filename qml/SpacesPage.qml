@@ -6,7 +6,7 @@ import MatrixClient
 
 Rectangle {
     id: spacesRoot
-    color: Theme.window_bg
+    color: Theme.windowBg
     signal roomSelected(string roomId)
     property string activeRoomId: ""
 
@@ -18,7 +18,7 @@ Rectangle {
         Rectangle {
             Layout.fillHeight: true
             Layout.preferredWidth: 280
-            color: Theme.sidebar_bg
+            color: Theme.sidebarBg
 
             ColumnLayout {
                 anchors.fill: parent
@@ -26,13 +26,13 @@ Rectangle {
 
                 Label {
                     Layout.fillWidth: true
-                    Layout.leftMargin: Theme.padding_md
-                    Layout.rightMargin: Theme.padding_md
-                    Layout.topMargin: Theme.padding_md
-                    Layout.bottomMargin: Theme.padding_sm
+                    Layout.leftMargin: Theme.paddingMd
+                    Layout.rightMargin: Theme.paddingMd
+                    Layout.topMargin: Theme.paddingMd
+                    Layout.bottomMargin: Theme.paddingSm
                     text: qsTr("Spaces & Rooms")
-                    color: Theme.sidebar_fg
-                    font.pixelSize: Theme.font_size_lg
+                    color: Theme.sidebarFg
+                    font.pixelSize: Theme.fontSizeLg
                     font.bold: true
                 }
 
@@ -43,7 +43,7 @@ Rectangle {
 
                     ListView {
                         id: tree
-                        model: MatrixClient.space_model()
+                        model: MatrixClient.spaceModel()
                         spacing: 0
 
                         delegate: Item {
@@ -59,23 +59,23 @@ Rectangle {
 
                             RowLayout {
                                 anchors.fill: parent
-                                anchors.leftMargin: indent + Theme.padding_md
-                                anchors.rightMargin: Theme.padding_sm
-                                spacing: Theme.spacing_sm
+                                anchors.leftMargin: indent + Theme.paddingMd
+                                anchors.rightMargin: Theme.paddingSm
+                                spacing: Theme.spacingSm
 
                                 Rectangle {
-                                    Layout.preferredWidth: Theme.avatar_size_sm
-                                    Layout.preferredHeight: Theme.avatar_size_sm
-                                    radius: model.kind === "space" ? Theme.radius_sm
-                                            : (Theme.avatar_shape === "circle" ? Theme.avatar_size_sm/2
-                                            : (Theme.avatar_shape === "square" ? 0 : Theme.radius_sm))
+                                    Layout.preferredWidth: Theme.avatarSizeSm
+                                    Layout.preferredHeight: Theme.avatarSizeSm
+                                    radius: model.kind === "space" ? Theme.radiusSm
+                                            : (Theme.avatarShape === "circle" ? Theme.avatarSizeSm/2
+                                            : (Theme.avatarShape === "square" ? 0 : Theme.radiusSm))
                                     color: Theme.accent
                                     opacity: 0.3
                                     Label {
                                         anchors.centerIn: parent
                                         text: model.name.length > 0 ? model.name.charAt(0).toUpperCase() : "#"
-                                        color: Theme.accent_fg
-                                        font.pixelSize: Theme.font_size_sm
+                                        color: Theme.accentFg
+                                        font.pixelSize: Theme.fontSizeSm
                                         font.bold: true
                                     }
                                 }
@@ -86,8 +86,8 @@ Rectangle {
                                     Label {
                                         Layout.fillWidth: true
                                         text: model.name.length > 0 ? model.name : model.id
-                                        color: Theme.sidebar_fg
-                                        font.pixelSize: Theme.font_size_sm
+                                        color: Theme.sidebarFg
+                                        font.pixelSize: Theme.fontSizeSm
                                         elide: Text.ElideRight
                                         font.bold: model.kind === "space"
                                     }
@@ -95,13 +95,13 @@ Rectangle {
                                         text: model.kind === "space" ? qsTr("space")
                                               : (model.is_direct ? qsTr("direct") : qsTr("room"))
                                         color: Theme.muted
-                                        font.pixelSize: Theme.font_size_xs
+                                        font.pixelSize: Theme.fontSizeXs
                                         visible: model.unread === 0
                                     }
                                     Label {
                                         text: qsTr("%1 unread").arg(model.unread)
                                         color: model.highlight > 0 ? Theme.danger : Theme.accent
-                                        font.pixelSize: Theme.font_size_xs
+                                        font.pixelSize: Theme.fontSizeXs
                                         visible: model.unread > 0
                                         font.bold: true
                                     }
@@ -130,22 +130,22 @@ Rectangle {
 
             ColumnLayout {
                 anchors.centerIn: parent
-                spacing: Theme.spacing_md
+                spacing: Theme.spacingMd
 
                 Label {
                     Layout.alignment: Qt.AlignHCenter
                     text: qsTr("Pick a room from the left to start chatting")
                     color: Theme.muted
-                    font.pixelSize: Theme.font_size_lg
+                    font.pixelSize: Theme.fontSizeLg
                 }
                 Button {
                     Layout.alignment: Qt.AlignHCenter
                     text: qsTr("Refresh")
-                    onClicked: MatrixClient.refresh_rooms()
+                    onClicked: MatrixClient.refreshRooms()
                 }
             }
         }
     }
 
-    Component.onCompleted: MatrixClient.refresh_rooms()
+    Component.onCompleted: MatrixClient.refreshRooms()
 }

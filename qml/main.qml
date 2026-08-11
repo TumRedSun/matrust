@@ -12,13 +12,13 @@ ApplicationWindow {
     height: 800
     minimumWidth: 720
     minimumHeight: 480
-    title: MatrixClient.user_id.length > 0
-           ? qsTr("Matrix — %1").arg(MatrixClient.user_id)
+    title: MatrixClient.userId.length > 0
+           ? qsTr("Matrix — %1").arg(MatrixClient.userId)
            : qsTr("Matrix Client")
-    color: Theme.window_bg
+    color: Theme.windowBg
 
-    font.family: Theme.font_family
-    font.pixelSize: Theme.font_size_md
+    font.family: Theme.fontFamily
+    font.pixelSize: Theme.fontSizeMd
 
     StackView {
         id: stack
@@ -34,7 +34,7 @@ ApplicationWindow {
 
         Rectangle {
             id: mainViewRoot
-            color: Theme.window_bg
+            color: Theme.windowBg
             property int currentPage: 0
             property string activeRoomId: ""
 
@@ -46,7 +46,7 @@ ApplicationWindow {
                 Rectangle {
                     Layout.fillHeight: true
                     Layout.preferredWidth: 72
-                    color: Theme.sidebar_bg
+                    color: Theme.sidebarBg
 
                     ColumnLayout {
                         anchors.fill: parent
@@ -98,13 +98,13 @@ ApplicationWindow {
                                     Label {
                                         Layout.alignment: Qt.AlignHCenter
                                         text: modelData.icon
-                                        font.pixelSize: Theme.font_size_lg
+                                        font.pixelSize: Theme.fontSizeLg
                                     }
                                     Label {
                                         Layout.alignment: Qt.AlignHCenter
                                         text: modelData.label
-                                        font.pixelSize: Theme.font_size_xs
-                                        color: parent.parent.active ? Theme.accent : Theme.sidebar_fg
+                                        font.pixelSize: Theme.fontSizeXs
+                                        color: parent.parent.active ? Theme.accent : Theme.sidebarFg
                                     }
                                 }
                                 MouseArea {
@@ -113,7 +113,7 @@ ApplicationWindow {
                                     onClicked: {
                                         mainViewRoot.currentPage = modelData.page
                                         if (modelData.page === 2) {
-                                            MatrixClient.profile_manager().refresh()
+                                            MatrixClient.profileManager().refresh()
                                         }
                                     }
                                 }
@@ -129,8 +129,8 @@ ApplicationWindow {
                             ColumnLayout {
                                 anchors.centerIn: parent
                                 spacing: 2
-                                Label { Layout.alignment: Qt.AlignHCenter; text: "🚪"; font.pixelSize: Theme.font_size_lg }
-                                Label { Layout.alignment: Qt.AlignHCenter; text: qsTr("Logout"); font.pixelSize: Theme.font_size_xs; color: Theme.sidebar_fg }
+                                Label { Layout.alignment: Qt.AlignHCenter; text: "🚪"; font.pixelSize: Theme.fontSizeLg }
+                                Label { Layout.alignment: Qt.AlignHCenter; text: qsTr("Logout"); font.pixelSize: Theme.fontSizeXs; color: Theme.sidebarFg }
                             }
                             MouseArea {
                                 anchors.fill: parent
@@ -150,7 +150,7 @@ ApplicationWindow {
                     SpacesPage {
                         onRoomSelected: function(roomId) {
                             mainViewRoot.activeRoomId = roomId
-                            MatrixClient.load_room_messages(roomId)
+                            MatrixClient.loadRoomMessages(roomId)
                             mainViewRoot.currentPage = 1
                         }
                     }
@@ -171,7 +171,7 @@ ApplicationWindow {
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottomMargin: 24
         color: text.length > 0 ? Theme.accent : "transparent"
-        radius: Theme.radius_md
+        radius: Theme.radiusMd
         visible: text.length > 0
         opacity: 0.95
         width: toastLabel.implicitWidth + 32
@@ -180,32 +180,33 @@ ApplicationWindow {
             id: toastLabel
             anchors.centerIn: parent
             text: toast.text
-            color: Theme.accent_fg
-            font.pixelSize: Theme.font_size_sm
+            color: Theme.accentFg
+            font.pixelSize: Theme.fontSizeSm
         }
         Timer { id: toastTimer; interval: 3000; onTriggered: toast.text = "" }
     }
 
     Connections {
         target: MatrixClient
-        function onLast_error_changed() {
-            if (MatrixClient.last_error.length > 0) {
-                toast.text = MatrixClient.last_error;
+        function onLastErrorChanged() {
+            var err = MatrixClient.lastError;
+            if (err && err.length > 0) {
+                toast.text = err;
                 toastTimer.start();
             }
         }
-        function onLogged_in(userId) {
+        function onLoggedIn(userId) {
             stack.replace(null, mainView);
         }
-        function onLogged_out() {
+        function onLoggedOut() {
             stack.replace(null, loginPage);
         }
-        function onFile_downloaded(roomId, mxc, localPath) {
+        function onFileDownloaded(roomId, mxc, localPath) {
             root.showToast(qsTr("Downloaded to %1").arg(localPath));
         }
     }
 
-    Component.onCompleted: MatrixClient.auto_login()
+    Component.onCompleted: MatrixClient.autoLogin()
 
     function showToast(text) {
         toast.text = text;

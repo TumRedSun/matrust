@@ -5,7 +5,7 @@ import QtQuick.Layouts
 import MatrixClient
 
 Rectangle {
-    color: Theme.window_bg
+    color: Theme.windowBg
 
     ScrollView {
         anchors.fill: parent
@@ -13,54 +13,54 @@ Rectangle {
 
         ColumnLayout {
             width: parent.width
-            spacing: Theme.spacing_md
+            spacing: Theme.spacingMd
 
             Label {
-                Layout.leftMargin: Theme.padding_lg
-                Layout.topMargin: Theme.padding_lg
+                Layout.leftMargin: Theme.paddingLg
+                Layout.topMargin: Theme.paddingLg
                 text: qsTr("Connection & Behavior")
-                color: Theme.window_fg
-                font.pixelSize: Theme.font_size_xl
+                color: Theme.windowFg
+                font.pixelSize: Theme.fontSizeXl
                 font.bold: true
             }
 
             // Account info
             Rectangle {
                 Layout.fillWidth: true
-                Layout.leftMargin: Theme.padding_lg
-                Layout.rightMargin: Theme.padding_lg
-                color: Theme.sidebar_bg
-                radius: Theme.radius_md
-                implicitHeight: accountCol.implicitHeight + Theme.padding_md * 2
+                Layout.leftMargin: Theme.paddingLg
+                Layout.rightMargin: Theme.paddingLg
+                color: Theme.sidebarBg
+                radius: Theme.radiusMd
+                implicitHeight: accountCol.implicitHeight + Theme.paddingMd * 2
 
                 ColumnLayout {
                     id: accountCol
                     anchors.fill: parent
-                    anchors.margins: Theme.padding_md
+                    anchors.margins: Theme.paddingMd
                     spacing: 4
 
-                    Label { text: qsTr("Account"); color: Theme.accent; font.pixelSize: Theme.font_size_md; font.bold: true }
-                    Label { text: qsTr("User ID: %1").arg(MatrixClient.user_id); color: Theme.window_fg }
-                    Label { text: qsTr("Status: %1").arg(MatrixClient.ready ? qsTr("Ready") : qsTr("Not connected")); color: Theme.window_fg }
+                    Label { text: qsTr("Account"); color: Theme.accent; font.pixelSize: Theme.fontSizeMd; font.bold: true }
+                    Label { text: qsTr("User ID: %1").arg(MatrixClient.userId); color: Theme.windowFg }
+                    Label { text: qsTr("Status: %1").arg(MatrixClient.ready ? qsTr("Ready") : qsTr("Not connected")); color: Theme.windowFg }
                 }
             }
 
             // Network
             Rectangle {
                 Layout.fillWidth: true
-                Layout.leftMargin: Theme.padding_lg
-                Layout.rightMargin: Theme.padding_lg
-                color: Theme.sidebar_bg
-                radius: Theme.radius_md
-                implicitHeight: netCol.implicitHeight + Theme.padding_md * 2
+                Layout.leftMargin: Theme.paddingLg
+                Layout.rightMargin: Theme.paddingLg
+                color: Theme.sidebarBg
+                radius: Theme.radiusMd
+                implicitHeight: netCol.implicitHeight + Theme.paddingMd * 2
 
                 ColumnLayout {
                     id: netCol
                     anchors.fill: parent
-                    anchors.margins: Theme.padding_md
-                    spacing: Theme.spacing_sm
+                    anchors.margins: Theme.paddingMd
+                    spacing: Theme.spacingSm
 
-                    Label { text: qsTr("Network"); color: Theme.accent; font.pixelSize: Theme.font_size_md; font.bold: true }
+                    Label { text: qsTr("Network"); color: Theme.accent; font.pixelSize: Theme.fontSizeMd; font.bold: true }
 
                     RowLayout {
                         Layout.fillWidth: true
@@ -70,15 +70,15 @@ Rectangle {
                             checked: false
                             contentItem: Label {
                                 text: ipv6Switch.text
-                                color: Theme.window_fg
+                                color: Theme.windowFg
                                 leftPadding: ipv6Switch.indicator.width + ipv6Switch.spacing
                             }
-                            onToggled: MatrixClient.set_force_ipv6(checked)
+                            onToggled: MatrixClient.setForceIpv6(checked)
                         }
                         Label {
                             text: qsTr("(only AAAA records are resolved; IPv4 endpoints are refused)")
                             color: Theme.muted
-                            font.pixelSize: Theme.font_size_xs
+                            font.pixelSize: Theme.fontSizeXs
                             Layout.fillWidth: true
                             wrapMode: Text.Wrap
                         }
@@ -89,23 +89,23 @@ Rectangle {
             // Diagnostics
             Rectangle {
                 Layout.fillWidth: true
-                Layout.leftMargin: Theme.padding_lg
-                Layout.rightMargin: Theme.padding_lg
-                color: Theme.sidebar_bg
-                radius: Theme.radius_md
-                implicitHeight: diagCol.implicitHeight + Theme.padding_md * 2
+                Layout.leftMargin: Theme.paddingLg
+                Layout.rightMargin: Theme.paddingLg
+                color: Theme.sidebarBg
+                radius: Theme.radiusMd
+                implicitHeight: diagCol.implicitHeight + Theme.paddingMd * 2
 
                 ColumnLayout {
                     id: diagCol
                     anchors.fill: parent
-                    anchors.margins: Theme.padding_md
-                    spacing: Theme.spacing_sm
+                    anchors.margins: Theme.paddingMd
+                    spacing: Theme.spacingSm
 
-                    Label { text: qsTr("Diagnostics"); color: Theme.accent; font.pixelSize: Theme.font_size_md; font.bold: true }
+                    Label { text: qsTr("Diagnostics"); color: Theme.accent; font.pixelSize: Theme.fontSizeMd; font.bold: true }
 
                     Label {
-                        text: qsTr("Last error: %1").arg(MatrixClient.last_error.length === 0 ? "—" : MatrixClient.last_error)
-                        color: MatrixClient.last_error.length === 0 ? Theme.window_fg : Theme.danger
+                        text: qsTr("Last error: %1").arg(MatrixClient.lastError.length === 0 ? "—" : MatrixClient.lastError)
+                        color: MatrixClient.lastError.length === 0 ? Theme.windowFg : Theme.danger
                         wrapMode: Text.Wrap
                         Layout.fillWidth: true
                     }
@@ -114,13 +114,13 @@ Rectangle {
                         Layout.fillWidth: true
                         Button {
                             text: qsTr("Refresh rooms & spaces")
-                            onClicked: MatrixClient.refresh_rooms()
+                            onClicked: MatrixClient.refreshRooms()
                         }
                         Item { Layout.fillWidth: true }
                         Button {
                             text: qsTr("Logout")
-                            background: Rectangle { color: Theme.danger; radius: Theme.radius_sm }
-                            contentItem: Label { text: parent.text; color: Theme.accent_fg }
+                            background: Rectangle { color: Theme.danger; radius: Theme.radiusSm }
+                            contentItem: Label { text: parent.text; color: Theme.accentFg }
                             onClicked: MatrixClient.logout()
                         }
                     }

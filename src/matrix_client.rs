@@ -23,6 +23,10 @@ use crate::message_model::{MessageModel, MessageEntry};
 use crate::spaces::{SpaceModel, SpaceEntry};
 use crate::profile::ProfileManager;
 
+/// Module-level singleton storage for MatrixClient.
+static MATRIXCLIENT_SINGLETON: crate::singleton::QtSingleton<QPointer<MatrixClient>> =
+    crate::singleton::QtSingleton::new();
+
 /// Server-side configuration that survives restarts.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Default)]
 pub struct SessionStore {
@@ -402,12 +406,7 @@ impl MatrixClient {
     }
 
     pub fn get() -> QPointer<MatrixClient> {
-        use std::sync::OnceLock;
-        static INSTANCE: OnceLock<QPointer<MatrixClient>> = OnceLock::new();
-        INSTANCE.get_or_init(|| {
-            let mc = MatrixClient::default();
-            QPointer::from(&mc)
-        }).clone()
+        MATRIXCLIENT_SINGLETON.get_or_init(|| QPointer::default()).clone()
     }
 
     /// Get the client Arc from the singleton, for use in async contexts
@@ -606,5 +605,8 @@ impl MatrixClient {
 }
 
 impl qmetaobject::QSingletonInit for MatrixClient {
-    fn init(&mut self) {}
+    fn init(&mut self) {
+        // Store the QPointer for global access from async contexts.
+        MATRIXCLIENT_SINGLETON.set(QPointer::from(&*self));
+    }
 }

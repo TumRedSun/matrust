@@ -13,6 +13,10 @@ use std::path::PathBuf;
 
 use paste::paste;
 
+/// Module-level singleton storage for Theme.
+static THEME_SINGLETON: crate::singleton::QtSingleton<QPointer<Theme>> =
+    crate::singleton::QtSingleton::new();
+
 #[derive(QObject, Default)]
 #[allow(dead_code)]
 pub struct Theme {
@@ -219,7 +223,6 @@ fn path() -> PathBuf {
 impl Theme {
     fn file_path() -> PathBuf { path() }
 
-    #[allow(dead_code)]
     pub fn load_from_disk(&self) {
         if let Ok(json) = std::fs::read_to_string(Self::file_path()) {
             if let Ok(s) = serde_json::from_str::<ThemeState>(&json) {
@@ -468,21 +471,20 @@ bool_accessors! {
 }
 
 impl Theme {
-    /// Global singleton accessor (replaces the removed qmetaobject::Singleton trait).
+    /// Global singleton accessor.
     #[allow(dead_code)]
     pub fn get() -> QPointer<Theme> {
-        use std::sync::OnceLock;
-        static INSTANCE: OnceLock<QPointer<Theme>> = OnceLock::new();
-        INSTANCE.get_or_init(|| {
-            let t = Theme::default();
-            t.load_from_disk();
-            QPointer::from(&t)
-        }).clone()
+        THEME_SINGLETON.get_or_init(|| QPointer::default()).clone()
     }
 }
 
 impl qmetaobject::QSingletonInit for Theme {
-    fn init(&mut self) {}
+    fn init(&mut self) {
+        // Load persisted theme from disk on first creation.
+        self.load_from_disk();
+        // Store the QPointer for global access.
+        THEME_SINGLETON.set(QPointer::from(&*self));
+    }
 }
 
 /// Built-in color presets. Each returns a fully-populated `ThemeState`.
