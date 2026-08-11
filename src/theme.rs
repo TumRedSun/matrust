@@ -90,6 +90,9 @@ pub struct Theme {
     animateBubbles: qt_property!(bool; NOTIFY animateBubblesChanged READ animate_bubbles WRITE set_animate_bubbles),
     animationDurationMs: qt_property!(i32; NOTIFY animationDurationMsChanged READ animation_duration_ms WRITE set_animation_duration_ms),
 
+    // --- Language ---
+    language: qt_property!(QString; NOTIFY languageChanged READ language WRITE set_language),
+
     // --- Signals ---
     presetChanged: qt_signal!(),
     windowBgChanged: qt_signal!(),
@@ -142,6 +145,7 @@ pub struct Theme {
     showAvatarsChanged: qt_signal!(),
     animateBubblesChanged: qt_signal!(),
     animationDurationMsChanged: qt_signal!(),
+    languageChanged: qt_signal!(),
 
     /// Fired after `apply_preset` or `load_from_disk` finishes; QML uses it
     /// to rebind bound expressions.
@@ -154,6 +158,7 @@ pub struct Theme {
     exportJson: qt_method!(fn(&self) -> QString),
     importJson: qt_method!(fn(&self, json: QString) -> bool),
     availablePresets: qt_method!(fn(&self) -> QString),
+    availableLanguages: qt_method!(fn(&self) -> QString),
 
     state: RefCell<ThemeState>,
 }
@@ -211,6 +216,7 @@ struct ThemeState {
     show_avatars: bool,
     animate_bubbles: bool,
     animation_duration_ms: i32,
+    language: String,
 }
 
 fn path() -> PathBuf {
@@ -221,6 +227,7 @@ fn path() -> PathBuf {
     base.join("theme.json")
 }
 
+#[allow(non_snake_case)]
 impl Theme {
     fn file_path() -> PathBuf { path() }
 
@@ -341,6 +348,13 @@ impl Theme {
         )
     }
 
+    // --- List of available languages, for QML dropdowns ---
+    pub fn availableLanguages(&self) -> QString {
+        QString::from(
+            r#"["en","ru","de","fr","es","pt","ja","zh","ko","it","pl","uk"]"#,
+        )
+    }
+
     // --- Getters / setters ---
     // All getters/setters are implemented manually below because the state
     // is held in a `RefCell` and qmetaobject's `qt_property!` macro expects
@@ -443,6 +457,7 @@ int_accessors! {
     scrollbar_size, scrollbarSizeChanged;
     scrollbar_radius, scrollbarRadiusChanged;
     animation_duration_ms, animationDurationMsChanged;
+    language, languageChanged;
 }
 
 // Bool accessors
@@ -692,5 +707,6 @@ fn base_layout() -> ThemeState {
         show_avatars: true,
         animate_bubbles: true,
         animation_duration_ms: 180,
+        language: "en".into(),
     }
 }

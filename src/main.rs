@@ -33,6 +33,7 @@ mod spaces;
 mod profile;
 mod theme;
 mod avatar_cache;
+mod member_model;
 mod errors;
 
 use crate::matrix_client::MatrixClient;
@@ -54,6 +55,8 @@ qrc! {
         "ProfilePage.qml",
         "SettingsPage.qml",
         "AppearancePage.qml",
+        "SettingsOverlay.qml",
+        "MemberListPanel.qml",
     },
     "assets" as "/assets" {
         "logo.svg",
@@ -119,6 +122,7 @@ fn main() {
     qmetaobject::qml_register_singleton_type::<message_model::MessageModel>(cstr!("MatrixClient"), 1, 0, cstr!("MessageModel"));
     qmetaobject::qml_register_singleton_type::<spaces::SpaceModel>(cstr!("MatrixClient"), 1, 0, cstr!("SpaceModel"));
     qmetaobject::qml_register_singleton_type::<profile::ProfileManager>(cstr!("MatrixClient"), 1, 0, cstr!("ProfileManager"));
+    qmetaobject::qml_register_singleton_type::<member_model::MemberModel>(cstr!("MatrixClient"), 1, 0, cstr!("MemberModel"));
 
     engine.load_file("qrc:/qml/main.qml".into());
     engine.exec();

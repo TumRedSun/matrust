@@ -21,6 +21,7 @@ use crate::errors::AppResult;
 use crate::room_model::{RoomModel, RoomEntry};
 use crate::message_model::{MessageModel, MessageEntry};
 use crate::spaces::{SpaceModel, SpaceEntry};
+use crate::member_model::{MemberModel, MemberEntry};
 
 /// Module-level singleton storage for MatrixClient.
 static MATRIXCLIENT_SINGLETON: crate::singleton::QtSingleton<QPointer<MatrixClient>> =
@@ -76,6 +77,7 @@ pub struct MatrixClient {
     loginWithPassword: qt_method!(fn(&self, homeserver: QString, username: QString, password: QString, force_ipv6: bool)),
     loginWithToken: qt_method!(fn(&self, homeserver: QString, user_id: QString, device_id: QString, access_token: QString, force_ipv6: bool)),
     logout: qt_method!(fn(&self)),
+    deleteAccount: qt_method!(fn(&self)),
     sendText: qt_method!(fn(&self, room_id: QString, body: QString)),
     sendFile: qt_method!(fn(&self, room_id: QString, local_path: QString, mime: QString, kind: QString)),
     downloadMedia: qt_method!(fn(&self, room_id: QString, mxc: QString, suggested_name: QString)),
@@ -83,6 +85,7 @@ pub struct MatrixClient {
     setAvatar: qt_method!(fn(&self, local_path: QString)),
     setForceIpv6: qt_method!(fn(&self, on: bool)),
     loadRoomMessages: qt_method!(fn(&self, room_id: QString)),
+    loadRoomMembers: qt_method!(fn(&self, room_id: QString)),
     refreshRooms: qt_method!(fn(&self)),
 }
 
@@ -368,6 +371,59 @@ impl MatrixClient {
             rooms_cb(room_entries);
             let space_entries = SpaceModel::fetch_spaces(client_arc).await?;
             spaces_cb(space_entries);
+            AppResult::Ok(())
+        });
+    }
+
+    /// Deactivate (permanently delete) the current account.
+    /// This is irreversible — the server will remove all account data.
+    pub fn deleteAccount(&self) {
+        let client_arc = match self.inner.borrow().clone() {
+            Some(c) => c,
+            None => return,
+        };
+        let qptr = QPointer::from(&*self);
+        let deleted_cb = qmetaobject::queued_callback(move |_: ()| {
+            if let Some(this) = qptr.as_pinned() {
+                let mut mc = this.borrow_mut();
+                *mc.inner.borrow_mut() = None;
+                *mc.session.borrow_mut() = None;
+                mc.set_user_id(String::new());
+                mc.set_ready(false);
+                mc.emit_logged_out();
+            }
+        });
+        self.spawn(async move {
+            let c = client_arc.lock().await;
+            // Matrix v3 account deactivation endpoint
+            use matrix_sdk::ruma::api::client::account::deactivate::v3::Request as DeactivateRequest;
+            let request = DeactivateRequest::new();
+            c.send(request).await?;
+            drop(c);
+            // Remove saved session
+            let path = Self::session_file_path();
+            let _ = std::fs::remove_file(&path);
+            deleted_cb(());
+            AppResult::Ok(())
+        });
+    }
+
+    /// Load members for a room/space and populate MemberModel.
+    pub fn loadRoomMembers(&self, room_id: QString) {
+        let room_id_str = room_id.to_string();
+        let model = MemberModel::get();
+        let client_arc = match self.inner.borrow().clone() {
+            Some(c) => c,
+            None => return,
+        };
+        let cb = qmetaobject::queued_callback(move |entries: Vec<MemberEntry>| {
+            if let Some(m) = model.as_pinned() {
+                m.borrow_mut().apply_entries(entries);
+            }
+        });
+        self.spawn(async move {
+            let entries = MemberModel::fetch_members(client_arc, room_id_str).await?;
+            cb(entries);
             AppResult::Ok(())
         });
     }

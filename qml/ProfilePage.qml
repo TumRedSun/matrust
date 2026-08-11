@@ -1,4 +1,4 @@
-// ProfilePage.qml — display name, avatar, presence.
+// ProfilePage.qml — display name, avatar, presence, banner.
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
@@ -18,6 +18,37 @@ Rectangle {
             color: Theme.windowFg
             font.pixelSize: Theme.fontSizeXl
             font.bold: true
+        }
+
+        // Banner with upload
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 100
+            radius: Theme.radiusMd
+            color: Theme.accent
+            opacity: 0.15
+
+            Label {
+                anchors.centerIn: parent
+                text: qsTr("Click to set profile banner")
+                color: Theme.sidebarFg
+                font.pixelSize: Theme.fontSizeSm
+            }
+
+            MouseArea {
+                anchors.fill: parent
+                cursorShape: Qt.PointingHandCursor
+                onClicked: bannerDialog.open()
+            }
+        }
+
+        FileDialog {
+            id: bannerDialog
+            title: qsTr("Choose a banner image")
+            nameFilters: ["Images (*.png *.jpg *.jpeg *.webp *.svg)"]
+            onAccepted: {
+                // Banner upload via m.account_data — placeholder for future
+            }
         }
 
         // Avatar with upload button

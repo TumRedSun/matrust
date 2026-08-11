@@ -28,6 +28,7 @@ pub struct ProfileManager {
     setPresence: qt_method!(fn(&self, presence: QString, status_msg: QString)),
 }
 
+#[allow(non_snake_case)]
 impl ProfileManager {
     #[allow(dead_code)]
     pub fn display_name(&self) -> QString {

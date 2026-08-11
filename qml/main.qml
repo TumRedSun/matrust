@@ -1,4 +1,4 @@
-// main.qml — root window: Discord-style 3-column layout.
+// main.qml — root window: Discord-style 4-column layout with overlay modals.
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
@@ -28,7 +28,7 @@ ApplicationWindow {
 
     Component { id: loginPage; LoginPage {} }
 
-    // ────────────────────── MainView (Discord-style) ──────────────────────
+    // ────────────────────── MainView (Discord-style 4-column) ──────────────────────
     Component {
         id: mainView
 
@@ -37,7 +37,9 @@ ApplicationWindow {
             color: Theme.windowBg
             property string activeSpaceId: ""
             property string activeRoomId: ""
-            property bool showSpaceList: true   // true = space icons, false = rooms for active space
+            property string activeSpaceName: ""
+            // "home" = DMs, "space" = rooms of selected space
+            property string sidebarMode: "home"
 
             RowLayout {
                 anchors.fill: parent
@@ -53,27 +55,31 @@ ApplicationWindow {
                         anchors.fill: parent
                         spacing: 0
 
-                        // Logo / Home button
+                        // Home / DMs button
                         Item {
                             Layout.fillWidth: true
                             Layout.preferredHeight: 56
                             Rectangle {
                                 anchors.fill: parent
-                                radius: mainViewRoot.showSpaceList ? Theme.radiusSm : 0
-                                color: "transparent"
-                                border.color: Theme.accent
-                                border.width: mainViewRoot.showSpaceList ? 1 : 0
                                 anchors.margins: 4
+                                radius: mainViewRoot.sidebarMode === "home" ? Theme.radiusSm : 0
+                                color: mainViewRoot.sidebarMode === "home" ? Theme.accent : "transparent"
+                                opacity: mainViewRoot.sidebarMode === "home" ? 0.2 : 0
                             }
-                            Image {
+                            Label {
                                 anchors.centerIn: parent
-                                source: "qrc:/assets/logo.svg"
-                                sourceSize: Qt.size(32, 32)
+                                text: "\u2302"  // ⌂ house
+                                font.pixelSize: Theme.fontSizeXl
+                                color: mainViewRoot.sidebarMode === "home" ? Theme.accentFg : Theme.sidebarFg
                             }
                             MouseArea {
                                 anchors.fill: parent
                                 cursorShape: Qt.PointingHandCursor
-                                onClicked: mainViewRoot.showSpaceList = true
+                                onClicked: {
+                                    mainViewRoot.sidebarMode = "home"
+                                    mainViewRoot.activeSpaceId = ""
+                                    mainViewRoot.activeSpaceName = ""
+                                }
                             }
                         }
 
@@ -135,7 +141,9 @@ ApplicationWindow {
                                         cursorShape: Qt.PointingHandCursor
                                         onClicked: {
                                             mainViewRoot.activeSpaceId = model.id
-                                            mainViewRoot.showSpaceList = false
+                                            mainViewRoot.activeSpaceName = model.name
+                                            mainViewRoot.sidebarMode = "space"
+                                            MatrixClient.loadRoomMembers(model.id)
                                         }
                                     }
                                 }
@@ -151,100 +159,43 @@ ApplicationWindow {
                             color: Theme.border
                         }
 
-                        // Bottom nav: Profile, Settings, Appearance, Logout
+                        // Settings button at bottom
                         Item {
                             Layout.fillWidth: true
                             Layout.preferredHeight: 48
-                            ColumnLayout {
+                            Rectangle {
+                                anchors.fill: parent
+                                anchors.margins: 4
+                                radius: Theme.radiusSm
+                                color: settingsOverlay.visible ? Theme.accent : "transparent"
+                                opacity: settingsOverlay.visible ? 0.2 : 0
+                            }
+                            Label {
                                 anchors.centerIn: parent
-                                spacing: 0
-                                Label { Layout.alignment: Qt.AlignHCenter; text: "👤"; font.pixelSize: Theme.fontSizeLg }
-                                Label { Layout.alignment: Qt.AlignHCenter; text: qsTr("Me"); font.pixelSize: Theme.fontSizeXs; color: Theme.sidebarFg }
+                                text: "\u2699"  // ⚙ gear
+                                font.pixelSize: Theme.fontSizeXl
+                                color: settingsOverlay.visible ? Theme.accentFg : Theme.sidebarFg
                             }
                             MouseArea {
                                 anchors.fill: parent
                                 cursorShape: Qt.PointingHandCursor
-                                onClicked: settingsStack.currentIndex = 0  // Profile
-                            }
-                        }
-                        Item {
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: 48
-                            ColumnLayout {
-                                anchors.centerIn: parent
-                                spacing: 0
-                                Label { Layout.alignment: Qt.AlignHCenter; text: "⚙"; font.pixelSize: Theme.fontSizeLg }
-                                Label { Layout.alignment: Qt.AlignHCenter; text: qsTr("Set"); font.pixelSize: Theme.fontSizeXs; color: Theme.sidebarFg }
-                            }
-                            MouseArea {
-                                anchors.fill: parent
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: settingsStack.currentIndex = 1  // Settings
-                            }
-                        }
-                        Item {
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: 48
-                            ColumnLayout {
-                                anchors.centerIn: parent
-                                spacing: 0
-                                Label { Layout.alignment: Qt.AlignHCenter; text: "🎨"; font.pixelSize: Theme.fontSizeLg }
-                                Label { Layout.alignment: Qt.AlignHCenter; text: qsTr("Look"); font.pixelSize: Theme.fontSizeXs; color: Theme.sidebarFg }
-                            }
-                            MouseArea {
-                                anchors.fill: parent
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: settingsStack.currentIndex = 2  // Appearance
-                            }
-                        }
-
-                        // Logout
-                        Item {
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: 48
-                            ColumnLayout {
-                                anchors.centerIn: parent
-                                spacing: 0
-                                Label { Layout.alignment: Qt.AlignHCenter; text: "🚪"; font.pixelSize: Theme.fontSizeLg }
-                                Label { Layout.alignment: Qt.AlignHCenter; text: qsTr("Out"); font.pixelSize: Theme.fontSizeXs; color: Theme.sidebarFg }
-                            }
-                            MouseArea {
-                                anchors.fill: parent
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: MatrixClient.logout()
+                                onClicked: settingsOverlay.visible = !settingsOverlay.visible
                             }
                         }
                     }
                 }
 
-                // ── Column 2: Room list / Settings pages ──
+                // ── Column 2: Room list (DMs or space rooms) ──
                 Rectangle {
                     Layout.fillHeight: true
                     Layout.preferredWidth: 240
                     color: Qt.darker(Theme.sidebarBg, 1.05)
 
-                    StackLayout {
-                        id: settingsStack
-                        anchors.fill: parent
-                        currentIndex: -1  // -1 = show room list
-
-                        // Page 0: Profile
-                        ProfilePage {}
-
-                        // Page 1: Settings
-                        SettingsPage {}
-
-                        // Page 2: Appearance
-                        AppearancePage {}
-                    }
-
-                    // Room list (shown when settingsStack.currentIndex === -1)
                     ColumnLayout {
                         anchors.fill: parent
                         spacing: 0
-                        visible: settingsStack.currentIndex === -1
 
-                        // Back arrow to return to space list + space name
+                        // Header: back arrow + title
                         Rectangle {
                             Layout.fillWidth: true
                             Layout.preferredHeight: 48
@@ -257,16 +208,21 @@ ApplicationWindow {
                                 spacing: Theme.spacingSm
 
                                 ToolButton {
-                                    text: "◀"
+                                    text: "\u25C0"  // ◀
                                     font.pixelSize: Theme.fontSizeMd
-                                    visible: !mainViewRoot.showSpaceList
-                                    onClicked: mainViewRoot.showSpaceList = true
+                                    visible: mainViewRoot.sidebarMode === "space"
+                                    onClicked: {
+                                        mainViewRoot.sidebarMode = "home"
+                                        mainViewRoot.activeSpaceId = ""
+                                        mainViewRoot.activeSpaceName = ""
+                                    }
                                 }
 
                                 Label {
                                     Layout.fillWidth: true
-                                    text: mainViewRoot.activeSpaceId.length > 0
-                                          ? qsTr("Rooms") : qsTr("All rooms")
+                                    text: mainViewRoot.sidebarMode === "home"
+                                          ? qsTr("Direct Messages")
+                                          : qsTr("Rooms")
                                     color: Theme.sidebarFg
                                     font.pixelSize: Theme.fontSizeMd
                                     font.bold: true
@@ -274,20 +230,21 @@ ApplicationWindow {
                                 }
 
                                 ToolButton {
-                                    text: "⟳"
+                                    text: "\u27F3"  // ⟳
                                     font.pixelSize: Theme.fontSizeMd
                                     onClicked: MatrixClient.refreshRooms()
                                 }
                             }
                         }
 
-                        // Search/filter field (placeholder)
+                        // Search/filter field
                         TextField {
+                            id: roomSearch
                             Layout.fillWidth: true
                             Layout.leftMargin: Theme.paddingSm
                             Layout.rightMargin: Theme.paddingSm
                             Layout.bottomMargin: Theme.spacingSm
-                            placeholderText: qsTr("Search rooms…")
+                            placeholderText: qsTr("Search\u2026")
                             color: Theme.sidebarFg
                             font.pixelSize: Theme.fontSizeSm
                             background: Rectangle {
@@ -298,7 +255,7 @@ ApplicationWindow {
                             }
                         }
 
-                        // Room list
+                        // Room list (filters based on sidebarMode)
                         ScrollView {
                             Layout.fillWidth: true
                             Layout.fillHeight: true
@@ -311,7 +268,14 @@ ApplicationWindow {
 
                                 delegate: Item {
                                     width: ListView.view.width
-                                    height: 52
+                                    // Filter: show DMs in "home" mode, non-DM rooms in "space" mode
+                                    // In "home" mode: only show is_direct rooms
+                                    // In "space" mode: only show non-direct rooms
+                                    property bool showItem: mainViewRoot.sidebarMode === "home"
+                                            ? model.is_direct
+                                            : !model.is_direct
+                                    height: showItem ? 52 : 0
+                                    visible: showItem
 
                                     Rectangle {
                                         anchors.fill: parent
@@ -400,14 +364,74 @@ ApplicationWindow {
                     Layout.fillHeight: true
                     roomId: mainViewRoot.activeRoomId
                 }
-            }
 
-            // When settings stack is shown, hide chat
-            onActiveRoomIdChanged: {
-                if (activeRoomId.length > 0) {
-                    settingsStack.currentIndex = -1
+                // ── Column 4: Member list (right sidebar) ──
+                MemberListPanel {
+                    Layout.fillHeight: true
+                    Layout.preferredWidth: 220
+                    visible: mainViewRoot.sidebarMode === "space" && mainViewRoot.activeSpaceId.length > 0
+                    spaceId: mainViewRoot.activeSpaceId
+                    spaceName: mainViewRoot.activeSpaceName
                 }
             }
+
+            // When a room is selected, close settings overlay
+            onActiveRoomIdChanged: {
+                if (activeRoomId.length > 0) {
+                    settingsOverlay.visible = false
+                }
+            }
+        }
+    }
+
+    // ────────────────────── Settings Overlay (modal with dimmed background) ──────────────────────
+    Rectangle {
+        id: settingsOverlay
+        visible: false
+        anchors.fill: parent
+        color: "transparent"
+        z: 100  // above everything
+
+        // Dim background
+        MouseArea {
+            anchors.fill: parent
+            onClicked: settingsOverlay.visible = false
+        }
+        Rectangle {
+            anchors.fill: parent
+            color: "black"
+            opacity: 0.6
+        }
+
+        // Settings panel (centered, like Discord)
+        Rectangle {
+            id: settingsPanel
+            width: Math.min(720, parent.width - 80)
+            height: Math.min(560, parent.height - 60)
+            anchors.centerIn: parent
+            color: Theme.windowBg
+            radius: Theme.radiusLg
+            border.color: Theme.border
+            border.width: 1
+
+            // Prevent clicks from closing when inside the panel
+            MouseArea {
+                anchors.fill: parent
+                onClicked: mouse.accepted = true // swallow click
+            }
+
+            SettingsOverlayContent {
+                anchors.fill: parent
+                onCloseSettings: settingsOverlay.visible = false
+            }
+        }
+
+        // Prevent interaction with underlying UI while overlay is open
+        MouseArea {
+            anchors.fill: parent
+            visible: settingsOverlay.visible
+            onClicked: {}  // swallow all clicks
+            z: -1
         }
     }
 
@@ -448,6 +472,7 @@ ApplicationWindow {
         }
         function onLoggedOut() {
             stack.replace(null, loginPage);
+            settingsOverlay.visible = false;
         }
         function onFileDownloaded(roomId, mxc, localPath) {
             root.showToast(qsTr("Downloaded to %1").arg(localPath));
