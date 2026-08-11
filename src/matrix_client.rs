@@ -40,6 +40,7 @@ pub struct MatrixClient {
 
     inner: RefCell<Option<Arc<Mutex<matrix_sdk::Client>>>>,
     session: RefCell<Option<SessionStore>>,
+    #[allow(dead_code)]
     session_path: RefCell<Option<PathBuf>>,
 
     rooms: QPointer<RoomModel>,
@@ -401,14 +402,12 @@ impl MatrixClient {
     }
 
     pub fn get() -> QPointer<MatrixClient> {
-        use std::sync::Once;
-        static INIT: Once = Once::new();
-        static mut INSTANCE: Option<QPointer<MatrixClient>> = None;
-        INIT.call_once(|| unsafe {
+        use std::sync::OnceLock;
+        static INSTANCE: OnceLock<QPointer<MatrixClient>> = OnceLock::new();
+        INSTANCE.get_or_init(|| {
             let mc = MatrixClient::default();
-            INSTANCE = Some(QPointer::from(&mc));
-        });
-        unsafe { INSTANCE.clone().unwrap() }
+            QPointer::from(&mc)
+        }).clone()
     }
 
     /// Get the client Arc from the singleton, for use in async contexts

@@ -6,6 +6,7 @@ use anyhow::Result;
 use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
 
+#[allow(dead_code)]
 pub fn cache_dir() -> PathBuf {
     let base = directories::ProjectDirs::from("dev", "matrixclient", "matrix-client")
         .map(|d| d.cache_dir().to_path_buf())
@@ -21,6 +22,7 @@ pub fn downloads_dir() -> PathBuf {
     d.join("matrix-client")
 }
 
+#[allow(dead_code)]
 pub fn avatar_path_for(url: &str, ext: &str) -> Result<PathBuf> {
     let mut h = Sha256::new();
     h.update(url.as_bytes());
@@ -32,6 +34,7 @@ pub fn avatar_path_for(url: &str, ext: &str) -> Result<PathBuf> {
     Ok(dir.join(format!("{}.{}", hash, ext)))
 }
 
+#[allow(dead_code)]
 pub fn ext_of(mime: &str) -> &'static str {
     match mime {
         "image/png" => "png",
@@ -44,6 +47,7 @@ pub fn ext_of(mime: &str) -> &'static str {
 }
 
 /// Ensure a path exists; returns the same path for chaining.
+#[allow(dead_code)]
 pub fn ensure_parent(p: &Path) -> Result<()> {
     if let Some(parent) = p.parent() {
         std::fs::create_dir_all(parent)?;

@@ -48,7 +48,7 @@ Rectangle {
 
             ListView {
                 id: messagesView
-                model: MatrixClient.messageModel()
+                model: MatrixClient.message_model()
                 spacing: Theme.spacing_xs
                 verticalLayoutDirection: ListView.BottomToTop
 
@@ -122,7 +122,7 @@ Rectangle {
                             } else {
                                 event.accepted = true
                                 if (composer.text.trim().length > 0 && roomId.length > 0) {
-                                    MatrixClient.sendText(roomId, composer.text)
+                                    MatrixClient.send_text(roomId, composer.text)
                                     composer.text = ""
                                 }
                             }
@@ -136,7 +136,7 @@ Rectangle {
                     background: Rectangle { color: parent.enabled ? Theme.accent : Theme.muted; radius: Theme.radius_sm }
                     contentItem: Label { text: parent.text; color: Theme.accent_fg }
                     onClicked: {
-                        MatrixClient.sendText(roomId, composer.text)
+                        MatrixClient.send_text(roomId, composer.text)
                         composer.text = ""
                     }
                 }
@@ -150,7 +150,7 @@ Rectangle {
         onAccepted: {
             var path = fileDialog.currentFile.toString()
             if (path.startsWith("file://")) path = path.substring(7)
-            MatrixClient.sendFile(roomId, path, "", "file")
+            MatrixClient.send_file(roomId, path, "", "file")
         }
     }
     FileDialog {
@@ -160,7 +160,7 @@ Rectangle {
         onAccepted: {
             var path = imageDialog.currentFile.toString()
             if (path.startsWith("file://")) path = path.substring(7)
-            MatrixClient.sendFile(roomId, path, "image/*", "image")
+            MatrixClient.send_file(roomId, path, "image/*", "image")
         }
     }
     FileDialog {
@@ -170,13 +170,13 @@ Rectangle {
         onAccepted: {
             var path = videoDialog.currentFile.toString()
             if (path.startsWith("file://")) path = path.substring(7)
-            MatrixClient.sendFile(roomId, path, "video/*", "video")
+            MatrixClient.send_file(roomId, path, "video/*", "video")
         }
     }
 
     Connections {
-        target: MatrixClient.messageModel()
-        function onHistoryLoaded(rid) {
+        target: MatrixClient.message_model()
+        function onHistory_loaded(rid) {
             if (rid === roomId) {
                 messagesView.positionViewAtBeginning()
             }

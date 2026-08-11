@@ -30,6 +30,7 @@ pub struct MessageEntry {
 pub struct MessageModel {
     base: qt_base_class!(trait QAbstractListModel),
     entries: RefCell<Vec<MessageEntry>>,
+    #[allow(dead_code)]
     current_room_id: RefCell<Option<String>>,
 
     count: qt_property!(i64; READ count NOTIFY count_changed),

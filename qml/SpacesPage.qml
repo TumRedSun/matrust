@@ -43,7 +43,7 @@ Rectangle {
 
                     ListView {
                         id: tree
-                        model: MatrixClient.spaceModel()
+                        model: MatrixClient.space_model()
                         spacing: 0
 
                         delegate: Item {
@@ -141,11 +141,11 @@ Rectangle {
                 Button {
                     Layout.alignment: Qt.AlignHCenter
                     text: qsTr("Refresh")
-                    onClicked: MatrixClient.refreshRooms()
+                    onClicked: MatrixClient.refresh_rooms()
                 }
             }
         }
     }
 
-    Component.onCompleted: MatrixClient.refreshRooms()
+    Component.onCompleted: MatrixClient.refresh_rooms()
 }

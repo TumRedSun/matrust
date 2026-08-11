@@ -60,19 +60,17 @@ impl Backend {
 
     /// Global singleton accessor (replaces the removed qmetaobject::Singleton trait).
     pub fn get() -> QPointer<Backend> {
-        use std::sync::Once;
-        static INIT: Once = Once::new();
-        static mut INSTANCE: Option<QPointer<Backend>> = None;
-        INIT.call_once(|| {
+        use std::sync::OnceLock;
+        static INSTANCE: OnceLock<QPointer<Backend>> = OnceLock::new();
+        INSTANCE.get_or_init(|| {
             let rt = Arc::new(
                 Runtime::new()
                     .expect("failed to build Tokio runtime"),
             );
             let mut b = Backend::default();
             b.runtime = Some(rt);
-            unsafe { INSTANCE = Some(QPointer::from(&b)); }
-        });
-        unsafe { INSTANCE.clone().unwrap() }
+            QPointer::from(&b)
+        }).clone()
     }
 }
 

@@ -40,7 +40,7 @@ Rectangle {
                     spacing: 4
 
                     Label { text: qsTr("Account"); color: Theme.accent; font.pixelSize: Theme.font_size_md; font.bold: true }
-                    Label { text: qsTr("User ID: %1").arg(MatrixClient.userId); color: Theme.window_fg }
+                    Label { text: qsTr("User ID: %1").arg(MatrixClient.user_id); color: Theme.window_fg }
                     Label { text: qsTr("Status: %1").arg(MatrixClient.ready ? qsTr("Ready") : qsTr("Not connected")); color: Theme.window_fg }
                 }
             }
@@ -73,7 +73,7 @@ Rectangle {
                                 color: Theme.window_fg
                                 leftPadding: ipv6Switch.indicator.width + ipv6Switch.spacing
                             }
-                            onToggled: MatrixClient.setForceIpv6(checked)
+                            onToggled: MatrixClient.set_force_ipv6(checked)
                         }
                         Label {
                             text: qsTr("(only AAAA records are resolved; IPv4 endpoints are refused)")
@@ -104,8 +104,8 @@ Rectangle {
                     Label { text: qsTr("Diagnostics"); color: Theme.accent; font.pixelSize: Theme.font_size_md; font.bold: true }
 
                     Label {
-                        text: qsTr("Last error: %1").arg(MatrixClient.lastError.length === 0 ? "—" : MatrixClient.lastError)
-                        color: MatrixClient.lastError.length === 0 ? Theme.window_fg : Theme.danger
+                        text: qsTr("Last error: %1").arg(MatrixClient.last_error.length === 0 ? "—" : MatrixClient.last_error)
+                        color: MatrixClient.last_error.length === 0 ? Theme.window_fg : Theme.danger
                         wrapMode: Text.Wrap
                         Layout.fillWidth: true
                     }
@@ -114,7 +114,7 @@ Rectangle {
                         Layout.fillWidth: true
                         Button {
                             text: qsTr("Refresh rooms & spaces")
-                            onClicked: MatrixClient.refreshRooms()
+                            onClicked: MatrixClient.refresh_rooms()
                         }
                         Item { Layout.fillWidth: true }
                         Button {

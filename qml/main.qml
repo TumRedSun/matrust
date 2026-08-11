@@ -12,8 +12,8 @@ ApplicationWindow {
     height: 800
     minimumWidth: 720
     minimumHeight: 480
-    title: MatrixClient.userId.length > 0
-           ? qsTr("Matrix — %1").arg(MatrixClient.userId)
+    title: MatrixClient.user_id.length > 0
+           ? qsTr("Matrix — %1").arg(MatrixClient.user_id)
            : qsTr("Matrix Client")
     color: Theme.window_bg
 
@@ -113,7 +113,7 @@ ApplicationWindow {
                                     onClicked: {
                                         mainViewRoot.currentPage = modelData.page
                                         if (modelData.page === 2) {
-                                            MatrixClient.profileManager().refresh()
+                                            MatrixClient.profile_manager().refresh()
                                         }
                                     }
                                 }
@@ -150,7 +150,7 @@ ApplicationWindow {
                     SpacesPage {
                         onRoomSelected: function(roomId) {
                             mainViewRoot.activeRoomId = roomId
-                            MatrixClient.loadRoomMessages(roomId)
+                            MatrixClient.load_room_messages(roomId)
                             mainViewRoot.currentPage = 1
                         }
                     }
@@ -188,24 +188,24 @@ ApplicationWindow {
 
     Connections {
         target: MatrixClient
-        function onLastErrorChanged() {
-            if (MatrixClient.lastError.length > 0) {
-                toast.text = MatrixClient.lastError;
+        function onLast_error_changed() {
+            if (MatrixClient.last_error.length > 0) {
+                toast.text = MatrixClient.last_error;
                 toastTimer.start();
             }
         }
-        function onLoggedIn(userId) {
+        function onLogged_in(userId) {
             stack.replace(null, mainView);
         }
-        function onLoggedOut() {
+        function onLogged_out() {
             stack.replace(null, loginPage);
         }
-        function onFileDownloaded(roomId, mxc, localPath) {
+        function onFile_downloaded(roomId, mxc, localPath) {
             root.showToast(qsTr("Downloaded to %1").arg(localPath));
         }
     }
 
-    Component.onCompleted: MatrixClient.autoLogin()
+    Component.onCompleted: MatrixClient.auto_login()
 
     function showToast(text) {
         toast.text = text;

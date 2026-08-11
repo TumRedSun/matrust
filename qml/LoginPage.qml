@@ -103,7 +103,7 @@ Rectangle {
                             text: parent.text
                             color: Theme.accent_fg
                         }
-                        onClicked: MatrixClient.loginWithPassword(
+                        onClicked: MatrixClient.login_with_password(
                             homeserverField.text, usernameField.text,
                             passwordField.text, ipv6Box.checked)
                     }
@@ -165,7 +165,7 @@ Rectangle {
                         enabled: !MatrixClient.busy
                         background: Rectangle { color: parent.enabled ? Theme.accent : Theme.muted; radius: Theme.radius_sm }
                         contentItem: Label { text: parent.text; color: Theme.accent_fg }
-                        onClicked: MatrixClient.loginWithToken(
+                        onClicked: MatrixClient.login_with_token(
                             tokHs.text, tokUser.text, tokDevice.text, tokToken.text, tokIpv6.checked)
                     }
                 }

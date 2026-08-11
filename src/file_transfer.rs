@@ -13,6 +13,7 @@ fn parse_mxc(s: &str) -> AppResult<matrix_sdk::ruma::OwnedMxcUri> {
 }
 
 /// Helper to extract a URL string from a MediaSource enum.
+#[allow(dead_code)]
 fn media_source_url(source: &matrix_sdk::ruma::events::room::MediaSource) -> Option<String> {
     match source {
         matrix_sdk::ruma::events::room::MediaSource::Plain(uri) => Some(uri.to_string()),

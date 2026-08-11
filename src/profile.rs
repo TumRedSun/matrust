@@ -24,18 +24,23 @@ pub struct ProfileManager {
 }
 
 impl ProfileManager {
+    #[allow(dead_code)]
     pub fn display_name(&self) -> QString {
         self.display_name.clone()
     }
+    #[allow(dead_code)]
     pub fn avatar_url(&self) -> QString {
         self.avatar_url.clone()
     }
+    #[allow(dead_code)]
     pub fn user_id(&self) -> QString {
         self.user_id.clone()
     }
+    #[allow(dead_code)]
     pub fn presence(&self) -> QString {
         self.presence.clone()
     }
+    #[allow(dead_code)]
     pub fn status_message(&self) -> QString {
         self.status_message.clone()
     }

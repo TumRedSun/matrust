@@ -32,7 +32,7 @@ Rectangle {
 
             Label {
                 anchors.centerIn: parent
-                text: MatrixClient.userId.length > 0 ? MatrixClient.userId.charAt(1).toUpperCase() : "?"
+                text: MatrixClient.user_id.length > 0 ? MatrixClient.user_id.charAt(1).toUpperCase() : "?"
                 color: Theme.accent_fg
                 font.pixelSize: Theme.font_size_xl * 2
                 font.bold: true
@@ -52,13 +52,13 @@ Rectangle {
             onAccepted: {
                 var p = avatarDialog.currentFile.toString()
                 if (p.startsWith("file://")) p = p.substring(7)
-                MatrixClient.setAvatar(p)
+                MatrixClient.set_avatar(p)
             }
         }
 
         Label {
             Layout.alignment: Qt.AlignHCenter
-            text: MatrixClient.profileManager().userId
+            text: MatrixClient.profile_manager().user_id
             color: Theme.muted
             font.pixelSize: Theme.font_size_sm
         }
@@ -71,7 +71,7 @@ Rectangle {
             TextField {
                 id: dnField
                 Layout.fillWidth: true
-                text: MatrixClient.profileManager().displayName
+                text: MatrixClient.profile_manager().display_name
                 color: Theme.window_fg
                 background: Rectangle { color: Theme.sidebar_bg; radius: Theme.radius_sm; border.color: Theme.border; border.width: 1 }
             }
@@ -79,7 +79,7 @@ Rectangle {
                 text: qsTr("Save")
                 background: Rectangle { color: Theme.accent; radius: Theme.radius_sm }
                 contentItem: Label { text: parent.text; color: Theme.accent_fg }
-                onClicked: MatrixClient.setDisplayName(dnField.text)
+                onClicked: MatrixClient.set_display_name(dnField.text)
             }
         }
 
@@ -104,15 +104,15 @@ Rectangle {
                 text: qsTr("Set")
                 background: Rectangle { color: Theme.accent; radius: Theme.radius_sm }
                 contentItem: Label { text: parent.text; color: Theme.accent_fg }
-                onClicked: MatrixClient.profileManager().setPresence(presenceBox.currentText, statusField.text)
+                onClicked: MatrixClient.profile_manager().set_presence(presenceBox.currentText, statusField.text)
             }
         }
 
         Button {
             text: qsTr("Refresh profile")
-            onClicked: MatrixClient.profileManager().refresh()
+            onClicked: MatrixClient.profile_manager().refresh()
         }
     }
 
-    Component.onCompleted: MatrixClient.profileManager().refresh()
+    Component.onCompleted: MatrixClient.profile_manager().refresh()
 }
