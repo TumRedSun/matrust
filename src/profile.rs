@@ -2,6 +2,10 @@
 
 use qmetaobject::*;
 
+/// Module-level singleton storage for ProfileManager.
+static SINGLETON: crate::singleton::QtSingleton<QPointer<ProfileManager>> =
+    crate::singleton::QtSingleton::new();
+
 #[derive(QObject, Default)]
 #[allow(non_snake_case)]
 pub struct ProfileManager {
@@ -89,6 +93,17 @@ impl ProfileManager {
         });
     }
 
+    /// Global singleton accessor.
+    /// Returns the QPointer stored when the QML engine created the singleton.
+    pub fn get() -> QPointer<ProfileManager> {
+        SINGLETON.get_or_init(|| QPointer::default()).clone()
+    }
+
+    /// Alias matching the naming convention used by MatrixClient.
+    pub fn singleton_ptr() -> QPointer<ProfileManager> {
+        Self::get()
+    }
+
     /// Set the user's presence manually.
     ///
     /// In matrix-sdk 0.18+, there is no `client.presence().set_presence()`.
@@ -131,5 +146,11 @@ impl ProfileManager {
             presence_cb((p, s));
             crate::errors::AppResult::Ok(())
         });
+    }
+}
+
+impl qmetaobject::QSingletonInit for ProfileManager {
+    fn init(&mut self) {
+        SINGLETON.set(QPointer::from(&*self));
     }
 }

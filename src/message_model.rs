@@ -5,6 +5,10 @@ use std::cell::RefCell;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
+/// Module-level singleton storage for MessageModel.
+static SINGLETON: crate::singleton::QtSingleton<QPointer<MessageModel>> =
+    crate::singleton::QtSingleton::new();
+
 #[derive(Default, Clone, qmetaobject::SimpleListItem)]
 pub struct MessageEntry {
     pub event_id: QString,
@@ -228,6 +232,25 @@ fn role_names_from_vec(names: Vec<QByteArray>) -> std::collections::HashMap<i32,
     names.into_iter().enumerate()
         .map(|(i, name)| (qmetaobject::USER_ROLE + i as i32, name))
         .collect()
+}
+
+impl MessageModel {
+    /// Global singleton accessor.
+    /// Returns the QPointer stored when the QML engine created the singleton.
+    pub fn get() -> QPointer<MessageModel> {
+        SINGLETON.get_or_init(|| QPointer::default()).clone()
+    }
+
+    /// Alias matching the naming convention used by MatrixClient.
+    pub fn singleton_ptr() -> QPointer<MessageModel> {
+        Self::get()
+    }
+}
+
+impl qmetaobject::QSingletonInit for MessageModel {
+    fn init(&mut self) {
+        SINGLETON.set(QPointer::from(&*self));
+    }
 }
 
 impl qmetaobject::QAbstractListModel for MessageModel {

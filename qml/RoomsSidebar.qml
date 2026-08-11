@@ -30,7 +30,7 @@ Rectangle {
             clip: true
 
             ListView {
-                model: MatrixClient.roomModel()
+                model: RoomModel
                 spacing: 0
                 delegate: Item {
                     width: ListView.view.width

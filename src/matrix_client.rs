@@ -21,7 +21,6 @@ use crate::errors::AppResult;
 use crate::room_model::{RoomModel, RoomEntry};
 use crate::message_model::{MessageModel, MessageEntry};
 use crate::spaces::{SpaceModel, SpaceEntry};
-use crate::profile::ProfileManager;
 
 /// Module-level singleton storage for MatrixClient.
 static MATRIXCLIENT_SINGLETON: crate::singleton::QtSingleton<QPointer<MatrixClient>> =
@@ -47,11 +46,6 @@ pub struct MatrixClient {
     session: RefCell<Option<SessionStore>>,
     #[allow(dead_code)]
     session_path: RefCell<Option<PathBuf>>,
-
-    rooms: QPointer<RoomModel>,
-    spaces: QPointer<SpaceModel>,
-    messages: QPointer<MessageModel>,
-    profile: QPointer<ProfileManager>,
 
     /// True when fully synced and ready.
     ready: qt_property!(bool; NOTIFY readyChanged),
@@ -88,10 +82,6 @@ pub struct MatrixClient {
     setDisplayName: qt_method!(fn(&self, name: QString)),
     setAvatar: qt_method!(fn(&self, local_path: QString)),
     setForceIpv6: qt_method!(fn(&self, on: bool)),
-    roomModel: qt_method!(fn(&self) -> QPointer<RoomModel>),
-    spaceModel: qt_method!(fn(&self) -> QPointer<SpaceModel>),
-    messageModel: qt_method!(fn(&self) -> QPointer<MessageModel>),
-    profileManager: qt_method!(fn(&self) -> QPointer<ProfileManager>),
     loadRoomMessages: qt_method!(fn(&self, room_id: QString)),
     refreshRooms: qt_method!(fn(&self)),
 }
@@ -336,31 +326,13 @@ impl MatrixClient {
         }
     }
 
-    pub fn roomModel(&self) -> QPointer<RoomModel> {
-        self.rooms.clone()
-    }
-
-    pub fn spaceModel(&self) -> QPointer<SpaceModel> {
-        self.spaces.clone()
-    }
-
-    pub fn messageModel(&self) -> QPointer<MessageModel> {
-        self.messages.clone()
-    }
-
-    pub fn profileManager(&self) -> QPointer<ProfileManager> {
-        self.profile.clone()
-    }
-
     pub fn loadRoomMessages(&self, room_id: QString) {
         let room_id_str = room_id.to_string();
-        let model = self.messages.clone();
+        let model = MessageModel::get();
         let client_arc = match self.inner.borrow().clone() {
             Some(c) => c,
             None => return,
         };
-        // Create the queued_callback BEFORE spawn so QPointer is wrapped
-        // by qmetaobject (which makes the callback itself Send).
         let rid_for_signal = room_id_str.clone();
         let cb = qmetaobject::queued_callback(move |entries: Vec<MessageEntry>| {
             if let Some(m) = model.as_pinned() {
@@ -375,14 +347,12 @@ impl MatrixClient {
     }
 
     pub fn refreshRooms(&self) {
-        let rooms_ptr = self.rooms.clone();
-        let spaces_ptr = self.spaces.clone();
+        let rooms_ptr = RoomModel::get();
+        let spaces_ptr = SpaceModel::get();
         let client_arc = match self.inner.borrow().clone() {
             Some(c) => c,
             None => return,
         };
-        // Create queued_callbacks BEFORE spawn so QPointer is wrapped
-        // by qmetaobject (which makes the callbacks themselves Send).
         let rooms_cb = qmetaobject::queued_callback(move |entries: Vec<RoomEntry>| {
             if let Some(r) = rooms_ptr.as_pinned() {
                 r.borrow_mut().apply_entries(entries);

@@ -48,7 +48,7 @@ Rectangle {
 
             ListView {
                 id: messagesView
-                model: MatrixClient.messageModel()
+                model: MessageModel
                 spacing: Theme.spacingXs
                 verticalLayoutDirection: ListView.BottomToTop
 
@@ -175,7 +175,7 @@ Rectangle {
     }
 
     Connections {
-        target: MatrixClient.messageModel()
+        target: MessageModel
         function onHistoryLoaded(rid) {
             if (rid === roomId) {
                 messagesView.positionViewAtBeginning()

@@ -9,24 +9,23 @@ Rectangle {
     color: Theme.windowBg
 
     ColumnLayout {
-        anchors.centerIn: parent
-        spacing: Theme.spacingLg
-        width: Math.min(560, parent.width - 32)
+        anchors.fill: parent
+        anchors.margins: Theme.paddingMd
+        spacing: Theme.spacingMd
 
         Label {
-            Layout.alignment: Qt.AlignHCenter
             text: qsTr("Your profile")
             color: Theme.windowFg
             font.pixelSize: Theme.fontSizeXl
+            font.bold: true
         }
 
         // Avatar with upload button
         Rectangle {
             Layout.alignment: Qt.AlignHCenter
-            Layout.preferredWidth: Theme.avatarSizeLg * 2
-            Layout.preferredHeight: Theme.avatarSizeLg * 2
-            radius: Theme.avatarShape === "circle" ? (Theme.avatarSizeLg * 2) / 2
-                    : (Theme.avatarShape === "square" ? 0 : Theme.radiusLg)
+            Layout.preferredWidth: 80
+            Layout.preferredHeight: 80
+            radius: 40
             color: Theme.accent
             opacity: 0.3
 
@@ -58,7 +57,7 @@ Rectangle {
 
         Label {
             Layout.alignment: Qt.AlignHCenter
-            text: MatrixClient.profileManager().userId
+            text: ProfileManager.userId
             color: Theme.muted
             font.pixelSize: Theme.fontSizeSm
         }
@@ -67,11 +66,11 @@ Rectangle {
         RowLayout {
             Layout.fillWidth: true
             spacing: Theme.spacingSm
-            Label { text: qsTr("Display name"); color: Theme.windowFg; Layout.preferredWidth: 120 }
+            Label { text: qsTr("Name"); color: Theme.windowFg; Layout.preferredWidth: 60 }
             TextField {
                 id: dnField
                 Layout.fillWidth: true
-                text: MatrixClient.profileManager().displayName
+                text: ProfileManager.displayName
                 color: Theme.windowFg
                 background: Rectangle { color: Theme.sidebarBg; radius: Theme.radiusSm; border.color: Theme.border; border.width: 1 }
             }
@@ -91,12 +90,12 @@ Rectangle {
             ComboBox {
                 id: presenceBox
                 model: ["online", "unavailable", "offline"]
-                Layout.preferredWidth: 180
+                Layout.preferredWidth: 140
             }
             TextField {
                 id: statusField
                 Layout.fillWidth: true
-                placeholderText: qsTr("Status message (optional)")
+                placeholderText: qsTr("Status (optional)")
                 color: Theme.windowFg
                 background: Rectangle { color: Theme.sidebarBg; radius: Theme.radiusSm; border.color: Theme.border; border.width: 1 }
             }
@@ -104,15 +103,12 @@ Rectangle {
                 text: qsTr("Set")
                 background: Rectangle { color: Theme.accent; radius: Theme.radiusSm }
                 contentItem: Label { text: parent.text; color: Theme.accentFg }
-                onClicked: MatrixClient.profileManager().setPresence(presenceBox.currentText, statusField.text)
+                onClicked: ProfileManager.setPresence(presenceBox.currentText, statusField.text)
             }
         }
 
-        Button {
-            text: qsTr("Refresh profile")
-            onClicked: MatrixClient.profileManager().refresh()
-        }
+        Item { Layout.fillHeight: true }
     }
 
-    Component.onCompleted: MatrixClient.profileManager().refresh()
+    Component.onCompleted: ProfileManager.refresh()
 }

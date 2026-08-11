@@ -43,7 +43,7 @@ Rectangle {
 
                     ListView {
                         id: tree
-                        model: MatrixClient.spaceModel()
+                        model: SpaceModel
                         spacing: 0
 
                         delegate: Item {

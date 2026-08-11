@@ -5,6 +5,10 @@ use std::cell::RefCell;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
+/// Module-level singleton storage for RoomModel.
+static SINGLETON: crate::singleton::QtSingleton<QPointer<RoomModel>> =
+    crate::singleton::QtSingleton::new();
+
 #[derive(Default, Clone, qmetaobject::SimpleListItem)]
 pub struct RoomEntry {
     pub room_id: QString,
@@ -109,6 +113,25 @@ impl RoomModel {
 }
 
 // QAbstractListModel glue.
+impl RoomModel {
+    /// Global singleton accessor.
+    /// Returns the QPointer stored when the QML engine created the singleton.
+    pub fn get() -> QPointer<RoomModel> {
+        SINGLETON.get_or_init(|| QPointer::default()).clone()
+    }
+
+    /// Alias matching the naming convention used by MatrixClient.
+    pub fn singleton_ptr() -> QPointer<RoomModel> {
+        Self::get()
+    }
+}
+
+impl qmetaobject::QSingletonInit for RoomModel {
+    fn init(&mut self) {
+        SINGLETON.set(QPointer::from(&*self));
+    }
+}
+
 impl qmetaobject::QAbstractListModel for RoomModel {
     fn row_count(&self) -> i32 {
         self.entries.borrow().len() as i32

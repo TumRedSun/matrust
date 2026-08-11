@@ -13,6 +13,10 @@ use std::cell::RefCell;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
+/// Module-level singleton storage for SpaceModel.
+static SINGLETON: crate::singleton::QtSingleton<QPointer<SpaceModel>> =
+    crate::singleton::QtSingleton::new();
+
 #[derive(Default, Clone, qmetaobject::SimpleListItem)]
 pub struct SpaceEntry {
     pub id: QString,
@@ -190,6 +194,25 @@ impl SpaceModel {
         self.end_reset_model();
         self.count_changed();
         self.tree_changed();
+    }
+}
+
+impl SpaceModel {
+    /// Global singleton accessor.
+    /// Returns the QPointer stored when the QML engine created the singleton.
+    pub fn get() -> QPointer<SpaceModel> {
+        SINGLETON.get_or_init(|| QPointer::default()).clone()
+    }
+
+    /// Alias matching the naming convention used by MatrixClient.
+    pub fn singleton_ptr() -> QPointer<SpaceModel> {
+        Self::get()
+    }
+}
+
+impl qmetaobject::QSingletonInit for SpaceModel {
+    fn init(&mut self) {
+        SINGLETON.set(QPointer::from(&*self));
     }
 }
 
