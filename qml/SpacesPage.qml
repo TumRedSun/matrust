@@ -64,7 +64,8 @@ Rectangle {
                                 spacing: Theme.spacing_sm
 
                                 Rectangle {
-                                    Layout.preferredSize: Theme.avatar_size_sm
+                                    Layout.preferredWidth: Theme.avatar_size_sm
+                                    Layout.preferredHeight: Theme.avatar_size_sm
                                     radius: model.kind === "space" ? Theme.radius_sm
                                             : (Theme.avatar_shape === "circle" ? Theme.avatar_size_sm/2
                                             : (Theme.avatar_shape === "square" ? 0 : Theme.radius_sm))
