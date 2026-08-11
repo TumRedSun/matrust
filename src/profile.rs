@@ -3,38 +3,39 @@
 use qmetaobject::*;
 
 #[derive(QObject, Default)]
+#[allow(non_snake_case)]
 pub struct ProfileManager {
     base: qt_base_class!(trait QObject),
 
-    display_name: qt_property!(QString; NOTIFY display_name_changed),
-    avatar_url: qt_property!(QString; NOTIFY avatar_url_changed),
-    user_id: qt_property!(QString; NOTIFY user_id_changed),
-    presence: qt_property!(QString; NOTIFY presence_changed),
-    status_message: qt_property!(QString; NOTIFY status_message_changed),
+    displayName: qt_property!(QString; NOTIFY displayNameChanged),
+    avatarUrl: qt_property!(QString; NOTIFY avatarUrlChanged),
+    userId: qt_property!(QString; NOTIFY userIdChanged),
+    presence: qt_property!(QString; NOTIFY presenceChanged),
+    statusMessage: qt_property!(QString; NOTIFY statusMessageChanged),
 
-    display_name_changed: qt_signal!(),
-    avatar_url_changed: qt_signal!(),
-    user_id_changed: qt_signal!(),
-    presence_changed: qt_signal!(),
-    status_message_changed: qt_signal!(),
+    displayNameChanged: qt_signal!(),
+    avatarUrlChanged: qt_signal!(),
+    userIdChanged: qt_signal!(),
+    presenceChanged: qt_signal!(),
+    statusMessageChanged: qt_signal!(),
 
     // QML-callable method declarations.
     refresh: qt_method!(fn(&self)),
-    set_presence: qt_method!(fn(&self, presence: QString, status_msg: QString)),
+    setPresence: qt_method!(fn(&self, presence: QString, status_msg: QString)),
 }
 
 impl ProfileManager {
     #[allow(dead_code)]
     pub fn display_name(&self) -> QString {
-        self.display_name.clone()
+        self.displayName.clone()
     }
     #[allow(dead_code)]
     pub fn avatar_url(&self) -> QString {
-        self.avatar_url.clone()
+        self.avatarUrl.clone()
     }
     #[allow(dead_code)]
     pub fn user_id(&self) -> QString {
-        self.user_id.clone()
+        self.userId.clone()
     }
     #[allow(dead_code)]
     pub fn presence(&self) -> QString {
@@ -42,7 +43,7 @@ impl ProfileManager {
     }
     #[allow(dead_code)]
     pub fn status_message(&self) -> QString {
-        self.status_message.clone()
+        self.statusMessage.clone()
     }
 
     /// Pull the latest profile from the server. Called when the user opens
@@ -53,14 +54,14 @@ impl ProfileManager {
             move |data: (Option<String>, Option<String>, String)| {
                 if let Some(this) = qptr.as_pinned() {
                     let mut pm = this.borrow_mut();
-                    pm.display_name = QString::from(data.0.as_deref().unwrap_or(""));
-                    pm.display_name_changed();
-                    pm.avatar_url = QString::from(
+                    pm.displayName = QString::from(data.0.as_deref().unwrap_or(""));
+                    pm.displayNameChanged();
+                    pm.avatarUrl = QString::from(
                         data.1.as_deref().unwrap_or_default(),
                     );
-                    pm.avatar_url_changed();
-                    pm.user_id = QString::from(data.2.as_str());
-                    pm.user_id_changed();
+                    pm.avatarUrlChanged();
+                    pm.userId = QString::from(data.2.as_str());
+                    pm.userIdChanged();
                 }
             },
         );
@@ -97,7 +98,7 @@ impl ProfileManager {
     /// when starting the sync loop.
     ///
     /// This implementation uses the direct ruma API call.
-    pub fn set_presence(&self, presence: QString, status_msg: QString) {
+    pub fn setPresence(&self, presence: QString, status_msg: QString) {
         let p = presence.to_string();
         let s = status_msg.to_string();
         let qptr = QPointer::from(&*self);
@@ -105,9 +106,9 @@ impl ProfileManager {
             if let Some(this) = qptr.as_pinned() {
                 let mut pm = this.borrow_mut();
                 pm.presence = QString::from(data.0.as_str());
-                pm.presence_changed();
-                pm.status_message = QString::from(data.1.as_str());
-                pm.status_message_changed();
+                pm.presenceChanged();
+                pm.statusMessage = QString::from(data.1.as_str());
+                pm.statusMessageChanged();
             }
         });
         let rt = crate::Backend::get().as_ref()

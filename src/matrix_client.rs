@@ -39,6 +39,7 @@ pub struct SessionStore {
 }
 
 #[derive(QObject, Default)]
+#[allow(non_snake_case)]
 pub struct MatrixClient {
     base: qt_base_class!(trait QObject),
 
@@ -53,46 +54,46 @@ pub struct MatrixClient {
     profile: QPointer<ProfileManager>,
 
     /// True when fully synced and ready.
-    ready: qt_property!(bool; NOTIFY ready_changed),
+    ready: qt_property!(bool; NOTIFY readyChanged),
     /// True while a network call is in flight.
-    busy: qt_property!(bool; NOTIFY busy_changed),
+    busy: qt_property!(bool; NOTIFY busyChanged),
     /// Current user MXID, "" if logged out.
-    user_id: qt_property!(QString; NOTIFY user_id_changed),
+    userId: qt_property!(QString; NOTIFY userIdChanged),
     /// Last error message surfaced to the UI.
-    last_error: qt_property!(QString; NOTIFY last_error_changed),
+    lastError: qt_property!(QString; NOTIFY lastErrorChanged),
 
-    ready_changed: qt_signal!(),
-    busy_changed: qt_signal!(),
-    user_id_changed: qt_signal!(),
-    last_error_changed: qt_signal!(),
+    readyChanged: qt_signal!(),
+    busyChanged: qt_signal!(),
+    userIdChanged: qt_signal!(),
+    lastErrorChanged: qt_signal!(),
 
     /// Emitted with a JSON payload whenever a sync cycle completes.
-    sync_done: qt_signal!(payload: QString),
+    syncDone: qt_signal!(payload: QString),
     /// Emitted when login completes successfully.
-    logged_in: qt_signal!(user_id: QString),
+    loggedIn: qt_signal!(user_id: QString),
     /// Emitted on logout.
-    logged_out: qt_signal!(),
+    loggedOut: qt_signal!(),
     /// Emitted when a media download finishes. The third arg is the local
     /// filesystem path the file was saved to.
-    file_downloaded: qt_signal!(room_id: QString, mxc: QString, local_path: QString),
+    fileDownloaded: qt_signal!(room_id: QString, mxc: QString, local_path: QString),
 
     // QML-callable method declarations
-    auto_login: qt_method!(fn(&self)),
-    login_with_password: qt_method!(fn(&self, homeserver: QString, username: QString, password: QString, force_ipv6: bool)),
-    login_with_token: qt_method!(fn(&self, homeserver: QString, user_id: QString, device_id: QString, access_token: QString, force_ipv6: bool)),
+    autoLogin: qt_method!(fn(&self)),
+    loginWithPassword: qt_method!(fn(&self, homeserver: QString, username: QString, password: QString, force_ipv6: bool)),
+    loginWithToken: qt_method!(fn(&self, homeserver: QString, user_id: QString, device_id: QString, access_token: QString, force_ipv6: bool)),
     logout: qt_method!(fn(&self)),
-    send_text: qt_method!(fn(&self, room_id: QString, body: QString)),
-    send_file: qt_method!(fn(&self, room_id: QString, local_path: QString, mime: QString, kind: QString)),
-    download_media: qt_method!(fn(&self, room_id: QString, mxc: QString, suggested_name: QString)),
-    set_display_name: qt_method!(fn(&self, name: QString)),
-    set_avatar: qt_method!(fn(&self, local_path: QString)),
-    set_force_ipv6: qt_method!(fn(&self, on: bool)),
-    room_model: qt_method!(fn(&self) -> QPointer<RoomModel>),
-    space_model: qt_method!(fn(&self) -> QPointer<SpaceModel>),
-    message_model: qt_method!(fn(&self) -> QPointer<MessageModel>),
-    profile_manager: qt_method!(fn(&self) -> QPointer<ProfileManager>),
-    load_room_messages: qt_method!(fn(&self, room_id: QString)),
-    refresh_rooms: qt_method!(fn(&self)),
+    sendText: qt_method!(fn(&self, room_id: QString, body: QString)),
+    sendFile: qt_method!(fn(&self, room_id: QString, local_path: QString, mime: QString, kind: QString)),
+    downloadMedia: qt_method!(fn(&self, room_id: QString, mxc: QString, suggested_name: QString)),
+    setDisplayName: qt_method!(fn(&self, name: QString)),
+    setAvatar: qt_method!(fn(&self, local_path: QString)),
+    setForceIpv6: qt_method!(fn(&self, on: bool)),
+    roomModel: qt_method!(fn(&self) -> QPointer<RoomModel>),
+    spaceModel: qt_method!(fn(&self) -> QPointer<SpaceModel>),
+    messageModel: qt_method!(fn(&self) -> QPointer<MessageModel>),
+    profileManager: qt_method!(fn(&self) -> QPointer<ProfileManager>),
+    loadRoomMessages: qt_method!(fn(&self, room_id: QString)),
+    refreshRooms: qt_method!(fn(&self)),
 }
 
 impl MatrixClient {
@@ -106,42 +107,42 @@ impl MatrixClient {
 
     fn set_busy(&mut self, on: bool) {
         self.busy = on;
-        self.busy_changed();
+        self.busyChanged();
     }
 
     fn set_error(&mut self, msg: impl Into<String>) {
-        self.last_error = QString::from(msg.into().as_str());
-        self.last_error_changed();
+        self.lastError = QString::from(msg.into().as_str());
+        self.lastErrorChanged();
     }
 
     fn set_ready(&mut self, on: bool) {
         self.ready = on;
-        self.ready_changed();
+        self.readyChanged();
     }
 
     fn set_user_id(&mut self, id: impl Into<String>) {
-        self.user_id = QString::from(id.into().as_str());
-        self.user_id_changed();
+        self.userId = QString::from(id.into().as_str());
+        self.userIdChanged();
     }
 
     /// Public wrapper to emit the `file_downloaded` signal from outside this module.
     pub fn emit_file_downloaded(&self, room_id: QString, mxc: QString, local_path: QString) {
-        self.file_downloaded(room_id, mxc, local_path);
+        self.fileDownloaded(room_id, mxc, local_path);
     }
 
     /// Public wrapper to emit the `sync_done` signal from outside this module.
     pub fn emit_sync_done(&self, payload: QString) {
-        self.sync_done(payload);
+        self.syncDone(payload);
     }
 
     /// Public wrapper to emit the `logged_in` signal from outside this module.
     pub fn emit_logged_in(&self, user_id: QString) {
-        self.logged_in(user_id);
+        self.loggedIn(user_id);
     }
 
     /// Public wrapper to emit the `logged_out` signal from outside this module.
     pub fn emit_logged_out(&self) {
-        self.logged_out();
+        self.loggedOut();
     }
 
     /// Spawn a future on the Tokio runtime. Errors are forwarded to the UI
@@ -177,7 +178,7 @@ impl MatrixClient {
 impl MatrixClient {
     /// Try to resume a saved session (auto-login via stored access token).
     /// Called from QML on startup.
-    pub fn auto_login(&self) {
+    pub fn autoLogin(&self) {
         let path = Self::session_file_path();
         match std::fs::read_to_string(&path) {
             Ok(body) => match serde_json::from_str::<SessionStore>(&body) {
@@ -203,7 +204,7 @@ impl MatrixClient {
         }
     }
 
-    pub fn login_with_password(
+    pub fn loginWithPassword(
         &self,
         homeserver: QString,
         username: QString,
@@ -223,7 +224,7 @@ impl MatrixClient {
         });
     }
 
-    pub fn login_with_token(
+    pub fn loginWithToken(
         &self,
         homeserver: QString,
         user_id: QString,
@@ -271,7 +272,7 @@ impl MatrixClient {
         });
     }
 
-    pub fn send_text(&self, room_id: QString, body: QString) {
+    pub fn sendText(&self, room_id: QString, body: QString) {
         let room_id = room_id.to_string();
         let body = body.to_string();
         self.spawn(async move {
@@ -288,7 +289,7 @@ impl MatrixClient {
         });
     }
 
-    pub fn send_file(&self, room_id: QString, local_path: QString, mime: QString, kind: QString) {
+    pub fn sendFile(&self, room_id: QString, local_path: QString, mime: QString, kind: QString) {
         let room_id = room_id.to_string();
         let path = local_path.to_string();
         let mime = mime.to_string();
@@ -298,7 +299,7 @@ impl MatrixClient {
         });
     }
 
-    pub fn download_media(&self, room_id: QString, mxc: QString, suggested_name: QString) {
+    pub fn downloadMedia(&self, room_id: QString, mxc: QString, suggested_name: QString) {
         let room_id = room_id.to_string();
         let mxc = mxc.to_string();
         let name = suggested_name.to_string();
@@ -307,7 +308,7 @@ impl MatrixClient {
         });
     }
 
-    pub fn set_display_name(&self, name: QString) {
+    pub fn setDisplayName(&self, name: QString) {
         let name = name.to_string();
         self.spawn(async move {
             let client_arc = Self::require_client().await?;
@@ -317,7 +318,7 @@ impl MatrixClient {
         });
     }
 
-    pub fn set_avatar(&self, local_path: QString) {
+    pub fn setAvatar(&self, local_path: QString) {
         let path = local_path.to_string();
         self.spawn(async move {
             let client_arc = Self::require_client().await?;
@@ -325,30 +326,30 @@ impl MatrixClient {
         });
     }
 
-    pub fn set_force_ipv6(&self, on: bool) {
+    pub fn setForceIpv6(&self, on: bool) {
         if let Some(s) = self.session.borrow_mut().as_mut() {
             s.force_ipv6 = on;
             self.persist_session();
         }
     }
 
-    pub fn room_model(&self) -> QPointer<RoomModel> {
+    pub fn roomModel(&self) -> QPointer<RoomModel> {
         self.rooms.clone()
     }
 
-    pub fn space_model(&self) -> QPointer<SpaceModel> {
+    pub fn spaceModel(&self) -> QPointer<SpaceModel> {
         self.spaces.clone()
     }
 
-    pub fn message_model(&self) -> QPointer<MessageModel> {
+    pub fn messageModel(&self) -> QPointer<MessageModel> {
         self.messages.clone()
     }
 
-    pub fn profile_manager(&self) -> QPointer<ProfileManager> {
+    pub fn profileManager(&self) -> QPointer<ProfileManager> {
         self.profile.clone()
     }
 
-    pub fn load_room_messages(&self, room_id: QString) {
+    pub fn loadRoomMessages(&self, room_id: QString) {
         let room_id_str = room_id.to_string();
         let model = self.messages.clone();
         let client_arc = match self.inner.borrow().clone() {
@@ -370,7 +371,7 @@ impl MatrixClient {
         });
     }
 
-    pub fn refresh_rooms(&self) {
+    pub fn refreshRooms(&self) {
         let rooms_ptr = self.rooms.clone();
         let spaces_ptr = self.spaces.clone();
         let client_arc = match self.inner.borrow().clone() {
@@ -579,7 +580,7 @@ impl MatrixClient {
             mc.set_ready(true);
             mc.emit_logged_in(QString::from(sess.user_id.as_str()));
 
-            mc.refresh_rooms();
+            mc.refreshRooms();
         }
 
         // Kick off the sync loop in the background.

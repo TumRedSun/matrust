@@ -19,140 +19,141 @@ static THEME_SINGLETON: crate::singleton::QtSingleton<QPointer<Theme>> =
 
 #[derive(QObject, Default)]
 #[allow(dead_code)]
+#[allow(non_snake_case)]
 pub struct Theme {
     base: qt_base_class!(trait QObject),
 
     // --- Identification ---
     /// Active preset name. Setting this to a known preset overrides every
     /// field below. Setting to "Custom" keeps the current colors.
-    preset: qt_property!(QString; NOTIFY preset_changed READ preset WRITE set_preset),
+    preset: qt_property!(QString; NOTIFY presetChanged READ preset WRITE set_preset),
 
     // --- Window chrome ---
-    window_bg: qt_property!(QString; NOTIFY window_bg_changed READ window_bg WRITE set_window_bg),
-    window_fg: qt_property!(QString; NOTIFY window_fg_changed READ window_fg WRITE set_window_fg),
-    sidebar_bg: qt_property!(QString; NOTIFY sidebar_bg_changed READ sidebar_bg WRITE set_sidebar_bg),
-    sidebar_fg: qt_property!(QString; NOTIFY sidebar_fg_changed READ sidebar_fg WRITE set_sidebar_fg),
-    accent: qt_property!(QString; NOTIFY accent_changed READ accent WRITE set_accent),
-    accent_fg: qt_property!(QString; NOTIFY accent_fg_changed READ accent_fg WRITE set_accent_fg),
-    danger: qt_property!(QString; NOTIFY danger_changed READ danger WRITE set_danger),
-    success: qt_property!(QString; NOTIFY success_changed READ success WRITE set_success),
-    warning: qt_property!(QString; NOTIFY warning_changed READ warning WRITE set_warning),
-    muted: qt_property!(QString; NOTIFY muted_changed READ muted WRITE set_muted),
-    border: qt_property!(QString; NOTIFY border_changed READ border WRITE set_border),
+    windowBg: qt_property!(QString; NOTIFY windowBgChanged READ window_bg WRITE set_window_bg),
+    windowFg: qt_property!(QString; NOTIFY windowFgChanged READ window_fg WRITE set_window_fg),
+    sidebarBg: qt_property!(QString; NOTIFY sidebarBgChanged READ sidebar_bg WRITE set_sidebar_bg),
+    sidebarFg: qt_property!(QString; NOTIFY sidebarFgChanged READ sidebar_fg WRITE set_sidebar_fg),
+    accent: qt_property!(QString; NOTIFY accentChanged READ accent WRITE set_accent),
+    accentFg: qt_property!(QString; NOTIFY accentFgChanged READ accent_fg WRITE set_accent_fg),
+    danger: qt_property!(QString; NOTIFY dangerChanged READ danger WRITE set_danger),
+    success: qt_property!(QString; NOTIFY successChanged READ success WRITE set_success),
+    warning: qt_property!(QString; NOTIFY warningChanged READ warning WRITE set_warning),
+    muted: qt_property!(QString; NOTIFY mutedChanged READ muted WRITE set_muted),
+    border: qt_property!(QString; NOTIFY borderChanged READ border WRITE set_border),
 
     // --- Typography ---
-    font_family: qt_property!(QString; NOTIFY font_family_changed READ font_family WRITE set_font_family),
-    font_family_mono: qt_property!(QString; NOTIFY font_family_mono_changed READ font_family_mono WRITE set_font_family_mono),
-    font_size_xs: qt_property!(i32; NOTIFY font_size_xs_changed READ font_size_xs WRITE set_font_size_xs),
-    font_size_sm: qt_property!(i32; NOTIFY font_size_sm_changed READ font_size_sm WRITE set_font_size_sm),
-    font_size_md: qt_property!(i32; NOTIFY font_size_md_changed READ font_size_md WRITE set_font_size_md),
-    font_size_lg: qt_property!(i32; NOTIFY font_size_lg_changed READ font_size_lg WRITE set_font_size_lg),
-    font_size_xl: qt_property!(i32; NOTIFY font_size_xl_changed READ font_size_xl WRITE set_font_size_xl),
+    fontFamily: qt_property!(QString; NOTIFY fontFamilyChanged READ font_family WRITE set_font_family),
+    fontFamilyMono: qt_property!(QString; NOTIFY fontFamilyMonoChanged READ font_family_mono WRITE set_font_family_mono),
+    fontSizeXs: qt_property!(i32; NOTIFY fontSizeXsChanged READ font_size_xs WRITE set_font_size_xs),
+    fontSizeSm: qt_property!(i32; NOTIFY fontSizeSmChanged READ font_size_sm WRITE set_font_size_sm),
+    fontSizeMd: qt_property!(i32; NOTIFY fontSizeMdChanged READ font_size_md WRITE set_font_size_md),
+    fontSizeLg: qt_property!(i32; NOTIFY fontSizeLgChanged READ font_size_lg WRITE set_font_size_lg),
+    fontSizeXl: qt_property!(i32; NOTIFY fontSizeXlChanged READ font_size_xl WRITE set_font_size_xl),
 
     // --- Geometry ---
-    radius_sm: qt_property!(i32; NOTIFY radius_sm_changed READ radius_sm WRITE set_radius_sm),
-    radius_md: qt_property!(i32; NOTIFY radius_md_changed READ radius_md WRITE set_radius_md),
-    radius_lg: qt_property!(i32; NOTIFY radius_lg_changed READ radius_lg WRITE set_radius_lg),
-    padding_xs: qt_property!(i32; NOTIFY padding_xs_changed READ padding_xs WRITE set_padding_xs),
-    padding_sm: qt_property!(i32; NOTIFY padding_sm_changed READ padding_sm WRITE set_padding_sm),
-    padding_md: qt_property!(i32; NOTIFY padding_md_changed READ padding_md WRITE set_padding_md),
-    padding_lg: qt_property!(i32; NOTIFY padding_lg_changed READ padding_lg WRITE set_padding_lg),
-    spacing_xs: qt_property!(i32; NOTIFY spacing_xs_changed READ spacing_xs WRITE set_spacing_xs),
-    spacing_sm: qt_property!(i32; NOTIFY spacing_sm_changed READ spacing_sm WRITE set_spacing_sm),
-    spacing_md: qt_property!(i32; NOTIFY spacing_md_changed READ spacing_md WRITE set_spacing_md),
-    spacing_lg: qt_property!(i32; NOTIFY spacing_lg_changed READ spacing_lg WRITE set_spacing_lg),
+    radiusSm: qt_property!(i32; NOTIFY radiusSmChanged READ radius_sm WRITE set_radius_sm),
+    radiusMd: qt_property!(i32; NOTIFY radiusMdChanged READ radius_md WRITE set_radius_md),
+    radiusLg: qt_property!(i32; NOTIFY radiusLgChanged READ radius_lg WRITE set_radius_lg),
+    paddingXs: qt_property!(i32; NOTIFY paddingXsChanged READ padding_xs WRITE set_padding_xs),
+    paddingSm: qt_property!(i32; NOTIFY paddingSmChanged READ padding_sm WRITE set_padding_sm),
+    paddingMd: qt_property!(i32; NOTIFY paddingMdChanged READ padding_md WRITE set_padding_md),
+    paddingLg: qt_property!(i32; NOTIFY paddingLgChanged READ padding_lg WRITE set_padding_lg),
+    spacingXs: qt_property!(i32; NOTIFY spacingXsChanged READ spacing_xs WRITE set_spacing_xs),
+    spacingSm: qt_property!(i32; NOTIFY spacingSmChanged READ spacing_sm WRITE set_spacing_sm),
+    spacingMd: qt_property!(i32; NOTIFY spacingMdChanged READ spacing_md WRITE set_spacing_md),
+    spacingLg: qt_property!(i32; NOTIFY spacingLgChanged READ spacing_lg WRITE set_spacing_lg),
 
     // --- Message bubbles ---
-    bubble_bg_me: qt_property!(QString; NOTIFY bubble_bg_me_changed READ bubble_bg_me WRITE set_bubble_bg_me),
-    bubble_bg_them: qt_property!(QString; NOTIFY bubble_bg_them_changed READ bubble_bg_them WRITE set_bubble_bg_them),
-    bubble_fg_me: qt_property!(QString; NOTIFY bubble_fg_me_changed READ bubble_fg_me WRITE set_bubble_fg_me),
-    bubble_fg_them: qt_property!(QString; NOTIFY bubble_fg_them_changed READ bubble_fg_them WRITE set_bubble_fg_them),
-    bubble_radius: qt_property!(i32; NOTIFY bubble_radius_changed READ bubble_radius WRITE set_bubble_radius),
-    bubble_padding_h: qt_property!(i32; NOTIFY bubble_padding_h_changed READ bubble_padding_h WRITE set_bubble_padding_h),
-    bubble_padding_v: qt_property!(i32; NOTIFY bubble_padding_v_changed READ bubble_padding_v WRITE set_bubble_padding_v),
-    bubble_tail: qt_property!(bool; NOTIFY bubble_tail_changed READ bubble_tail WRITE set_bubble_tail),
-    bubble_max_width_pct: qt_property!(i32; NOTIFY bubble_max_width_pct_changed READ bubble_max_width_pct WRITE set_bubble_max_width_pct),
+    bubbleBgMe: qt_property!(QString; NOTIFY bubbleBgMeChanged READ bubble_bg_me WRITE set_bubble_bg_me),
+    bubbleBgThem: qt_property!(QString; NOTIFY bubbleBgThemChanged READ bubble_bg_them WRITE set_bubble_bg_them),
+    bubbleFgMe: qt_property!(QString; NOTIFY bubbleFgMeChanged READ bubble_fg_me WRITE set_bubble_fg_me),
+    bubbleFgThem: qt_property!(QString; NOTIFY bubbleFgThemChanged READ bubble_fg_them WRITE set_bubble_fg_them),
+    bubbleRadius: qt_property!(i32; NOTIFY bubbleRadiusChanged READ bubble_radius WRITE set_bubble_radius),
+    bubblePaddingH: qt_property!(i32; NOTIFY bubblePaddingHChanged READ bubble_padding_h WRITE set_bubble_padding_h),
+    bubblePaddingV: qt_property!(i32; NOTIFY bubblePaddingVChanged READ bubble_padding_v WRITE set_bubble_padding_v),
+    bubbleTail: qt_property!(bool; NOTIFY bubbleTailChanged READ bubble_tail WRITE set_bubble_tail),
+    bubbleMaxWidthPct: qt_property!(i32; NOTIFY bubbleMaxWidthPctChanged READ bubble_max_width_pct WRITE set_bubble_max_width_pct),
 
     // --- Avatars ---
-    avatar_size_sm: qt_property!(i32; NOTIFY avatar_size_sm_changed READ avatar_size_sm WRITE set_avatar_size_sm),
-    avatar_size_md: qt_property!(i32; NOTIFY avatar_size_md_changed READ avatar_size_md WRITE set_avatar_size_md),
-    avatar_size_lg: qt_property!(i32; NOTIFY avatar_size_lg_changed READ avatar_size_lg WRITE set_avatar_size_lg),
-    avatar_radius: qt_property!(i32; NOTIFY avatar_radius_changed READ avatar_radius WRITE set_avatar_radius),
-    avatar_shape: qt_property!(QString; NOTIFY avatar_shape_changed READ avatar_shape WRITE set_avatar_shape), // "circle" | "rounded" | "square"
+    avatarSizeSm: qt_property!(i32; NOTIFY avatarSizeSmChanged READ avatar_size_sm WRITE set_avatar_size_sm),
+    avatarSizeMd: qt_property!(i32; NOTIFY avatarSizeMdChanged READ avatar_size_md WRITE set_avatar_size_md),
+    avatarSizeLg: qt_property!(i32; NOTIFY avatarSizeLgChanged READ avatar_size_lg WRITE set_avatar_size_lg),
+    avatarRadius: qt_property!(i32; NOTIFY avatarRadiusChanged READ avatar_radius WRITE set_avatar_radius),
+    avatarShape: qt_property!(QString; NOTIFY avatarShapeChanged READ avatar_shape WRITE set_avatar_shape), // "circle" | "rounded" | "square"
 
     // --- Scrollbars & misc ---
-    scrollbar_size: qt_property!(i32; NOTIFY scrollbar_size_changed READ scrollbar_size WRITE set_scrollbar_size),
-    scrollbar_radius: qt_property!(i32; NOTIFY scrollbar_radius_changed READ scrollbar_radius WRITE set_scrollbar_radius),
-    compact_mode: qt_property!(bool; NOTIFY compact_mode_changed READ compact_mode WRITE set_compact_mode),
-    show_timestamps: qt_property!(bool; NOTIFY show_timestamps_changed READ show_timestamps WRITE set_show_timestamps),
-    show_avatars: qt_property!(bool; NOTIFY show_avatars_changed READ show_avatars WRITE set_show_avatars),
-    animate_bubbles: qt_property!(bool; NOTIFY animate_bubbles_changed READ animate_bubbles WRITE set_animate_bubbles),
-    animation_duration_ms: qt_property!(i32; NOTIFY animation_duration_ms_changed READ animation_duration_ms WRITE set_animation_duration_ms),
+    scrollbarSize: qt_property!(i32; NOTIFY scrollbarSizeChanged READ scrollbar_size WRITE set_scrollbar_size),
+    scrollbarRadius: qt_property!(i32; NOTIFY scrollbarRadiusChanged READ scrollbar_radius WRITE set_scrollbar_radius),
+    compactMode: qt_property!(bool; NOTIFY compactModeChanged READ compact_mode WRITE set_compact_mode),
+    showTimestamps: qt_property!(bool; NOTIFY showTimestampsChanged READ show_timestamps WRITE set_show_timestamps),
+    showAvatars: qt_property!(bool; NOTIFY showAvatarsChanged READ show_avatars WRITE set_show_avatars),
+    animateBubbles: qt_property!(bool; NOTIFY animateBubblesChanged READ animate_bubbles WRITE set_animate_bubbles),
+    animationDurationMs: qt_property!(i32; NOTIFY animationDurationMsChanged READ animation_duration_ms WRITE set_animation_duration_ms),
 
     // --- Signals ---
-    preset_changed: qt_signal!(),
-    window_bg_changed: qt_signal!(),
-    window_fg_changed: qt_signal!(),
-    sidebar_bg_changed: qt_signal!(),
-    sidebar_fg_changed: qt_signal!(),
-    accent_changed: qt_signal!(),
-    accent_fg_changed: qt_signal!(),
-    danger_changed: qt_signal!(),
-    success_changed: qt_signal!(),
-    warning_changed: qt_signal!(),
-    muted_changed: qt_signal!(),
-    border_changed: qt_signal!(),
-    font_family_changed: qt_signal!(),
-    font_family_mono_changed: qt_signal!(),
-    font_size_xs_changed: qt_signal!(),
-    font_size_sm_changed: qt_signal!(),
-    font_size_md_changed: qt_signal!(),
-    font_size_lg_changed: qt_signal!(),
-    font_size_xl_changed: qt_signal!(),
-    radius_sm_changed: qt_signal!(),
-    radius_md_changed: qt_signal!(),
-    radius_lg_changed: qt_signal!(),
-    padding_xs_changed: qt_signal!(),
-    padding_sm_changed: qt_signal!(),
-    padding_md_changed: qt_signal!(),
-    padding_lg_changed: qt_signal!(),
-    spacing_xs_changed: qt_signal!(),
-    spacing_sm_changed: qt_signal!(),
-    spacing_md_changed: qt_signal!(),
-    spacing_lg_changed: qt_signal!(),
-    bubble_bg_me_changed: qt_signal!(),
-    bubble_bg_them_changed: qt_signal!(),
-    bubble_fg_me_changed: qt_signal!(),
-    bubble_fg_them_changed: qt_signal!(),
-    bubble_radius_changed: qt_signal!(),
-    bubble_padding_h_changed: qt_signal!(),
-    bubble_padding_v_changed: qt_signal!(),
-    bubble_tail_changed: qt_signal!(),
-    bubble_max_width_pct_changed: qt_signal!(),
-    avatar_size_sm_changed: qt_signal!(),
-    avatar_size_md_changed: qt_signal!(),
-    avatar_size_lg_changed: qt_signal!(),
-    avatar_radius_changed: qt_signal!(),
-    avatar_shape_changed: qt_signal!(),
-    scrollbar_size_changed: qt_signal!(),
-    scrollbar_radius_changed: qt_signal!(),
-    compact_mode_changed: qt_signal!(),
-    show_timestamps_changed: qt_signal!(),
-    show_avatars_changed: qt_signal!(),
-    animate_bubbles_changed: qt_signal!(),
-    animation_duration_ms_changed: qt_signal!(),
+    presetChanged: qt_signal!(),
+    windowBgChanged: qt_signal!(),
+    windowFgChanged: qt_signal!(),
+    sidebarBgChanged: qt_signal!(),
+    sidebarFgChanged: qt_signal!(),
+    accentChanged: qt_signal!(),
+    accentFgChanged: qt_signal!(),
+    dangerChanged: qt_signal!(),
+    successChanged: qt_signal!(),
+    warningChanged: qt_signal!(),
+    mutedChanged: qt_signal!(),
+    borderChanged: qt_signal!(),
+    fontFamilyChanged: qt_signal!(),
+    fontFamilyMonoChanged: qt_signal!(),
+    fontSizeXsChanged: qt_signal!(),
+    fontSizeSmChanged: qt_signal!(),
+    fontSizeMdChanged: qt_signal!(),
+    fontSizeLgChanged: qt_signal!(),
+    fontSizeXlChanged: qt_signal!(),
+    radiusSmChanged: qt_signal!(),
+    radiusMdChanged: qt_signal!(),
+    radiusLgChanged: qt_signal!(),
+    paddingXsChanged: qt_signal!(),
+    paddingSmChanged: qt_signal!(),
+    paddingMdChanged: qt_signal!(),
+    paddingLgChanged: qt_signal!(),
+    spacingXsChanged: qt_signal!(),
+    spacingSmChanged: qt_signal!(),
+    spacingMdChanged: qt_signal!(),
+    spacingLgChanged: qt_signal!(),
+    bubbleBgMeChanged: qt_signal!(),
+    bubbleBgThemChanged: qt_signal!(),
+    bubbleFgMeChanged: qt_signal!(),
+    bubbleFgThemChanged: qt_signal!(),
+    bubbleRadiusChanged: qt_signal!(),
+    bubblePaddingHChanged: qt_signal!(),
+    bubblePaddingVChanged: qt_signal!(),
+    bubbleTailChanged: qt_signal!(),
+    bubbleMaxWidthPctChanged: qt_signal!(),
+    avatarSizeSmChanged: qt_signal!(),
+    avatarSizeMdChanged: qt_signal!(),
+    avatarSizeLgChanged: qt_signal!(),
+    avatarRadiusChanged: qt_signal!(),
+    avatarShapeChanged: qt_signal!(),
+    scrollbarSizeChanged: qt_signal!(),
+    scrollbarRadiusChanged: qt_signal!(),
+    compactModeChanged: qt_signal!(),
+    showTimestampsChanged: qt_signal!(),
+    showAvatarsChanged: qt_signal!(),
+    animateBubblesChanged: qt_signal!(),
+    animationDurationMsChanged: qt_signal!(),
 
     /// Fired after `apply_preset` or `load_from_disk` finishes; QML uses it
     /// to rebind bound expressions.
-    theme_changed: qt_signal!(),
+    themeChanged: qt_signal!(),
 
     // QML-callable method declarations (qt_method! is a function-like macro
     // in qmetaobject 0.2; the actual bodies live in the impl block below).
-    apply_preset: qt_method!(fn(&self, name: QString)),
+    applyPreset: qt_method!(fn(&self, name: QString)),
     reset: qt_method!(fn(&self)),
-    export_json: qt_method!(fn(&self) -> QString),
-    import_json: qt_method!(fn(&self, json: QString) -> bool),
-    available_presets: qt_method!(fn(&self) -> QString),
+    exportJson: qt_method!(fn(&self) -> QString),
+    importJson: qt_method!(fn(&self, json: QString) -> bool),
+    availablePresets: qt_method!(fn(&self) -> QString),
 
     state: RefCell<ThemeState>,
 }
@@ -249,61 +250,61 @@ impl Theme {
     }
 
     fn fire_all_signals(&self) {
-        let _ = self.preset_changed();
-        let _ = self.window_bg_changed();
-        let _ = self.window_fg_changed();
-        let _ = self.sidebar_bg_changed();
-        let _ = self.sidebar_fg_changed();
-        let _ = self.accent_changed();
-        let _ = self.accent_fg_changed();
-        let _ = self.danger_changed();
-        let _ = self.success_changed();
-        let _ = self.warning_changed();
-        let _ = self.muted_changed();
-        let _ = self.border_changed();
-        let _ = self.font_family_changed();
-        let _ = self.font_family_mono_changed();
-        let _ = self.font_size_xs_changed();
-        let _ = self.font_size_sm_changed();
-        let _ = self.font_size_md_changed();
-        let _ = self.font_size_lg_changed();
-        let _ = self.font_size_xl_changed();
-        let _ = self.radius_sm_changed();
-        let _ = self.radius_md_changed();
-        let _ = self.radius_lg_changed();
-        let _ = self.padding_xs_changed();
-        let _ = self.padding_sm_changed();
-        let _ = self.padding_md_changed();
-        let _ = self.padding_lg_changed();
-        let _ = self.spacing_xs_changed();
-        let _ = self.spacing_sm_changed();
-        let _ = self.spacing_md_changed();
-        let _ = self.spacing_lg_changed();
-        let _ = self.bubble_bg_me_changed();
-        let _ = self.bubble_bg_them_changed();
-        let _ = self.bubble_fg_me_changed();
-        let _ = self.bubble_fg_them_changed();
-        let _ = self.bubble_radius_changed();
-        let _ = self.bubble_padding_h_changed();
-        let _ = self.bubble_padding_v_changed();
-        let _ = self.bubble_tail_changed();
-        let _ = self.bubble_max_width_pct_changed();
-        let _ = self.avatar_size_sm_changed();
-        let _ = self.avatar_size_md_changed();
-        let _ = self.avatar_size_lg_changed();
-        let _ = self.avatar_radius_changed();
-        let _ = self.avatar_shape_changed();
-        let _ = self.scrollbar_size_changed();
-        let _ = self.scrollbar_radius_changed();
-        let _ = self.compact_mode_changed();
-        let _ = self.show_timestamps_changed();
-        let _ = self.show_avatars_changed();
-        let _ = self.animate_bubbles_changed();
-        let _ = self.animation_duration_ms_changed();
-        self.theme_changed();
+        let _ = self.presetChanged();
+        let _ = self.windowBgChanged();
+        let _ = self.windowFgChanged();
+        let _ = self.sidebarBgChanged();
+        let _ = self.sidebarFgChanged();
+        let _ = self.accentChanged();
+        let _ = self.accentFgChanged();
+        let _ = self.dangerChanged();
+        let _ = self.successChanged();
+        let _ = self.warningChanged();
+        let _ = self.mutedChanged();
+        let _ = self.borderChanged();
+        let _ = self.fontFamilyChanged();
+        let _ = self.fontFamilyMonoChanged();
+        let _ = self.fontSizeXsChanged();
+        let _ = self.fontSizeSmChanged();
+        let _ = self.fontSizeMdChanged();
+        let _ = self.fontSizeLgChanged();
+        let _ = self.fontSizeXlChanged();
+        let _ = self.radiusSmChanged();
+        let _ = self.radiusMdChanged();
+        let _ = self.radiusLgChanged();
+        let _ = self.paddingXsChanged();
+        let _ = self.paddingSmChanged();
+        let _ = self.paddingMdChanged();
+        let _ = self.paddingLgChanged();
+        let _ = self.spacingXsChanged();
+        let _ = self.spacingSmChanged();
+        let _ = self.spacingMdChanged();
+        let _ = self.spacingLgChanged();
+        let _ = self.bubbleBgMeChanged();
+        let _ = self.bubbleBgThemChanged();
+        let _ = self.bubbleFgMeChanged();
+        let _ = self.bubbleFgThemChanged();
+        let _ = self.bubbleRadiusChanged();
+        let _ = self.bubblePaddingHChanged();
+        let _ = self.bubblePaddingVChanged();
+        let _ = self.bubbleTailChanged();
+        let _ = self.bubbleMaxWidthPctChanged();
+        let _ = self.avatarSizeSmChanged();
+        let _ = self.avatarSizeMdChanged();
+        let _ = self.avatarSizeLgChanged();
+        let _ = self.avatarRadiusChanged();
+        let _ = self.avatarShapeChanged();
+        let _ = self.scrollbarSizeChanged();
+        let _ = self.scrollbarRadiusChanged();
+        let _ = self.compactModeChanged();
+        let _ = self.showTimestampsChanged();
+        let _ = self.showAvatarsChanged();
+        let _ = self.animateBubblesChanged();
+        let _ = self.animationDurationMsChanged();
+        self.themeChanged();
     }
 
-    pub fn apply_preset(&self, name: QString) {
+    pub fn applyPreset(&self, name: QString) {
         let s = preset(&name.to_string());
         *self.state.borrow_mut() = s;
         self.fire_all_signals();
@@ -316,12 +317,12 @@ impl Theme {
         self.save_to_disk();
     }
 
-    pub fn export_json(&self) -> QString {
+    pub fn exportJson(&self) -> QString {
         let s = self.state.borrow().clone();
         QString::from(serde_json::to_string_pretty(&s).unwrap_or_default().as_str())
     }
 
-    pub fn import_json(&self, json: QString) -> bool {
+    pub fn importJson(&self, json: QString) -> bool {
         match serde_json::from_str::<ThemeState>(&json.to_string()) {
             Ok(s) => {
                 *self.state.borrow_mut() = s;
@@ -334,7 +335,7 @@ impl Theme {
     }
 
     // --- List of available presets, for QML dropdowns ---
-    pub fn available_presets(&self) -> QString {
+    pub fn availablePresets(&self) -> QString {
         QString::from(
             r#"["Material Dark","Solarized Dark","Tokyo Night","Nordic","Dracula","Gruvbox","Catppuccin Mocha","Sunset","Matrix Green"]"#,
         )
@@ -359,41 +360,41 @@ impl Theme {
         self.save_to_disk();
     }
     pub fn window_bg(&self) -> QString { QString::from(self.state.borrow().window_bg.as_str()) }
-    pub fn set_window_bg(&self, v: QString) { self.state.borrow_mut().window_bg = v.to_string(); self.window_bg_changed(); self.save_to_disk(); }
+    pub fn set_window_bg(&self, v: QString) { self.state.borrow_mut().window_bg = v.to_string(); self.windowBgChanged(); self.save_to_disk(); }
     pub fn window_fg(&self) -> QString { QString::from(self.state.borrow().window_fg.as_str()) }
-    pub fn set_window_fg(&self, v: QString) { self.state.borrow_mut().window_fg = v.to_string(); self.window_fg_changed(); self.save_to_disk(); }
+    pub fn set_window_fg(&self, v: QString) { self.state.borrow_mut().window_fg = v.to_string(); self.windowFgChanged(); self.save_to_disk(); }
     pub fn sidebar_bg(&self) -> QString { QString::from(self.state.borrow().sidebar_bg.as_str()) }
-    pub fn set_sidebar_bg(&self, v: QString) { self.state.borrow_mut().sidebar_bg = v.to_string(); self.sidebar_bg_changed(); self.save_to_disk(); }
+    pub fn set_sidebar_bg(&self, v: QString) { self.state.borrow_mut().sidebar_bg = v.to_string(); self.sidebarBgChanged(); self.save_to_disk(); }
     pub fn sidebar_fg(&self) -> QString { QString::from(self.state.borrow().sidebar_fg.as_str()) }
-    pub fn set_sidebar_fg(&self, v: QString) { self.state.borrow_mut().sidebar_fg = v.to_string(); self.sidebar_fg_changed(); self.save_to_disk(); }
+    pub fn set_sidebar_fg(&self, v: QString) { self.state.borrow_mut().sidebar_fg = v.to_string(); self.sidebarFgChanged(); self.save_to_disk(); }
     pub fn accent(&self) -> QString { QString::from(self.state.borrow().accent.as_str()) }
-    pub fn set_accent(&self, v: QString) { self.state.borrow_mut().accent = v.to_string(); self.accent_changed(); self.save_to_disk(); }
+    pub fn set_accent(&self, v: QString) { self.state.borrow_mut().accent = v.to_string(); self.accentChanged(); self.save_to_disk(); }
     pub fn accent_fg(&self) -> QString { QString::from(self.state.borrow().accent_fg.as_str()) }
-    pub fn set_accent_fg(&self, v: QString) { self.state.borrow_mut().accent_fg = v.to_string(); self.accent_fg_changed(); self.save_to_disk(); }
+    pub fn set_accent_fg(&self, v: QString) { self.state.borrow_mut().accent_fg = v.to_string(); self.accentFgChanged(); self.save_to_disk(); }
     pub fn danger(&self) -> QString { QString::from(self.state.borrow().danger.as_str()) }
-    pub fn set_danger(&self, v: QString) { self.state.borrow_mut().danger = v.to_string(); self.danger_changed(); self.save_to_disk(); }
+    pub fn set_danger(&self, v: QString) { self.state.borrow_mut().danger = v.to_string(); self.dangerChanged(); self.save_to_disk(); }
     pub fn success(&self) -> QString { QString::from(self.state.borrow().success.as_str()) }
-    pub fn set_success(&self, v: QString) { self.state.borrow_mut().success = v.to_string(); self.success_changed(); self.save_to_disk(); }
+    pub fn set_success(&self, v: QString) { self.state.borrow_mut().success = v.to_string(); self.successChanged(); self.save_to_disk(); }
     pub fn warning(&self) -> QString { QString::from(self.state.borrow().warning.as_str()) }
-    pub fn set_warning(&self, v: QString) { self.state.borrow_mut().warning = v.to_string(); self.warning_changed(); self.save_to_disk(); }
+    pub fn set_warning(&self, v: QString) { self.state.borrow_mut().warning = v.to_string(); self.warningChanged(); self.save_to_disk(); }
     pub fn muted(&self) -> QString { QString::from(self.state.borrow().muted.as_str()) }
-    pub fn set_muted(&self, v: QString) { self.state.borrow_mut().muted = v.to_string(); self.muted_changed(); self.save_to_disk(); }
+    pub fn set_muted(&self, v: QString) { self.state.borrow_mut().muted = v.to_string(); self.mutedChanged(); self.save_to_disk(); }
     pub fn border(&self) -> QString { QString::from(self.state.borrow().border.as_str()) }
-    pub fn set_border(&self, v: QString) { self.state.borrow_mut().border = v.to_string(); self.border_changed(); self.save_to_disk(); }
+    pub fn set_border(&self, v: QString) { self.state.borrow_mut().border = v.to_string(); self.borderChanged(); self.save_to_disk(); }
     pub fn font_family(&self) -> QString { QString::from(self.state.borrow().font_family.as_str()) }
-    pub fn set_font_family(&self, v: QString) { self.state.borrow_mut().font_family = v.to_string(); self.font_family_changed(); self.save_to_disk(); }
+    pub fn set_font_family(&self, v: QString) { self.state.borrow_mut().font_family = v.to_string(); self.fontFamilyChanged(); self.save_to_disk(); }
     pub fn font_family_mono(&self) -> QString { QString::from(self.state.borrow().font_family_mono.as_str()) }
-    pub fn set_font_family_mono(&self, v: QString) { self.state.borrow_mut().font_family_mono = v.to_string(); self.font_family_mono_changed(); self.save_to_disk(); }
+    pub fn set_font_family_mono(&self, v: QString) { self.state.borrow_mut().font_family_mono = v.to_string(); self.fontFamilyMonoChanged(); self.save_to_disk(); }
     pub fn bubble_bg_me(&self) -> QString { QString::from(self.state.borrow().bubble_bg_me.as_str()) }
-    pub fn set_bubble_bg_me(&self, v: QString) { self.state.borrow_mut().bubble_bg_me = v.to_string(); self.bubble_bg_me_changed(); self.save_to_disk(); }
+    pub fn set_bubble_bg_me(&self, v: QString) { self.state.borrow_mut().bubble_bg_me = v.to_string(); self.bubbleBgMeChanged(); self.save_to_disk(); }
     pub fn bubble_bg_them(&self) -> QString { QString::from(self.state.borrow().bubble_bg_them.as_str()) }
-    pub fn set_bubble_bg_them(&self, v: QString) { self.state.borrow_mut().bubble_bg_them = v.to_string(); self.bubble_bg_them_changed(); self.save_to_disk(); }
+    pub fn set_bubble_bg_them(&self, v: QString) { self.state.borrow_mut().bubble_bg_them = v.to_string(); self.bubbleBgThemChanged(); self.save_to_disk(); }
     pub fn bubble_fg_me(&self) -> QString { QString::from(self.state.borrow().bubble_fg_me.as_str()) }
-    pub fn set_bubble_fg_me(&self, v: QString) { self.state.borrow_mut().bubble_fg_me = v.to_string(); self.bubble_fg_me_changed(); self.save_to_disk(); }
+    pub fn set_bubble_fg_me(&self, v: QString) { self.state.borrow_mut().bubble_fg_me = v.to_string(); self.bubbleFgMeChanged(); self.save_to_disk(); }
     pub fn bubble_fg_them(&self) -> QString { QString::from(self.state.borrow().bubble_fg_them.as_str()) }
-    pub fn set_bubble_fg_them(&self, v: QString) { self.state.borrow_mut().bubble_fg_them = v.to_string(); self.bubble_fg_them_changed(); self.save_to_disk(); }
+    pub fn set_bubble_fg_them(&self, v: QString) { self.state.borrow_mut().bubble_fg_them = v.to_string(); self.bubbleFgThemChanged(); self.save_to_disk(); }
     pub fn avatar_shape(&self) -> QString { QString::from(self.state.borrow().avatar_shape.as_str()) }
-    pub fn set_avatar_shape(&self, v: QString) { self.state.borrow_mut().avatar_shape = v.to_string(); self.avatar_shape_changed(); self.save_to_disk(); }
+    pub fn set_avatar_shape(&self, v: QString) { self.state.borrow_mut().avatar_shape = v.to_string(); self.avatarShapeChanged(); self.save_to_disk(); }
 }
 
 // Integer accessors
@@ -415,33 +416,33 @@ macro_rules! int_accessors {
 }
 
 int_accessors! {
-    font_size_xs, font_size_xs_changed;
-    font_size_sm, font_size_sm_changed;
-    font_size_md, font_size_md_changed;
-    font_size_lg, font_size_lg_changed;
-    font_size_xl, font_size_xl_changed;
-    radius_sm, radius_sm_changed;
-    radius_md, radius_md_changed;
-    radius_lg, radius_lg_changed;
-    padding_xs, padding_xs_changed;
-    padding_sm, padding_sm_changed;
-    padding_md, padding_md_changed;
-    padding_lg, padding_lg_changed;
-    spacing_xs, spacing_xs_changed;
-    spacing_sm, spacing_sm_changed;
-    spacing_md, spacing_md_changed;
-    spacing_lg, spacing_lg_changed;
-    bubble_radius, bubble_radius_changed;
-    bubble_padding_h, bubble_padding_h_changed;
-    bubble_padding_v, bubble_padding_v_changed;
-    bubble_max_width_pct, bubble_max_width_pct_changed;
-    avatar_size_sm, avatar_size_sm_changed;
-    avatar_size_md, avatar_size_md_changed;
-    avatar_size_lg, avatar_size_lg_changed;
-    avatar_radius, avatar_radius_changed;
-    scrollbar_size, scrollbar_size_changed;
-    scrollbar_radius, scrollbar_radius_changed;
-    animation_duration_ms, animation_duration_ms_changed;
+    font_size_xs, fontSizeXsChanged;
+    font_size_sm, fontSizeSmChanged;
+    font_size_md, fontSizeMdChanged;
+    font_size_lg, fontSizeLgChanged;
+    font_size_xl, fontSizeXlChanged;
+    radius_sm, radiusSmChanged;
+    radius_md, radiusMdChanged;
+    radius_lg, radiusLgChanged;
+    padding_xs, paddingXsChanged;
+    padding_sm, paddingSmChanged;
+    padding_md, paddingMdChanged;
+    padding_lg, paddingLgChanged;
+    spacing_xs, spacingXsChanged;
+    spacing_sm, spacingSmChanged;
+    spacing_md, spacingMdChanged;
+    spacing_lg, spacingLgChanged;
+    bubble_radius, bubbleRadiusChanged;
+    bubble_padding_h, bubblePaddingHChanged;
+    bubble_padding_v, bubblePaddingVChanged;
+    bubble_max_width_pct, bubbleMaxWidthPctChanged;
+    avatar_size_sm, avatarSizeSmChanged;
+    avatar_size_md, avatarSizeMdChanged;
+    avatar_size_lg, avatarSizeLgChanged;
+    avatar_radius, avatarRadiusChanged;
+    scrollbar_size, scrollbarSizeChanged;
+    scrollbar_radius, scrollbarRadiusChanged;
+    animation_duration_ms, animationDurationMsChanged;
 }
 
 // Bool accessors
@@ -463,11 +464,11 @@ macro_rules! bool_accessors {
 }
 
 bool_accessors! {
-    bubble_tail, bubble_tail_changed;
-    compact_mode, compact_mode_changed;
-    show_timestamps, show_timestamps_changed;
-    show_avatars, show_avatars_changed;
-    animate_bubbles, animate_bubbles_changed;
+    bubble_tail, bubbleTailChanged;
+    compact_mode, compactModeChanged;
+    show_timestamps, showTimestampsChanged;
+    show_avatars, showAvatarsChanged;
+    animate_bubbles, animateBubblesChanged;
 }
 
 impl Theme {
