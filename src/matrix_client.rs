@@ -159,8 +159,7 @@ impl MatrixClient {
                 this.borrow_mut().set_error(msg);
             }
         });
-        let rt = crate::Backend::get().as_ref()
-            .expect("Backend not initialized").runtime().clone();
+        let rt = crate::get_runtime();
         rt.spawn(async move {
             match fut.await {
                 Ok(_) => {}
@@ -176,18 +175,22 @@ impl MatrixClient {
 // QML-callable methods.
 #[allow(non_snake_case)]
 impl MatrixClient {
-    /// Try to resume a saved session (auto-login via stored access token).
+    /// Try to resume a saved session (auto-login via stored session data).
     /// Called from QML on startup.
     pub fn autoLogin(&self) {
         let path = Self::session_file_path();
         match std::fs::read_to_string(&path) {
             Ok(body) => match serde_json::from_str::<SessionStore>(&body) {
                 Ok(sess) => {
-                    let token = sess.access_token.clone();
                     let homeserver = sess.homeserver.clone();
+                    let user_id = sess.user_id.clone();
+                    let device_id = sess.device_id.clone();
+                    let access_token = sess.access_token.clone();
                     let ipv6 = sess.force_ipv6;
                     self.spawn(async move {
-                        Self::do_restore_session(homeserver, token, ipv6).await
+                        Self::do_restore_session_with_full(
+                            homeserver, user_id, device_id, access_token, ipv6,
+                        ).await
                     });
                 }
                 Err(e) => {
@@ -197,6 +200,7 @@ impl MatrixClient {
                 }
             },
             Err(_) => {
+                // No saved session — user needs to log in manually.
                 if let Some(this) = QPointer::from(&*self).as_pinned() {
                     this.borrow_mut().set_ready(false);
                 }
@@ -261,8 +265,7 @@ impl MatrixClient {
                 mc.emit_logged_out();
             }
         });
-        let rt = crate::Backend::get().as_ref()
-            .expect("Backend not initialized").runtime().clone();
+        let rt = crate::get_runtime();
         rt.spawn(async move {
             if let Some(c) = client_arc {
                 let _ = c.lock().await.logout().await;
@@ -452,42 +455,6 @@ impl MatrixClient {
         })
     }
 
-    /// Restore session with just an access token.
-    async fn do_restore_session(
-        homeserver: String,
-        access_token: String,
-        force_ipv6: bool,
-    ) -> AppResult<()> {
-        {
-            let qptr = Self::singleton_ptr();
-            if let Some(this) = qptr.as_pinned() {
-                this.borrow_mut().set_busy(true);
-            }
-        }
-
-        let client = crate::auth::build_client(&homeserver, force_ipv6).await?;
-
-        let session = Self::make_matrix_session(
-            "@_restore_pending:localhost",
-            "RESTORE",
-            access_token.clone(),
-            None,
-        )?;
-        client.restore_session(session).await?;
-        let who = client.whoami().await?;
-
-        let s = SessionStore {
-            homeserver,
-            user_id: who.user_id.to_string(),
-            device_id: who.device_id.map(|d| d.to_string()).unwrap_or_default(),
-            access_token: client.access_token().unwrap_or_default(),
-            refresh_token: None,
-            force_ipv6,
-        };
-
-        Self::finish_login(client, &s).await
-    }
-
     /// Restore session with all fields known.
     async fn do_restore_session_with_full(
         homeserver: String,
@@ -592,8 +559,7 @@ impl MatrixClient {
                 this.borrow().emit_sync_done(QString::from("{}"));
             }
         });
-        let rt = crate::Backend::get().as_ref()
-            .expect("Backend not initialized").runtime().clone();
+        let rt = crate::get_runtime();
         rt.spawn(async move {
             let c = arc2.lock().await;
             c.sync(matrix_sdk::config::SyncSettings::default()).await.ok();

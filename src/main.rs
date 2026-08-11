@@ -7,8 +7,21 @@
 
 use cstr::cstr;
 use qmetaobject::{qrc, QPointer, QObject, QmlEngine, qt_base_class};
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use tokio::runtime::Runtime;
+
+/// Global Tokio runtime, initialized once and never dependent on QML singleton
+/// creation order. This eliminates the "Backend not initialized" panic that
+/// occurred when `MatrixClient.autoLogin()` ran before the QML engine had
+/// lazily created the `Backend` singleton.
+static TOKIO_RUNTIME: OnceLock<Arc<Runtime>> = OnceLock::new();
+
+/// Returns the shared Tokio runtime. Creates it on first call.
+pub fn get_runtime() -> Arc<Runtime> {
+    TOKIO_RUNTIME
+        .get_or_init(|| Arc::new(Runtime::new().expect("failed to build Tokio runtime")))
+        .clone()
+}
 
 mod singleton;
 mod matrix_client;
@@ -71,11 +84,11 @@ impl Backend {
 
 impl qmetaobject::QSingletonInit for Backend {
     fn init(&mut self) {
-        // Set up the Tokio runtime on the engine-created singleton.
+        // Use the global runtime so Backend is just a thin QML-facing shell.
+        // This guarantees the runtime exists regardless of QML singleton
+        // creation order.
         if self.runtime.is_none() {
-            self.runtime = Some(Arc::new(
-                Runtime::new().expect("failed to build Tokio runtime"),
-            ));
+            self.runtime = Some(get_runtime());
         }
         // Store the QPointer for global access.
         BACKEND_SINGLETON.set(QPointer::from(&*self));

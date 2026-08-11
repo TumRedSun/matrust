@@ -65,8 +65,7 @@ impl ProfileManager {
                 }
             },
         );
-        let rt = crate::Backend::get().as_ref()
-            .expect("Backend not initialized").runtime().clone();
+        let rt = crate::get_runtime();
         rt.spawn(async move {
             let client_arc = crate::MatrixClient::require_client().await?;
             let c = client_arc.lock().await;
@@ -111,8 +110,7 @@ impl ProfileManager {
                 pm.statusMessageChanged();
             }
         });
-        let rt = crate::Backend::get().as_ref()
-            .expect("Backend not initialized").runtime().clone();
+        let rt = crate::get_runtime();
         rt.spawn(async move {
             let client_arc = crate::MatrixClient::require_client().await?;
             let c = client_arc.lock().await;
