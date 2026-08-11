@@ -32,7 +32,8 @@ Item {
         // Avatar (optional)
         Rectangle {
             visible: Theme.show_avatars && !root.isOwn
-            Layout.preferredSize: Theme.avatar_size_sm
+            Layout.preferredWidth: Theme.avatar_size_sm
+            Layout.preferredHeight: Theme.avatar_size_sm
             Layout.alignment: Qt.AlignTop
             radius: Theme.avatar_shape === "circle" ? Theme.avatar_size_sm/2
                     : (Theme.avatar_shape === "square" ? 0 : Theme.avatar_radius)

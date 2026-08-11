@@ -307,7 +307,8 @@ Rectangle {
         Label { text: label; color: Theme.window_fg; Layout.preferredWidth: 200 }
 
         Rectangle {
-            Layout.preferredSize: 32
+            Layout.preferredWidth: 32
+            Layout.preferredHeight: 32
             radius: 6
             color: Theme[bind]
             border.color: Theme.border; border.width: 1

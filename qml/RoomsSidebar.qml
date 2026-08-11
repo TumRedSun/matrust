@@ -49,7 +49,8 @@ Rectangle {
                         spacing: Theme.spacing_sm
 
                         Rectangle {
-                            Layout.preferredSize: Theme.avatar_size_md
+                            Layout.preferredWidth: Theme.avatar_size_md
+                            Layout.preferredHeight: Theme.avatar_size_md
                             radius: Theme.avatar_shape === "circle" ? Theme.avatar_size_md/2 : (Theme.avatar_shape === "square" ? 0 : Theme.avatar_radius)
                             color: Theme.accent
                             opacity: 0.3
@@ -83,7 +84,8 @@ Rectangle {
                         }
                         Rectangle {
                             visible: model.unread_count > 0
-                            Layout.preferredSize: 20
+                            Layout.preferredWidth: 20
+                            Layout.preferredHeight: 20
                             radius: 10
                             color: model.highlight_count > 0 ? Theme.danger : Theme.accent
                             Label {

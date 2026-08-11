@@ -23,7 +23,8 @@ Rectangle {
         // Avatar with upload button
         Rectangle {
             Layout.alignment: Qt.AlignHCenter
-            Layout.preferredSize: Theme.avatar_size_lg * 2
+            Layout.preferredWidth: Theme.avatar_size_lg * 2
+            Layout.preferredHeight: Theme.avatar_size_lg * 2
             radius: Theme.avatar_shape === "circle" ? (Theme.avatar_size_lg * 2) / 2
                     : (Theme.avatar_shape === "square" ? 0 : Theme.radius_lg)
             color: Theme.accent
