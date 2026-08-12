@@ -409,6 +409,8 @@ impl Theme {
     pub fn set_bubble_fg_them(&self, v: QString) { self.state.borrow_mut().bubble_fg_them = v.to_string(); self.bubbleFgThemChanged(); self.save_to_disk(); }
     pub fn avatar_shape(&self) -> QString { QString::from(self.state.borrow().avatar_shape.as_str()) }
     pub fn set_avatar_shape(&self, v: QString) { self.state.borrow_mut().avatar_shape = v.to_string(); self.avatarShapeChanged(); self.save_to_disk(); }
+    pub fn language(&self) -> QString { QString::from(self.state.borrow().language.as_str()) }
+    pub fn set_language(&self, v: QString) { self.state.borrow_mut().language = v.to_string(); self.languageChanged(); self.save_to_disk(); }
 }
 
 // Integer accessors
@@ -457,7 +459,6 @@ int_accessors! {
     scrollbar_size, scrollbarSizeChanged;
     scrollbar_radius, scrollbarRadiusChanged;
     animation_duration_ms, animationDurationMsChanged;
-    language, languageChanged;
 }
 
 // Bool accessors

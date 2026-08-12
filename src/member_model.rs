@@ -48,17 +48,17 @@ impl MemberModel {
             .ok_or_else(|| crate::errors::AppError::RoomNotFound(room_id.clone()))?;
         drop(c);
 
-        let members = room.members(matrix_sdk::RoomMembersCriteria::default()).await?;
+        let members = room.members().await?;
 
         let mut entries: Vec<MemberEntry> = members.iter().map(|m| {
-            let power = m.power_level();
+            let power: i64 = m.power_level().into_int();
             MemberEntry {
                 user_id: QString::from(m.user_id().as_str()),
                 display_name: QString::from(m.display_name().unwrap_or_default()),
                 avatar_url: m.avatar_url().map(|u| QString::from(u.to_string().as_str())).unwrap_or_default(),
                 presence: QString::default(), // presence not available from room members directly
                 status_msg: QString::default(),
-                power_level: power.into(),
+                power_level: power,
             }
         }).collect();
 
