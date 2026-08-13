@@ -754,7 +754,8 @@ Item {
         id: deleteConfirm
         title: qsTr("Delete Account")
         modal: true
-        anchors.centerIn: parent
+        x: (parent.width - width) / 2
+        y: (parent.height - height) / 2
         standardButtons: Dialog.Yes | Dialog.No
         contentItem: ColumnLayout {
             spacing: Theme.spacingSm
