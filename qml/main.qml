@@ -420,7 +420,7 @@ ApplicationWindow {
                 onClicked: mouse.accepted = true // swallow click
             }
 
-            SettingsOverlayContent {
+            SettingsOverlay {
                 anchors.fill: parent
                 onCloseSettings: settingsOverlay.visible = false
             }
