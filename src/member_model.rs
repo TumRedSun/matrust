@@ -54,6 +54,7 @@ impl MemberModel {
             let power: i64 = match m.power_level() {
                 ruma::events::room::power_levels::UserPowerLevel::Infinite => i64::MAX,
                 ruma::events::room::power_levels::UserPowerLevel::Int(v) => v.into(),
+                _ => 0,
             };
             MemberEntry {
                 user_id: QString::from(m.user_id().as_str()),
