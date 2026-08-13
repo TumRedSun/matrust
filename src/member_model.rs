@@ -51,7 +51,10 @@ impl MemberModel {
         let members = room.members(matrix_sdk::RoomMemberships::JOIN).await?;
 
         let mut entries: Vec<MemberEntry> = members.iter().map(|m| {
-            let power: i64 = m.power_level().into();
+            let power: i64 = match m.power_level() {
+                ruma::events::room::power_levels::UserPowerLevel::Infinite => i64::MAX,
+                ruma::events::room::power_levels::UserPowerLevel::Int(v) => v.into(),
+            };
             MemberEntry {
                 user_id: QString::from(m.user_id().as_str()),
                 display_name: QString::from(m.display_name().unwrap_or_default()),
