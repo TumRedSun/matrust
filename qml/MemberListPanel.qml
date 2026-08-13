@@ -83,7 +83,6 @@ Rectangle {
 
                 delegate: Item {
                     width: ListView.view.width
-                    height: 48
 
                     // Filter by search text
                     property bool matchesSearch: memberSearch.text.length === 0
