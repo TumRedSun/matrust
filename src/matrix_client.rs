@@ -524,7 +524,7 @@ impl MatrixClient {
             use matrix_sdk::ruma::api::client::user_directory::search_users::v3::Request as SearchUsersRequest;
             // The Request::new() takes the search_term as its only argument.
             let mut req = SearchUsersRequest::new(q);
-            req.limit = 20.into();
+            req.limit = 20u32.into();
             let resp = c.send(req).await?;
             // Serialize to JSON manually so QML can JSON.parse it.
             let mut arr = String::from("[");
@@ -625,18 +625,15 @@ impl MatrixClient {
             // room.is_dm() / direct_targets() return true for it on the
             // next refresh. This is what makes the DM show up in the
             // sidebar after the first message.
-            if let Some(me) = c.user_id() {
-                use matrix_sdk::ruma::events::direct::DirectUserIdentifier;
-                let mut direct_map: std::collections::HashMap<
-                    DirectUserIdentifier,
-                    Vec<ruma::OwnedRoomId>,
-                > = std::collections::HashMap::new();
-                direct_map.insert(target_uid.as_str().into(), vec![new_room_id.clone()]);
-                let _ = c.account().account_data_set(
-                    matrix_sdk::ruma::events::direct::DirectEventContent(direct_map),
-                ).await;
-                let _ = me; // silence unused warning on some toolchains
-            }
+            // Mark this room as a DM in our own account_data so
+            // room.is_dm() / direct_targets() return true for it on the
+            // next refresh. Uses the built-in mark_as_dm() which
+            // correctly handles fetching the existing m.direct event,
+            // merging, and re-uploading.
+            let _ = c.account().mark_as_dm(
+                &new_room_id,
+                &[target_uid.clone()],
+            ).await;
             drop(c);
 
             opened_cb(new_room_id_str);
