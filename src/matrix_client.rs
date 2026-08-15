@@ -595,19 +595,26 @@ impl MatrixClient {
     ) -> AppResult<()> {
         let arc = Arc::new(Mutex::new(client));
 
-        let qptr = Self::singleton_ptr();
-        if let Some(this) = qptr.as_pinned() {
-            let mut mc = this.borrow_mut();
-            *mc.inner.borrow_mut() = Some(arc.clone());
-            *mc.session.borrow_mut() = Some(sess.clone());
-            mc.persist_session();
-            mc.set_user_id(sess.user_id.clone());
-            mc.set_busy(false);
-            mc.set_ready(true);
-            mc.emit_logged_in(QString::from(sess.user_id.as_str()));
+        // Handle the QPointer work on the Qt thread first (synchronously),
+        // then DROP the qptr before we await anything — otherwise Rust thinks
+        // the `QPointer` might still be live across the `.await` point and
+        // marks the whole async block `!Send`, which breaks `self.spawn` /
+        // `rt.spawn` everywhere that calls into `finish_login`.
+        {
+            let qptr = Self::singleton_ptr();
+            if let Some(this) = qptr.as_pinned() {
+                let mut mc = this.borrow_mut();
+                *mc.inner.borrow_mut() = Some(arc.clone());
+                *mc.session.borrow_mut() = Some(sess.clone());
+                mc.persist_session();
+                mc.set_user_id(sess.user_id.clone());
+                mc.set_busy(false);
+                mc.set_ready(true);
+                mc.emit_logged_in(QString::from(sess.user_id.as_str()));
 
-            mc.refreshRooms();
-        }
+                mc.refreshRooms();
+            }
+        } // qptr dropped here
 
         // Kick off the sync loop in the background.
         //
@@ -630,6 +637,11 @@ impl MatrixClient {
             c.clone()
         };
 
+        // Re-acquire the QPointer AFTER the await point so we can build the
+        // sync callback. This `qptr` is consumed by `queued_callback`'s
+        // closure and is NOT held across any further `.await` — the resulting
+        // async block stays `Send`.
+        let sync_cb_qptr = Self::singleton_ptr();
         // Build the per-cycle callback ONCE, BEFORE `rt.spawn`.
         //
         // `queued_callback` accepts closures that capture `!Send` types like
@@ -640,7 +652,6 @@ impl MatrixClient {
         //
         // Creating the callback outside `rt.spawn` and then moving only the
         // already-`Send` callback handle into the async block avoids that.
-        let sync_cb_qptr = qptr.clone();
         let sync_cb = qmetaobject::queued_callback(move |_: ()| {
             if let Some(this) = sync_cb_qptr.as_pinned() {
                 this.borrow().emit_sync_done(QString::from("{}"));
