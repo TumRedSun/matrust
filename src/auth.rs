@@ -4,11 +4,10 @@
 //! constructs a `matrix_sdk::Client` with:
 //!  - rustls (the only TLS backend in matrix-sdk 0.18+)
 //!  - an optional **IPv6-only** HTTP transport (when `force_ipv6` is set)
-//!  - a sqlite-backed state store under the user's data dir (when `use_store` is true)
 //!
-//! When restoring a session, `use_store` should be `false` to avoid crypto
-//! store device-ID mismatches — the client uses an in-memory store instead,
-//! and `restore_session()` can set up the identity without conflict.
+//! NOTE: sqlite_store is intentionally disabled. The crypto store creates a
+//! random identity on `build()`, which conflicts with `restore_session()` when
+//! the device ID doesn't match. Room state re-syncs on startup anyway.
 //!
 //! The IPv6 transport uses a custom `reqwest::dns::Resolve` implementation
 //! backed by `hickory-resolver` that resolves only AAAA records and refuses
@@ -20,10 +19,9 @@ use std::net::{IpAddr, Ipv6Addr, SocketAddr};
 use std::sync::Arc;
 use std::time::Duration;
 
-pub async fn build_client(homeserver: &str, force_ipv6: bool, use_store: bool) -> Result<Client> {
+pub async fn build_client(homeserver: &str, force_ipv6: bool) -> Result<Client> {
     let hs: url::Url = homeserver.parse()?;
 
-    // In matrix-sdk 0.18+, retry_timeout() was removed from RequestConfig.
     let mut builder = Client::builder()
         .homeserver_url(hs)
         .user_agent("matrix-client-rust-qt/0.1")
@@ -32,14 +30,7 @@ pub async fn build_client(homeserver: &str, force_ipv6: bool, use_store: bool) -
                 .timeout(Duration::from_secs(30)),
         );
 
-    if use_store {
-        let data_dir = directories::ProjectDirs::from("dev", "matrixclient", "matrix-client")
-            .map(|d| d.data_dir().to_path_buf())
-            .unwrap_or_else(|| std::env::temp_dir().join("matrix-client"));
-        std::fs::create_dir_all(&data_dir)?;
-        let store_path = data_dir.join("sqlite");
-        builder = builder.sqlite_store(&store_path, None);
-    }
+    // NOTE: sqlite_store deliberately NOT used — see module comment above.
 
     if force_ipv6 {
         builder = builder.http_client(build_ipv6_only_http()?);
