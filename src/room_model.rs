@@ -92,7 +92,7 @@ impl RoomModel {
             // We only do this for direct rooms — non-DM rooms always show
             // (their "pinned" state is not message-gated).
             let message_count: i64 = if is_direct {
-                approx_message_count(&room).await
+                Self::approx_message_count(&room).await
             } else {
                 0
             };

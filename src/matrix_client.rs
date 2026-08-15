@@ -522,8 +522,8 @@ impl MatrixClient {
             let client_arc = Self::require_client().await?;
             let c = client_arc.lock().await;
             use matrix_sdk::ruma::api::client::user_directory::search_users::v3::Request as SearchUsersRequest;
-            let mut req = SearchUsersRequest::new();
-            req.search_term = q;
+            // The Request::new() takes the search_term as its only argument.
+            let mut req = SearchUsersRequest::new(q);
             req.limit = 20.into();
             let resp = c.send(req).await?;
             // Serialize to JSON manually so QML can JSON.parse it.
@@ -595,38 +595,51 @@ impl MatrixClient {
 
             // No existing DM — create a new one.
             use matrix_sdk::ruma::api::client::room::create_room::v3::Request as CreateRoomRequest;
-            use matrix_sdk::ruma::events::room::create::RoomCreateEventContent;
-            use matrix_sdk::ruma::api::client::room::create_room::v3::Request as CreateReq;
+            use matrix_sdk::ruma::api::client::room::create_room::v3::RoomPreset;
 
             let mut req = CreateRoomRequest::new();
             req.is_direct = true;
-            req.invited_users.push(target_uid.clone());
-            // Make it private so only invitees can see/join.
-            req.preset = matrix_sdk::ruma::api::client::room::create_room::v3::RoomPreset::PrivateChat;
+            // ruma 0.16 create_room::v3::Request uses `invite: Vec<UserId>`,
+            // not `invited_users`.
+            req.invite.push(target_uid.clone());
+            // `preset` is Option<RoomPreset>; `visibility` is already private
+            // by default in the ruma builder, so we don't need to set it.
+            req.preset = Some(RoomPreset::PrivateChat);
 
-            // Visibility must be set explicitly to "private" for some servers.
-            // The Request builder already defaults to private, but we set it
-            // here defensively.
-            req.visibility = matrix_sdk::ruma::directory::RoomVisibility::Private;
-
-            // Build the create event content to mark the room as a DM
-            // (federated: true for cross-server DMs).
-            let mut create_content = RoomCreateEventContent::new(c.user_id()
-                .ok_or(crate::errors::AppError::NotLoggedIn)?.to_owned());
-            create_content.federate = true;
-            req.creation_content = Some(create_content);
+            // Mark the room as a DM via the `m.direct` account-data event.
+            // matrix-sdk exposes this through client.account().set_direct().
+            // We set is_direct=true on the create request (above) and also
+            // mark the account-data below after the room is created.
 
             // Set a friendly initial name based on the other user's MXID.
-            // (Most servers will overwrite this once the room is joined by
-            //  both participants — that's fine.)
             let initial_name = format!("DM with {}", target_uid);
             req.name = Some(initial_name);
 
             let resp = c.send(req).await?;
-            let new_room_id = resp.room_id().to_string();
+            // ruma's create_room::v3::Response has `room_id` as a public
+            // field (not a method), so we access it directly.
+            let new_room_id = resp.room_id.clone();
+            let new_room_id_str = new_room_id.to_string();
+
+            // Mark this room as a DM in our own account_data so
+            // room.is_dm() / direct_targets() return true for it on the
+            // next refresh. This is what makes the DM show up in the
+            // sidebar after the first message.
+            if let Some(me) = c.user_id() {
+                use matrix_sdk::ruma::events::direct::DirectUserIdentifier;
+                let mut direct_map: std::collections::HashMap<
+                    DirectUserIdentifier,
+                    Vec<ruma::OwnedRoomId>,
+                > = std::collections::HashMap::new();
+                direct_map.insert(target_uid.as_str().into(), vec![new_room_id.clone()]);
+                let _ = c.account().account_data_set(
+                    matrix_sdk::ruma::events::direct::DirectEventContent(direct_map),
+                ).await;
+                let _ = me; // silence unused warning on some toolchains
+            }
             drop(c);
 
-            opened_cb(new_room_id);
+            opened_cb(new_room_id_str);
             AppResult::Ok(())
         });
     }
