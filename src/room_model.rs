@@ -21,6 +21,11 @@ pub struct RoomEntry {
     pub is_direct: bool,
     pub is_space: bool,
     pub has_unread: bool,
+    /// Number of messages currently loaded for this room.
+    /// Used by QML to decide whether a fresh DM should appear in the
+    /// sidebar (only "pin" the conversation after ≥1 message has
+    /// been exchanged).
+    pub message_count: i64,
 }
 
 #[derive(QObject, Default)]
@@ -79,6 +84,19 @@ impl RoomModel {
             // DM state.  direct_targets() is also available.
             let is_direct = room.is_dm() || room.direct_targets().len() > 0;
 
+            // Approximate message count by querying the room's backward
+            // messages endpoint (a single page, limited to 1 event).
+            // If the server returns at least one event, the conversation
+            // has started and the DM should be pinned in the sidebar.
+            //
+            // We only do this for direct rooms — non-DM rooms always show
+            // (their "pinned" state is not message-gated).
+            let message_count: i64 = if is_direct {
+                approx_message_count(&room).await
+            } else {
+                0
+            };
+
             new_entries.push(RoomEntry {
                 room_id: QString::from(room.room_id().as_str()),
                 name: QString::from(display_name.as_str()),
@@ -90,11 +108,27 @@ impl RoomModel {
                 is_direct,
                 is_space: false,
                 has_unread: unread.notification_count > 0,
+                message_count,
             });
         }
 
         new_entries.sort_by(|a, b| b.last_event_ts.cmp(&a.last_event_ts));
         Ok(new_entries)
+    }
+
+    /// Cheap best-effort check: does this room have ≥1 message event?
+    ///
+    /// We use `room.messages(MessagesOptions::backward())` with a limit of 1.
+    /// If `chunk` is non-empty, the room has at least one message → pin the DM.
+    /// On error we default to 1 (show the room) so users never get stuck
+    /// unable to open a freshly-created DM.
+    async fn approx_message_count(room: &matrix_sdk::Room) -> i64 {
+        let mut opts = matrix_sdk::room::MessagesOptions::backward();
+        opts.limit = 1u32.into();
+        match room.messages(opts).await {
+            Ok(resp) => resp.chunk.len() as i64,
+            Err(_) => 1, // be lenient: show the room rather than hide it
+        }
     }
 
     /// Apply pre-fetched entries on the Qt thread.

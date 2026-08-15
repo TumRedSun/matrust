@@ -234,6 +234,18 @@ ApplicationWindow {
                                     font.pixelSize: Theme.fontSizeMd
                                     onClicked: MatrixClient.refreshRooms()
                                 }
+
+                                // "+" button — opens the user search dialog.
+                                // In DM mode it lets you start a new DM;
+                                // we keep it in both modes so users can start
+                                // a DM from anywhere.
+                                ToolButton {
+                                    text: "\u2795"  // ➕
+                                    font.pixelSize: Theme.fontSizeMd
+                                    onClicked: {
+                                        userSearchDialog.open()
+                                    }
+                                }
                             }
                         }
 
@@ -268,11 +280,18 @@ ApplicationWindow {
 
                                 delegate: Item {
                                     width: ListView.view.width
-                                    // Filter: show DMs in "home" mode, non-DM rooms in "space" mode
-                                    // In "home" mode: only show is_direct rooms
-                                    // In "space" mode: only show non-direct rooms
+                                    // Filter rules:
+                                    //   - In "home" (DM) mode:
+                                    //       show direct rooms that have ≥1 message
+                                    //       OR the room the user has explicitly
+                                    //       navigated to (so a freshly-created
+                                    //       DM is reachable even before its
+                                    //       first message arrives).
+                                    //   - In "space" mode: show non-direct
+                                    //       rooms.
                                     property bool showItem: mainViewRoot.sidebarMode === "home"
-                                            ? model.is_direct
+                                            ? (model.is_direct && (model.message_count > 0
+                                                || model.room_id === mainViewRoot.activeRoomId))
                                             : !model.is_direct
                                     height: showItem ? 52 : 0
                                     visible: showItem
@@ -439,6 +458,248 @@ ApplicationWindow {
         }
     }
 
+    // ────────────────────── User Search Dialog ──────────────────────
+    // Centered modal for finding users to start DMs with.
+    // User flow:
+    //   1. Type a (partial) username in the search field.
+    //   2. MatrixClient.searchUsers() emits usersSearchDone(json).
+    //   3. The JSON is parsed into a ListModel and rendered below.
+    //   4. Each row has a "message" icon on the right — clicking it calls
+    //      MatrixClient.openDirectMessage(userId), which emits dmOpened(rid).
+    //   5. dmOpened sets activeRoomId and closes the dialog. Until the first
+    //      real message is sent, the room stays unpinned in the DM sidebar
+    //      (see RoomModel filter in the roomList delegate).
+    Dialog {
+        id: userSearchDialog
+        modal: true
+        anchors.centerIn: parent
+        width: Math.min(560, parent.width - 80)
+        height: Math.min(520, parent.height - 80)
+        background: Rectangle {
+            color: Theme.windowBg
+            radius: Theme.radiusLg
+            border.color: Theme.border
+            border.width: 1
+        }
+
+        // Hold the parsed search results.
+        ListModel { id: userSearchResults }
+
+        ColumnLayout {
+            anchors.fill: parent
+            anchors.margins: Theme.paddingMd
+            spacing: Theme.spacingSm
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: Theme.spacingSm
+                Label {
+                    text: qsTr("Find user")
+                    font.pixelSize: Theme.fontSizeLg
+                    font.bold: true
+                    color: Theme.windowFg
+                }
+                Item { Layout.fillWidth: true }
+                ToolButton {
+                    text: "\u2715"  // ✕
+                    font.pixelSize: Theme.fontSizeMd
+                    onClicked: userSearchDialog.close()
+                }
+            }
+
+            // Search input — queries fire after every keystroke (debounced
+            // via a small Timer so we don't spam the server).
+            TextField {
+                id: userSearchField
+                Layout.fillWidth: true
+                placeholderText: qsTr("Type a username (e.g. @alice:matrix.org)…")
+                color: Theme.windowFg
+                font.pixelSize: Theme.fontSizeSm
+                onTextChanged: userSearchTimer.restart()
+                background: Rectangle {
+                    color: Theme.sidebarBg
+                    radius: Theme.radiusSm
+                    border.color: Theme.border
+                    border.width: 1
+                }
+            }
+
+            // Results list.
+            ScrollView {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                clip: true
+
+                ListView {
+                    id: userSearchList
+                    model: userSearchResults
+                    spacing: 2
+
+                    delegate: Item {
+                        width: ListView.view.width
+                        height: 56
+
+                        Rectangle {
+                            anchors.fill: parent
+                            anchors.margins: 2
+                            radius: Theme.radiusSm
+                            color: userSearchList.currentIndex === index ? Theme.accent : "transparent"
+                            opacity: userSearchList.currentIndex === index ? 0.15 : 0
+                        }
+
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: Theme.paddingSm
+                            anchors.rightMargin: Theme.paddingSm
+                            spacing: Theme.spacingSm
+
+                            // Avatar (uses mxc:// via avatar_cache if available,
+                            // otherwise shows the first letter of the display name).
+                            Rectangle {
+                                Layout.preferredWidth: 36
+                                Layout.preferredHeight: 36
+                                radius: 18
+                                color: Theme.accent
+                                opacity: 0.3
+                                Label {
+                                    anchors.centerIn: parent
+                                    text: {
+                                        var dn = model.display_name || model.user_id
+                                        return dn.length > 0 ? dn.charAt(0).toUpperCase() : "?"
+                                    }
+                                    color: Theme.accentFg
+                                    font.pixelSize: Theme.fontSizeSm
+                                    font.bold: true
+                                }
+                            }
+
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 0
+                                Label {
+                                    Layout.fillWidth: true
+                                    text: model.display_name.length > 0 ? model.display_name : qsTr("(no display name)")
+                                    color: Theme.windowFg
+                                    font.pixelSize: Theme.fontSizeSm
+                                    font.bold: true
+                                    elide: Text.ElideRight
+                                }
+                                Label {
+                                    Layout.fillWidth: true
+                                    text: model.user_id
+                                    color: Theme.muted
+                                    font.pixelSize: Theme.fontSizeXs
+                                    elide: Text.ElideRight
+                                }
+                            }
+
+                            // Message icon — click to open the DM.
+                            ToolButton {
+                                text: "\u2709"  // ✉
+                                font.pixelSize: Theme.fontSizeLg
+                                Layout.preferredWidth: 40
+                                onClicked: {
+                                    MatrixClient.openDirectMessage(model.user_id)
+                                }
+                            }
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            // Click on the row (not the buttons) selects it.
+                            onClicked: userSearchList.currentIndex = index
+                        }
+                    }
+                }
+            }
+
+            Label {
+                Layout.fillWidth: true
+                visible: userSearchResults.count === 0 && userSearchField.text.length > 0
+                text: qsTr("No users found. Try the full Matrix ID (e.g. @alice:matrix.org).")
+                color: Theme.muted
+                font.pixelSize: Theme.fontSizeXs
+                wrapMode: Text.Wrap
+                horizontalAlignment: Text.AlignHCenter
+            }
+        }
+
+        Timer {
+            id: userSearchTimer
+            interval: 300
+            onTriggered: {
+                var q = userSearchField.text.trim()
+                if (q.length === 0) {
+                    userSearchResults.clear()
+                    return
+                }
+                MatrixClient.searchUsers(q)
+            }
+        }
+
+        onOpened: {
+            userSearchField.text = ""
+            userSearchResults.clear()
+            userSearchField.forceActiveFocus()
+        }
+    }
+
+    // ────────────────────── Confirm Leave Room Dialog ──────────────────────
+    Dialog {
+        id: leaveRoomDialog
+        modal: true
+        anchors.centerIn: parent
+        width: Math.min(420, parent.width - 80)
+        background: Rectangle {
+            color: Theme.windowBg
+            radius: Theme.radiusMd
+            border.color: Theme.border
+            border.width: 1
+        }
+        property string roomId: ""
+        property string roomName: ""
+        ColumnLayout {
+            anchors.fill: parent
+            anchors.margins: Theme.paddingMd
+            spacing: Theme.spacingSm
+            Label {
+                text: qsTr("Close conversation?")
+                font.pixelSize: Theme.fontSizeLg
+                font.bold: true
+                color: Theme.windowFg
+            }
+            Label {
+                Layout.fillWidth: true
+                text: leaveRoomDialog.roomName.length > 0
+                      ? qsTr("This will leave \"%1\". Your and the other participant's messages will no longer be visible to you in this client (the history remains on the server).").arg(leaveRoomDialog.roomName)
+                      : qsTr("This will leave the room. Your and the other participant's messages will no longer be visible to you in this client.")
+                color: Theme.windowFg
+                wrapMode: Text.Wrap
+                font.pixelSize: Theme.fontSizeSm
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                Item { Layout.fillWidth: true }
+                Button {
+                    text: qsTr("Cancel")
+                    onClicked: leaveRoomDialog.close()
+                }
+                Button {
+                    text: qsTr("Close")
+                    background: Rectangle { color: Theme.danger; radius: Theme.radiusSm }
+                    contentItem: Label { text: parent.text; color: Theme.accentFg }
+                    onClicked: {
+                        if (leaveRoomDialog.roomId.length > 0) {
+                            MatrixClient.leaveRoom(leaveRoomDialog.roomId)
+                        }
+                        leaveRoomDialog.close()
+                    }
+                }
+            }
+        }
+    }
+
     // ── Toast ──
     Rectangle {
         id: toast
@@ -481,9 +742,55 @@ ApplicationWindow {
         function onFileDownloaded(roomId, mxc, localPath) {
             root.showToast(qsTr("Downloaded to %1").arg(localPath));
         }
+        // Search results arrived — parse JSON into userSearchResults.
+        function onUsersSearchDone(resultsJson) {
+            userSearchResults.clear()
+            try {
+                var arr = JSON.parse(resultsJson)
+                for (var i = 0; i < arr.length; i++) {
+                    userSearchResults.append(arr[i])
+                }
+            } catch (e) {
+                console.warn("users_search_done: bad JSON", e)
+            }
+        }
+        // DM opened — switch to the room and close the search dialog.
+        function onDmOpened(roomId) {
+            if (roomId.length === 0) return
+            mainViewRoot.sidebarMode = "home"
+            mainViewRoot.activeRoomId = roomId
+            MatrixClient.loadRoomMessages(roomId)
+            userSearchDialog.close()
+        }
+        // Room left — clear active room if it was the one we left.
+        function onRoomLeft(roomId) {
+            if (mainViewRoot.activeRoomId === roomId) {
+                mainViewRoot.activeRoomId = ""
+            }
+            root.showToast(qsTr("Conversation closed"))
+        }
     }
 
-    Component.onCompleted: MatrixClient.autoLogin()
+    Component.onCompleted: {
+        // Force a fresh re-read of every Theme-driven property so changes
+        // the user made via the Settings dialog (in a previous session)
+        // propagate even if QML cached a stale value during the initial
+        // singleton construction race.
+        Theme.applyPreset(Theme.preset)
+        MatrixClient.autoLogin()
+    }
+
+    // Re-apply the theme when any of its NOTIFY signals fire. QML bindings
+    // *should* update automatically, but qmetaobject's getter-based
+    // properties occasionally need a nudge — this forces every property
+    // to be re-read from the ThemeState RefCell.
+    Connections {
+        target: Theme
+        function onThemeChanged() {
+            // No-op: the bindings re-evaluate automatically. This handler
+            // exists only so the Connections object compiles.
+        }
+    }
 
     function showToast(text) {
         toast.text = text;

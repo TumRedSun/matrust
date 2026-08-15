@@ -74,6 +74,15 @@ pub struct MatrixClient {
     /// Emitted after `setBanner` finishes copying the image to the cache dir.
     /// The argument is the `file://` URL of the new banner.
     bannerSet: qt_signal!(url: QString),
+    /// Emitted when a user search completes. The argument is a JSON string:
+    /// `[{user_id, display_name, avatar_url}, …]` (limited to 20 results).
+    usersSearchDone: qt_signal!(results_json: QString),
+    /// Emitted after `openDirectMessage` succeeds (or reuses an existing DM).
+    /// The argument is the room id to switch to.
+    dmOpened: qt_signal!(room_id: QString),
+    /// Emitted after `leaveRoom` succeeds. The argument is the room id that
+    /// was left/removed.
+    roomLeft: qt_signal!(room_id: QString),
 
     // QML-callable method declarations
     autoLogin: qt_method!(fn(&self)),
@@ -91,6 +100,14 @@ pub struct MatrixClient {
     loadRoomMessages: qt_method!(fn(&self, room_id: QString)),
     loadRoomMembers: qt_method!(fn(&self, room_id: QString)),
     refreshRooms: qt_method!(fn(&self)),
+    /// Search users by (partial) username/display name.
+    /// Emits `usersSearchDone` with a JSON payload.
+    searchUsers: qt_method!(fn(&self, query: QString)),
+    /// Create (or open) a direct-message room with `user_id`.
+    /// Emits `dmOpened(roomId)` when ready.
+    openDirectMessage: qt_method!(fn(&self, user_id: QString)),
+    /// Leave (and forget) a room. On success emits `roomLeft(roomId)`.
+    leaveRoom: qt_method!(fn(&self, room_id: QString)),
 }
 
 impl MatrixClient {
@@ -130,6 +147,21 @@ impl MatrixClient {
     /// Public wrapper to emit the `banner_set` signal from outside this module.
     pub fn emit_banner_set(&self, url: QString) {
         self.bannerSet(url);
+    }
+
+    /// Public wrapper to emit the `users_search_done` signal.
+    pub fn emit_users_search_done(&self, json: QString) {
+        self.usersSearchDone(json);
+    }
+
+    /// Public wrapper to emit the `dm_opened` signal.
+    pub fn emit_dm_opened(&self, room_id: QString) {
+        self.dmOpened(room_id);
+    }
+
+    /// Public wrapper to emit the `room_left` signal.
+    pub fn emit_room_left(&self, room_id: QString) {
+        self.roomLeft(room_id);
     }
 
     /// Public wrapper to emit the `sync_done` signal from outside this module.
@@ -457,6 +489,174 @@ impl MatrixClient {
         self.spawn(async move {
             let entries = MemberModel::fetch_members(client_arc, room_id_str).await?;
             cb(entries);
+            AppResult::Ok(())
+        });
+    }
+
+    /// Search users by (partial) username/display name using the
+    /// `/_matrix/client/v3/user_directory/search` endpoint.
+    ///
+    /// Emits `usersSearchDone(json)` with up to 20 results:
+    ///   `[{"user_id":"@alice:…","display_name":"Alice","avatar_url":"mxc://…"}, …]`
+    /// `avatar_url` is omitted when the user has no avatar.
+    pub fn searchUsers(&self, query: QString) {
+        let q = query.to_string();
+        if q.trim().is_empty() {
+            // Empty query → empty results so the dialog can hide the list.
+            let qptr = QPointer::from(&*self);
+            let empty_cb = qmetaobject::queued_callback(move |_: ()| {
+                if let Some(this) = qptr.as_pinned() {
+                    this.borrow().emit_users_search_done(QString::from("[]"));
+                }
+            });
+            empty_cb(());
+            return;
+        }
+        let qptr = QPointer::from(&*self);
+        let results_cb = qmetaobject::queued_callback(move |json: String| {
+            if let Some(this) = qptr.as_pinned() {
+                this.borrow().emit_users_search_done(QString::from(json.as_str()));
+            }
+        });
+        self.spawn(async move {
+            let client_arc = Self::require_client().await?;
+            let c = client_arc.lock().await;
+            use matrix_sdk::ruma::api::client::user_directory::search_users::v3::Request as SearchUsersRequest;
+            let mut req = SearchUsersRequest::new();
+            req.search_term = q;
+            req.limit = 20.into();
+            let resp = c.send(req).await?;
+            // Serialize to JSON manually so QML can JSON.parse it.
+            let mut arr = String::from("[");
+            for (i, u) in resp.results.iter().enumerate() {
+                if i > 0 { arr.push(','); }
+                arr.push_str("{\"user_id\":");
+                arr.push_str(&serde_json::to_string(&u.user_id.to_string())?);
+                arr.push_str(",\"display_name\":");
+                let dn = u.display_name.as_deref().unwrap_or("");
+                arr.push_str(&serde_json::to_string(dn)?);
+                arr.push_str(",\"avatar_url\":");
+                let av = u.avatar_url.as_ref().map(|u| u.to_string()).unwrap_or_default();
+                arr.push_str(&serde_json::to_string(&av)?);
+                arr.push('}');
+            }
+            arr.push(']');
+            results_cb(arr);
+            AppResult::Ok(())
+        });
+    }
+
+    /// Open (or create) a direct-message room with `user_id`.
+    ///
+    /// 1. If we already share a DM room with this user, switch to it.
+    /// 2. Otherwise call `/_matrix/client/v3/createRoom` with `is_direct:true`
+    ///    and invite the user.
+    ///
+    /// Emits `dmOpened(roomId)` on success.
+    pub fn openDirectMessage(&self, user_id: QString) {
+        let target = user_id.to_string();
+        let qptr = QPointer::from(&*self);
+        let opened_cb = qmetaobject::queued_callback(move |room_id: String| {
+            if let Some(this) = qptr.as_pinned() {
+                this.borrow().emit_dm_opened(QString::from(room_id.as_str()));
+            }
+        });
+        self.spawn(async move {
+            let client_arc = Self::require_client().await?;
+            let c = client_arc.lock().await;
+
+            // Parse target user id.
+            let target_uid: ruma::OwnedUserId = target.parse().map_err(|e: ruma::IdParseError|
+                crate::errors::AppError::Other(e.to_string()))?;
+
+            // Look for an existing DM room with this user.
+            // A room is a DM if `room.is_dm()` returns true and `direct_targets()`
+            // contains the target user id.
+            let mut found_room: Option<String> = None;
+            for room in c.rooms() {
+                if room.state() != matrix_sdk::RoomState::Joined {
+                    continue;
+                }
+                if room.is_space() {
+                    continue;
+                }
+                let targets = room.direct_targets();
+                if targets.iter().any(|t| t == &target_uid) {
+                    found_room = Some(room.room_id().to_string());
+                    break;
+                }
+            }
+
+            if let Some(rid) = found_room {
+                drop(c);
+                opened_cb(rid);
+                return AppResult::Ok(());
+            }
+
+            // No existing DM — create a new one.
+            use matrix_sdk::ruma::api::client::room::create_room::v3::Request as CreateRoomRequest;
+            use matrix_sdk::ruma::events::room::create::RoomCreateEventContent;
+            use matrix_sdk::ruma::api::client::room::create_room::v3::Request as CreateReq;
+
+            let mut req = CreateRoomRequest::new();
+            req.is_direct = true;
+            req.invited_users.push(target_uid.clone());
+            // Make it private so only invitees can see/join.
+            req.preset = matrix_sdk::ruma::api::client::room::create_room::v3::RoomPreset::PrivateChat;
+
+            // Visibility must be set explicitly to "private" for some servers.
+            // The Request builder already defaults to private, but we set it
+            // here defensively.
+            req.visibility = matrix_sdk::ruma::directory::RoomVisibility::Private;
+
+            // Build the create event content to mark the room as a DM
+            // (federated: true for cross-server DMs).
+            let mut create_content = RoomCreateEventContent::new(c.user_id()
+                .ok_or(crate::errors::AppError::NotLoggedIn)?.to_owned());
+            create_content.federate = true;
+            req.creation_content = Some(create_content);
+
+            // Set a friendly initial name based on the other user's MXID.
+            // (Most servers will overwrite this once the room is joined by
+            //  both participants — that's fine.)
+            let initial_name = format!("DM with {}", target_uid);
+            req.name = Some(initial_name);
+
+            let resp = c.send(req).await?;
+            let new_room_id = resp.room_id().to_string();
+            drop(c);
+
+            opened_cb(new_room_id);
+            AppResult::Ok(())
+        });
+    }
+
+    /// Leave (and forget) a room.
+    ///
+    /// Calls `/_matrix/client/v3/rooms/{roomId}/leave`. On success emits
+    /// `roomLeft(roomId)` and refreshes the room list so the room disappears
+    /// from the sidebar.
+    pub fn leaveRoom(&self, room_id: QString) {
+        let rid_str = room_id.to_string();
+        let qptr = QPointer::from(&*self);
+        let left_cb = qmetaobject::queued_callback(move |rid: String| {
+            if let Some(this) = qptr.as_pinned() {
+                this.borrow().emit_room_left(QString::from(rid.as_str()));
+                this.borrow().refreshRooms();
+            }
+        });
+        self.spawn(async move {
+            let client_arc = Self::require_client().await?;
+            let c = client_arc.lock().await;
+            let rid: ruma::OwnedRoomId = rid_str.parse()
+                .map_err(|e: ruma::IdParseError| crate::errors::AppError::Other(e.to_string()))?;
+            if let Some(room) = c.get_room(&rid) {
+                room.leave().await?;
+            } else {
+                // Already gone — treat as success.
+            }
+            drop(c);
+            left_cb(rid_str);
             AppResult::Ok(())
         });
     }

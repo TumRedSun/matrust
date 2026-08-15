@@ -37,6 +37,32 @@ Rectangle {
                     color: Theme.muted
                     font.pixelSize: Theme.fontSizeSm
                 }
+                // Close conversation button — visible only when a room is open.
+                // Triggers the "close conversation" dialog (leave room).
+                ToolButton {
+                    text: "\u2715"  // ✕
+                    font.pixelSize: Theme.fontSizeMd
+                    visible: roomId.length > 0
+                    enabled: roomId.length > 0
+                    onClicked: {
+                        // Look up the room's display name from RoomModel so
+                        // the confirm dialog can show it. We don't gate the
+                        // button on is_direct — users may want to leave a
+                        // regular room too.
+                        var name = ""
+                        for (var j = 0; j < RoomModel.count; j++) {
+                            var ix = RoomModel.index(j, 0)
+                            var rid = RoomModel.data(ix, 257).toString()
+                            if (rid === roomId) {
+                                name = RoomModel.data(ix, 257 + 1).toString()
+                                break
+                            }
+                        }
+                        leaveRoomDialog.roomId = roomId
+                        leaveRoomDialog.roomName = name
+                        leaveRoomDialog.open()
+                    }
+                }
             }
         }
 
