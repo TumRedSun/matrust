@@ -57,13 +57,24 @@ impl ProfileManager {
     /// Pull the latest profile from the server. Called when the user opens
     /// the profile page.
     pub fn refresh(&self) {
-        // Refresh the banner synchronously from the local cache so the UI
-        // updates instantly (no network round-trip).
+        // The banner is local data (stored in the cache dir), so we can read
+        // it synchronously without a network round-trip. We still need a
+        // queued_callback to mutate `self.bannerUrl` because `refresh` takes
+        // `&self` (Qt singletons are exposed to QML through shared refs).
         let banner = crate::file_transfer::cached_banner_url().unwrap_or_default();
-        if self.bannerUrl.to_string() != banner {
-            self.bannerUrl = QString::from(banner.as_str());
-            self.bannerUrlChanged();
-        }
+        let banner_qptr = QPointer::from(&*self);
+        let banner_cb = qmetaobject::queued_callback(move |_: ()| {
+            if let Some(this) = banner_qptr.as_pinned() {
+                let mut pm = this.borrow_mut();
+                if pm.bannerUrl.to_string() != banner {
+                    pm.bannerUrl = QString::from(banner.as_str());
+                    pm.bannerUrlChanged();
+                }
+            }
+        });
+        // Posting to the Qt event loop — even if `refresh` is already called
+        // from the Qt thread, this defers the mutation to a safe point.
+        banner_cb(());
 
         let qptr = QPointer::from(&*self);
         let profile_cb = qmetaobject::queued_callback(

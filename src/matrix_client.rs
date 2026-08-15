@@ -630,37 +630,50 @@ impl MatrixClient {
             c.clone()
         };
 
-        let qptr2 = qptr.clone();
+        // Build the per-cycle callback ONCE, BEFORE `rt.spawn`.
+        //
+        // `queued_callback` accepts closures that capture `!Send` types like
+        // `QPointer` (the closure is internally marshalled to the Qt thread),
+        // but if we created the callback inside the async block the `QPointer`
+        // would also be captured by the async state machine, making the whole
+        // future `!Send` and breaking `rt.spawn`.
+        //
+        // Creating the callback outside `rt.spawn` and then moving only the
+        // already-`Send` callback handle into the async block avoids that.
+        let sync_cb_qptr = qptr.clone();
+        let sync_cb = qmetaobject::queued_callback(move |_: ()| {
+            if let Some(this) = sync_cb_qptr.as_pinned() {
+                this.borrow().emit_sync_done(QString::from("{}"));
+                this.borrow().refreshRooms();
+            }
+            // Nudge ProfileManager so presence / display name / banner
+            // changes from other devices are picked up. Safe to touch
+            // QPointer here — this closure runs on the Qt thread.
+            let pm = crate::profile::ProfileManager::get();
+            if let Some(pm_pinned) = pm.as_pinned() {
+                pm_pinned.borrow().refresh();
+            }
+        });
+
         let rt = crate::get_runtime();
         rt.spawn(async move {
-            let mut sync_settings = matrix_sdk::config::SyncSettings::default();
+            // Hold the sync token in an Option<String> rather than a
+            // SyncSettings value, because `sync_once` consumes its
+            // `SyncSettings` argument by value (it does NOT take &self).
+            // Building a fresh SyncSettings from the token each iteration
+            // avoids the "use of moved value" error.
+            let mut sync_token: Option<String> = None;
             loop {
+                let mut sync_settings = matrix_sdk::config::SyncSettings::default();
+                if let Some(token) = sync_token.take() {
+                    sync_settings = sync_settings.token(token);
+                }
                 let result = client_clone.sync_once(sync_settings).await;
                 match result {
                     Ok(response) => {
-                        // Advance the sync token so the next cycle only fetches
-                        // new events (long-poll on the server side).
-                        sync_settings = matrix_sdk::config::SyncSettings::default()
-                            .token(response.next_batch);
-
-                        // Re-emit syncDone on the Qt thread (kept for QML
-                        // consumers that listen to it) and trigger a fresh
-                        // room/space reload so DMs and unread counts update.
-                        let qptr3 = qptr2.clone();
-                        let cb = qmetaobject::queued_callback(move |_: ()| {
-                            if let Some(this) = qptr3.as_pinned() {
-                                this.borrow().emit_sync_done(QString::from("{}"));
-                                this.borrow().refreshRooms();
-                            }
-                        });
-                        cb(());
-
-                        // Also nudge ProfileManager so presence / display name
-                        // changes from other devices are picked up.
-                        let pm = crate::profile::ProfileManager::get();
-                        if let Some(pm_pinned) = pm.as_pinned() {
-                            pm_pinned.borrow().refresh();
-                        }
+                        sync_token = Some(response.next_batch);
+                        // Notify QML + refresh room list + refresh profile.
+                        sync_cb(());
                     }
                     Err(e) => {
                         ::log::warn!("sync error: {e}");
