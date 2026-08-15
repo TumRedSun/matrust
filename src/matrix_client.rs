@@ -623,10 +623,6 @@ impl MatrixClient {
 
             // Mark this room as a DM in our own account_data so
             // room.is_dm() / direct_targets() return true for it on the
-            // next refresh. This is what makes the DM show up in the
-            // sidebar after the first message.
-            // Mark this room as a DM in our own account_data so
-            // room.is_dm() / direct_targets() return true for it on the
             // next refresh. Uses the built-in mark_as_dm() which
             // correctly handles fetching the existing m.direct event,
             // merging, and re-uploading.
