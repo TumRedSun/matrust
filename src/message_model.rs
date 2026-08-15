@@ -41,9 +41,9 @@ pub struct MessageModel {
     count_changed: qt_signal!(),
 
     /// Emitted when the room's history is fully (re)loaded.
-    history_loaded: qt_signal!(room_id: QString),
+    historyLoaded: qt_signal!(room_id: QString),
     /// Emitted when a single new event was appended.
-    event_appended: qt_signal!(event_id: QString),
+    eventAppended: qt_signal!(event_id: QString),
 }
 
 /// Helper to extract a URL string from a MediaSource enum.
@@ -223,7 +223,7 @@ impl MessageModel {
         *self.entries.borrow_mut() = entries;
         self.end_reset_model();
         self.count_changed();
-        self.history_loaded(QString::from(room_id));
+        self.historyLoaded(QString::from(room_id));
     }
 }
 

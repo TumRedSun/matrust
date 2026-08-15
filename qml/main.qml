@@ -403,11 +403,14 @@ ApplicationWindow {
             opacity: 0.6
         }
 
-        // Settings panel (centered, like Discord)
+        // Settings panel (centered, like Discord).
+        // Sized to nearly fill the window so users with big screens / lots
+        // of theme settings don't have to scroll the panel itself — only
+        // the inner ScrollView scrolls.
         Rectangle {
             id: settingsPanel
-            width: Math.min(720, parent.width - 80)
-            height: Math.min(560, parent.height - 60)
+            width: parent.width - 40
+            height: parent.height - 40
             anchors.centerIn: parent
             color: Theme.windowBg
             radius: Theme.radiusLg
@@ -417,11 +420,12 @@ ApplicationWindow {
             // Prevent clicks from closing when inside the panel
             MouseArea {
                 anchors.fill: parent
-                onClicked: mouse.accepted = true // swallow click
+                onClicked: function(mouse) { mouse.accepted = true }
             }
 
             SettingsOverlay {
                 anchors.fill: parent
+                anchors.margins: 1  // keep the rounded border visible
                 onCloseSettings: settingsOverlay.visible = false
             }
         }

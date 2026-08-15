@@ -119,16 +119,32 @@ Item {
                         // Banner with upload
                         Rectangle {
                             Layout.fillWidth: true
-                            Layout.preferredHeight: 120
+                            Layout.preferredHeight: 140
                             radius: Theme.radiusMd
                             color: Theme.accent
-                            opacity: 0.15
+                            opacity: ProfileManager.bannerUrl.length > 0 ? 1.0 : 0.15
+                            clip: true
 
+                            // Banner image (only shown when a banner has been set).
+                            // fillMode=PreserveAspectCrop gives a Discord-style cover.
+                            Image {
+                                anchors.fill: parent
+                                source: ProfileManager.bannerUrl
+                                fillMode: Image.PreserveAspectCrop
+                                horizontalAlignment: Qt.AlignHCenter
+                                verticalAlignment: Qt.AlignVCenter
+                                visible: ProfileManager.bannerUrl.length > 0
+                                asynchronous: true
+                                cache: false  // always re-read the cached file
+                            }
+
+                            // Hint label only when there's no banner yet.
                             Label {
                                 anchors.centerIn: parent
                                 text: qsTr("Click to set profile banner")
                                 color: Theme.sidebarFg
                                 font.pixelSize: Theme.fontSizeSm
+                                visible: ProfileManager.bannerUrl.length === 0
                             }
 
                             MouseArea {
@@ -141,9 +157,11 @@ Item {
                         FileDialog {
                             id: bannerDialog
                             title: qsTr("Choose a banner image")
-                            nameFilters: ["Images (*.png *.jpg *.jpeg *.webp *.svg)"]
+                            nameFilters: ["Images (*.png *.jpg *.jpeg *.webp *.svg *.bmp *.gif)"]
                             onAccepted: {
-                                // Banner upload placeholder — will be implemented with m.account_data
+                                var p = bannerDialog.currentFile.toString()
+                                if (p.startsWith("file://")) p = p.substring(7)
+                                MatrixClient.setBanner(p)
                             }
                         }
 

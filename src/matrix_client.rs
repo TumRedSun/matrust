@@ -71,6 +71,9 @@ pub struct MatrixClient {
     /// Emitted when a media download finishes. The third arg is the local
     /// filesystem path the file was saved to.
     fileDownloaded: qt_signal!(room_id: QString, mxc: QString, local_path: QString),
+    /// Emitted after `setBanner` finishes copying the image to the cache dir.
+    /// The argument is the `file://` URL of the new banner.
+    bannerSet: qt_signal!(url: QString),
 
     // QML-callable method declarations
     autoLogin: qt_method!(fn(&self)),
@@ -83,6 +86,7 @@ pub struct MatrixClient {
     downloadMedia: qt_method!(fn(&self, room_id: QString, mxc: QString, suggested_name: QString)),
     setDisplayName: qt_method!(fn(&self, name: QString)),
     setAvatar: qt_method!(fn(&self, local_path: QString)),
+    setBanner: qt_method!(fn(&self, local_path: QString)),
     setForceIpv6: qt_method!(fn(&self, on: bool)),
     loadRoomMessages: qt_method!(fn(&self, room_id: QString)),
     loadRoomMembers: qt_method!(fn(&self, room_id: QString)),
@@ -121,6 +125,11 @@ impl MatrixClient {
     /// Public wrapper to emit the `file_downloaded` signal from outside this module.
     pub fn emit_file_downloaded(&self, room_id: QString, mxc: QString, local_path: QString) {
         self.fileDownloaded(room_id, mxc, local_path);
+    }
+
+    /// Public wrapper to emit the `banner_set` signal from outside this module.
+    pub fn emit_banner_set(&self, url: QString) {
+        self.bannerSet(url);
     }
 
     /// Public wrapper to emit the `sync_done` signal from outside this module.
@@ -319,6 +328,30 @@ impl MatrixClient {
         self.spawn(async move {
             let client_arc = Self::require_client().await?;
             crate::file_transfer::set_avatar(client_arc, path).await
+        });
+    }
+
+    /// Set the user's profile banner (stored locally — Matrix has no standard
+    /// banner field). After the file is copied to the cache directory we nudge
+    /// `ProfileManager` so its `bannerUrl` property updates and the QML
+    /// `Image` binding reloads.
+    pub fn setBanner(&self, local_path: QString) {
+        let path = local_path.to_string();
+        let qptr = QPointer::from(&*self);
+        let done_cb = qmetaobject::queued_callback(move |url: String| {
+            if let Some(this) = qptr.as_pinned() {
+                this.borrow().emit_banner_set(QString::from(url.as_str()));
+                // Refresh ProfileManager so bannerUrl updates in QML.
+                let pm = crate::profile::ProfileManager::get();
+                if let Some(pm) = pm.as_pinned() {
+                    pm.borrow().refresh();
+                }
+            }
+        });
+        self.spawn(async move {
+            let url = crate::file_transfer::set_banner(path).await?;
+            done_cb(url);
+            AppResult::Ok(())
         });
     }
 
@@ -577,20 +610,67 @@ impl MatrixClient {
         }
 
         // Kick off the sync loop in the background.
-        // Use queued_callback so QPointer is never sent across threads.
-        let arc2 = arc.clone();
+        //
+        // IMPORTANT: We clone the `matrix_sdk::Client` out of the `Arc<Mutex<…>>`
+        // before starting the loop. `matrix_sdk::Client` is internally `Arc`-backed
+        // and `Send + Sync`, so the clone shares the same underlying state. Holding
+        // our outer `Mutex` for the entire duration of `sync()` would block every
+        // other code path that needs the client (refreshRooms, sendText, setAvatar,
+        // profile lookups, …) forever, because `sync()` loops internally until
+        // logout.
+        //
+        // We use `sync_once` in a manual loop instead of `sync` so that:
+        //   1. The outer Mutex is never held during sync.
+        //   2. We can call `refreshRooms()` on the Qt thread after every
+        //      successful sync cycle, so newly-arrived state (e.g. `m.direct`
+        //      account data that marks a room as a DM) is reflected in the UI
+        //      without requiring the user to hit the refresh button.
+        let client_clone = {
+            let c = arc.lock().await;
+            c.clone()
+        };
+
         let qptr2 = qptr.clone();
-        let sync_done_cb = qmetaobject::queued_callback(move |_: ()| {
-            if let Some(this) = qptr2.as_pinned() {
-                this.borrow().emit_sync_done(QString::from("{}"));
-            }
-        });
         let rt = crate::get_runtime();
         rt.spawn(async move {
-            let c = arc2.lock().await;
-            c.sync(matrix_sdk::config::SyncSettings::default()).await.ok();
-            drop(c);
-            sync_done_cb(());
+            let mut sync_settings = matrix_sdk::config::SyncSettings::default();
+            loop {
+                let result = client_clone.sync_once(sync_settings).await;
+                match result {
+                    Ok(response) => {
+                        // Advance the sync token so the next cycle only fetches
+                        // new events (long-poll on the server side).
+                        sync_settings = matrix_sdk::config::SyncSettings::default()
+                            .token(response.next_batch);
+
+                        // Re-emit syncDone on the Qt thread (kept for QML
+                        // consumers that listen to it) and trigger a fresh
+                        // room/space reload so DMs and unread counts update.
+                        let qptr3 = qptr2.clone();
+                        let cb = qmetaobject::queued_callback(move |_: ()| {
+                            if let Some(this) = qptr3.as_pinned() {
+                                this.borrow().emit_sync_done(QString::from("{}"));
+                                this.borrow().refreshRooms();
+                            }
+                        });
+                        cb(());
+
+                        // Also nudge ProfileManager so presence / display name
+                        // changes from other devices are picked up.
+                        let pm = crate::profile::ProfileManager::get();
+                        if let Some(pm_pinned) = pm.as_pinned() {
+                            pm_pinned.borrow().refresh();
+                        }
+                    }
+                    Err(e) => {
+                        ::log::warn!("sync error: {e}");
+                        // Back off briefly before retrying to avoid hammering
+                        // the server in case of a persistent failure (e.g.
+                        // network down).
+                        tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+                    }
+                }
+            }
         });
 
         Ok(())

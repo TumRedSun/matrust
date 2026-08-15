@@ -16,12 +16,15 @@ pub struct ProfileManager {
     userId: qt_property!(QString; NOTIFY userIdChanged),
     presence: qt_property!(QString; NOTIFY presenceChanged),
     statusMessage: qt_property!(QString; NOTIFY statusMessageChanged),
+    /// `file://` URL of the user's banner image (empty if none).
+    bannerUrl: qt_property!(QString; NOTIFY bannerUrlChanged),
 
     displayNameChanged: qt_signal!(),
     avatarUrlChanged: qt_signal!(),
     userIdChanged: qt_signal!(),
     presenceChanged: qt_signal!(),
     statusMessageChanged: qt_signal!(),
+    bannerUrlChanged: qt_signal!(),
 
     // QML-callable method declarations.
     refresh: qt_method!(fn(&self)),
@@ -54,6 +57,14 @@ impl ProfileManager {
     /// Pull the latest profile from the server. Called when the user opens
     /// the profile page.
     pub fn refresh(&self) {
+        // Refresh the banner synchronously from the local cache so the UI
+        // updates instantly (no network round-trip).
+        let banner = crate::file_transfer::cached_banner_url().unwrap_or_default();
+        if self.bannerUrl.to_string() != banner {
+            self.bannerUrl = QString::from(banner.as_str());
+            self.bannerUrlChanged();
+        }
+
         let qptr = QPointer::from(&*self);
         let profile_cb = qmetaobject::queued_callback(
             move |data: (Option<String>, Option<String>, String)| {

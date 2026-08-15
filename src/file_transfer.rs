@@ -169,6 +169,70 @@ pub async fn set_avatar(
     Ok(())
 }
 
+/// Set the user's profile banner.
+///
+/// Matrix has no standard "profile banner" field, so we store the banner
+/// locally in the app cache directory (`<cache_dir>/matrix-client/banner.<ext>`).
+/// The path is exposed to QML as a `file://` URL through `ProfileManager`.
+///
+/// The previous banner file (if any) is removed first so we don't accumulate
+/// stale images with different extensions.
+pub async fn set_banner(local_path: String) -> AppResult<String> {
+    let src = Path::new(&local_path);
+    if !src.exists() {
+        return Err(AppError::File(format!("not found: {}", local_path)));
+    }
+
+    // Read the bytes up-front so we can validate the file is readable before
+    // we touch the cache directory.
+    let bytes = std::fs::read(src)?;
+
+    // Determine the extension from the original filename; fall back to png.
+    let ext = src
+        .extension()
+        .and_then(|s| s.to_str())
+        .map(|s| s.to_ascii_lowercase())
+        .filter(|s| matches!(s.as_str(), "png" | "jpg" | "jpeg" | "gif" | "webp" | "svg" | "bmp"))
+        .unwrap_or_else(|| "png".to_string());
+
+    let dir = crate::avatar_cache::cache_dir();
+    std::fs::create_dir_all(&dir)?;
+
+    // Remove any previous banner.* files so old extensions don't linger
+    // (e.g. switching from banner.png to banner.jpg).
+    if let Ok(entries) = std::fs::read_dir(&dir) {
+        for entry in entries.flatten() {
+            if let Some(name) = entry.file_name().to_str() {
+                if name.starts_with("banner.") {
+                    let _ = std::fs::remove_file(entry.path());
+                }
+            }
+        }
+    }
+
+    let dst = dir.join(format!("banner.{}", ext));
+    std::fs::write(&dst, &bytes)?;
+
+    // Return a file:// URL that QML Image can load directly.
+    let url = format!("file://{}", dst.to_string_lossy());
+    Ok(url)
+}
+
+/// Return the cached banner URL, if any banner file exists in the cache dir.
+pub fn cached_banner_url() -> Option<String> {
+    let dir = crate::avatar_cache::cache_dir();
+    let entries = std::fs::read_dir(&dir).ok()?;
+    for entry in entries.flatten() {
+        if let Some(name) = entry.file_name().to_str() {
+            if name.starts_with("banner.") {
+                let path = entry.path();
+                return Some(format!("file://{}", path.to_string_lossy()));
+            }
+        }
+    }
+    None
+}
+
 fn sanitize(name: &str) -> String {
     name.chars()
         .filter(|c| !matches!(c, '/' | '\\'| '\0' | ':' | '*' | '?' | '"' | '<' | '>' | '|'))
