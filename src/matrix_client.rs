@@ -98,19 +98,6 @@ impl MatrixClient {
         base.join("session.json")
     }
 
-    /// Delete the sqlite store directory so a fresh crypto store is created.
-    /// This avoids "account in the store doesn't match" errors when restoring
-    /// a session with a different device ID than what's cached.
-    fn clear_sqlite_store() {
-        let base = directories::ProjectDirs::from("dev", "matrixclient", "matrix-client")
-            .map(|d| d.data_dir().to_path_buf())
-            .unwrap_or_else(|| std::env::temp_dir().join("matrix-client"));
-        let store = base.join("sqlite");
-        if store.exists() {
-            let _ = std::fs::remove_dir_all(&store);
-        }
-    }
-
     fn set_busy(&mut self, on: bool) {
         self.busy = on;
         self.busyChanged();
@@ -509,10 +496,10 @@ impl MatrixClient {
             }
         }
 
-        // Clear stale crypto store to avoid device-ID mismatch on restore.
-        Self::clear_sqlite_store();
-
-        let client = crate::auth::build_client(&homeserver, force_ipv6).await?;
+        // Skip sqlite store on restore to avoid crypto device-ID mismatch.
+        // The client will use an in-memory store; restore_session() sets up
+        // the identity without conflicting with a pre-existing crypto account.
+        let client = crate::auth::build_client(&homeserver, force_ipv6, false).await?;
 
         let session = Self::make_matrix_session(
             &user_id,
@@ -547,7 +534,7 @@ impl MatrixClient {
             }
         }
 
-        let client = crate::auth::build_client(&homeserver, force_ipv6).await?;
+        let client = crate::auth::build_client(&homeserver, force_ipv6, true).await?;
 
         client
             .matrix_auth()
