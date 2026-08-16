@@ -81,6 +81,25 @@ impl MessageModel {
             .map(|u| u.to_owned())
             .ok_or(crate::errors::AppError::NotLoggedIn)?;
 
+        // Build a HashMap of user_id -> (display_name, avatar_url) from
+        // the room's member cache so we can populate sender_display and
+        // avatar_url for each message.
+        let mut member_map: std::collections::HashMap<String, (String, String)> = std::collections::HashMap::new();
+        match room.members().await {
+            Ok(members) => {
+                for member in members {
+                    let uid = member.user_id().to_string();
+                    let display_name = member.display_name().unwrap_or("").to_string();
+                    let avatar = member.avatar_url().map(|u| u.to_string()).unwrap_or_default();
+                    member_map.insert(uid, (display_name, avatar));
+                }
+                ::log::info!("fetch_messages: loaded {} room members for display name lookup", member_map.len());
+            }
+            Err(e) => {
+                ::log::warn!("fetch_messages: failed to load room members: {e}");
+            }
+        }
+
         let mut messages: Vec<MessageEntry> = Vec::new();
 
         // In matrix-sdk 0.18+, room.messages(MessagesOptions) is still
@@ -136,10 +155,18 @@ impl MessageModel {
             let ts_val = u64::from(any_event.origin_server_ts().0) as i64;
             let is_own = any_event.sender() == me;
 
+            // Look up display name and avatar from member cache
+            let (display_name, avatar_url) = member_map
+                .get(&sender_str)
+                .map(|(dn, av)| (dn.clone(), av.clone()))
+                .unwrap_or_default();
+
             let mut entry = MessageEntry {
                 event_id: QString::from(event_id_str.as_str()),
                 ts: ts_val,
                 sender: QString::from(sender_str.as_str()),
+                sender_display: QString::from(display_name.as_str()),
+                avatar_url: QString::from(avatar_url.as_str()),
                 is_own,
                 ..Default::default()
             };
@@ -211,6 +238,11 @@ impl MessageModel {
                         }
                         AnySyncMessageLikeEvent::RoomEncrypted(_) => {
                             entry.kind = QString::from("system");
+                            // Force is_own=false so encrypted messages render
+                            // consistently (left-aligned, with avatar) instead
+                            // of some being centered system messages and others
+                            // being in bubbles.
+                            entry.is_own = false;
                             entry.body = QString::from("🔒 Encrypted message (decryption pending)");
                         }
                         _ => continue,
