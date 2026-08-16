@@ -417,7 +417,11 @@ impl MatrixClient {
             }
         });
         self.spawn(async move {
-            let entries = MessageModel::fetch_messages(client_arc, room_id_str).await?;
+            let client: matrix_sdk::Client = {
+                let c = client_arc.lock().await;
+                c.clone()
+            };
+            let entries = MessageModel::fetch_messages(client, room_id_str).await?;
             cb(entries);
             AppResult::Ok(())
         });
@@ -448,9 +452,13 @@ impl MatrixClient {
             }
         });
         self.spawn(async move {
-            let room_entries = RoomModel::fetch_rooms(client_arc.clone()).await?;
+            let client: matrix_sdk::Client = {
+                let c = client_arc.lock().await;
+                c.clone()
+            };
+            let room_entries = RoomModel::fetch_rooms(client.clone()).await?;
             rooms_cb(room_entries);
-            let space_entries = SpaceModel::fetch_spaces(client_arc).await?;
+            let space_entries = SpaceModel::fetch_spaces(client).await?;
             spaces_cb(space_entries);
             AppResult::Ok(())
         });
