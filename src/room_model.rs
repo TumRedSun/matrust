@@ -45,11 +45,9 @@ impl RoomModel {
     /// Pure async data fetching — does NOT take `&self` so the future is `Send`.
     /// Returns the room entries; the caller applies them on the Qt thread.
     pub async fn fetch_rooms(
-        client: Arc<Mutex<matrix_sdk::Client>>,
+        client: matrix_sdk::Client,
     ) -> crate::errors::AppResult<Vec<RoomEntry>> {
-        let c = client.lock().await;
-        let rooms = c.rooms();
-        drop(c);
+        let rooms = client.rooms();
 
         ::log::info!("fetch_rooms: SDK reports {} rooms total", rooms.len());
 
