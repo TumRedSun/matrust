@@ -51,14 +51,19 @@ impl RoomModel {
         let rooms = c.rooms();
         drop(c);
 
+        ::log::info!("fetch_rooms: SDK reports {} rooms total", rooms.len());
+
         let mut new_entries: Vec<RoomEntry> = Vec::with_capacity(rooms.len());
 
         for room in rooms {
+            let rid = room.room_id().to_string();
             if room.state() != matrix_sdk::RoomState::Joined {
+                ::log::debug!("fetch_rooms: skipping {} (not joined)", rid);
                 continue;
             }
             if room.is_space() {
-                continue; // spaces go into SpaceModel
+                ::log::debug!("fetch_rooms: skipping {} (is space)", rid);
+                continue;
             }
 
             // In matrix-sdk 0.18+, display_name() returns RoomDisplayName
@@ -82,7 +87,17 @@ impl RoomModel {
             let unread = room.unread_notification_counts();
             // In 0.18+, is_dm() is a synchronous method that checks cached
             // DM state.  direct_targets() is also available.
-            let is_direct = room.is_dm() || room.direct_targets().len() > 0;
+            let is_dm_result = room.is_dm();
+            let direct_targets = room.direct_targets();
+            let is_direct = is_dm_result || direct_targets.len() > 0;
+
+            ::log::info!(
+                "fetch_rooms: room={} name=\"{}\" is_dm={} direct_targets={:?} unread={} avatar=\"{}\"",
+                rid, display_name, is_direct,
+                direct_targets.iter().map(|t| t.to_string()).collect::<Vec<_>>(),
+                unread.notification_count,
+                if avatar.is_empty() { "(none)" } else { &avatar }
+            );
 
             // We no longer query the server for each DM room's message
             // count during refreshRooms() — that made the refresh O(N)
@@ -109,6 +124,11 @@ impl RoomModel {
         }
 
         new_entries.sort_by(|a, b| b.last_event_ts.cmp(&a.last_event_ts));
+        ::log::info!(
+            "fetch_rooms: returning {} rooms ({} DMs)",
+            new_entries.len(),
+            new_entries.iter().filter(|e| e.is_direct).count()
+        );
         Ok(new_entries)
     }
 
