@@ -263,7 +263,7 @@ Rectangle {
             onEditingFinished: {
                 var v = text.trim()
                 if (/^#[0-9a-fA-F]{3,8}$/.test(v)) {
-                    Theme["set" + bind.charAt(0).toUpperCase() + bind.slice(1)](v)
+                    Theme[bind] = v
                 } else {
                     text = Theme[bind]
                 }
@@ -315,7 +315,7 @@ Rectangle {
             text: "−"
             font.pixelSize: Theme.fontSizeSm
             enabled: Theme[bind] > minValue
-            onClicked: Theme["set" + bind.charAt(0).toUpperCase() + bind.slice(1)](Theme[bind] - 1)
+            onClicked: Theme[bind] = Theme[bind] - 1
         }
         Label {
             Layout.preferredWidth: 36
@@ -328,14 +328,14 @@ Rectangle {
             text: "+"
             font.pixelSize: Theme.fontSizeSm
             enabled: Theme[bind] < maxValue
-            onClicked: Theme["set" + bind.charAt(0).toUpperCase() + bind.slice(1)](Theme[bind] + 1)
+            onClicked: Theme[bind] = Theme[bind] + 1
         }
         Slider {
             Layout.fillWidth: true
             from: minValue
             to: maxValue
             value: Theme[bind]
-            onMoved: Theme["set" + bind.charAt(0).toUpperCase() + bind.slice(1)](Math.round(value))
+            onMoved: Theme[bind] = Math.round(value)
         }
     }
 
@@ -345,7 +345,7 @@ Rectangle {
         id: picker
         property string targetBind: ""
         onAccepted: {
-            Theme["set" + targetBind.charAt(0).toUpperCase() + targetBind.slice(1)](picker.color.toString())
+            Theme[targetBind] = picker.color.toString()
         }
     }
 
