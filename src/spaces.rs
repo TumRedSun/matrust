@@ -10,8 +10,6 @@
 
 use qmetaobject::*;
 use std::cell::RefCell;
-use std::sync::Arc;
-use tokio::sync::Mutex;
 
 /// Module-level singleton storage for SpaceModel.
 static SINGLETON: crate::singleton::QtSingleton<QPointer<SpaceModel>> =
