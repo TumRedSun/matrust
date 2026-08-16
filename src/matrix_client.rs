@@ -818,7 +818,11 @@ impl MatrixClient {
                 mc.set_ready(true);
                 mc.emit_logged_in(QString::from(sess.user_id.as_str()));
 
-                mc.refreshRooms();
+                // NOTE: Do NOT call refreshRooms() here. The SDK's
+                // internal room state is empty before the first sync.
+                // The sync loop's callback will call refreshRooms()
+                // automatically after each successful sync cycle,
+                // which is when rooms are actually available.
             }
         } // qptr dropped here
 
