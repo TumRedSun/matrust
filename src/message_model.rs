@@ -107,7 +107,7 @@ impl MessageModel {
         //
         // We create a temporary Timeline, paginate backwards, read the
         // (now decrypted) items, then drop the Timeline.
-        use matrix_sdk_ui::timeline::{Timeline, TimelineItemKind, TimelineBuilder};
+        use matrix_sdk_ui::timeline::{TimelineItemKind, TimelineBuilder};
 
         let timeline = match TimelineBuilder::new(&room).build().await {
             Ok(t) => {
@@ -123,7 +123,7 @@ impl MessageModel {
 
         // Paginate backwards to load history
         match timeline.paginate_backwards(50).await {
-            Ok(()) => ::log::info!("fetch_messages: Timeline pagination OK"),
+            Ok(_hit_end) => ::log::info!("fetch_messages: Timeline pagination OK"),
             Err(e) => ::log::warn!("fetch_messages: Timeline pagination error: {e}"),
         }
 
@@ -144,7 +144,7 @@ impl MessageModel {
             let is_own = event_item.is_own();
 
             // Timestamp
-            let ts_val = event_item.timestamp().0 as i64;
+            let ts_val = i64::try_from(event_item.timestamp().0).unwrap_or(0);
 
             // Display name and avatar from profile
             let (display_name, avatar_url) = {
@@ -242,7 +242,7 @@ impl MessageModel {
                         MsgLikeKind::Sticker(s) => {
                             entry.kind = QString::from("image");
                             entry.body = QString::from(s.content().body.as_str());
-                            entry.mxc_url = QString::from(media_source_url(&s.content().image.source).unwrap_or(""));
+                            entry.mxc_url = QString::from(media_source_url(&s.content().source).unwrap_or(""));
                         }
                         MsgLikeKind::Redacted => {
                             entry.kind = QString::from("system");
@@ -295,7 +295,7 @@ impl MessageModel {
     /// Fallback: fetch messages using room.messages() without Timeline decryption.
     /// Used when Timeline::build() fails (e.g., missing features).
     async fn fetch_messages_fallback(
-        client: matrix_sdk::Client,
+        _client: matrix_sdk::Client,
         room_id: String,
         room: matrix_sdk::Room,
         me: ruma::OwnedUserId,
