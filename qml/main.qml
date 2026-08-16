@@ -337,6 +337,7 @@ ApplicationWindow {
                                             }
                                             Label {
                                                 Layout.fillWidth: true
+                                                visible: model.last_event.length > 0
                                                 text: model.last_event
                                                 color: Theme.muted
                                                 elide: Text.ElideRight
@@ -387,7 +388,7 @@ ApplicationWindow {
                 // so new messages appear in real-time without re-clicking.
                 Connections {
                     target: MatrixClient
-                    function onSyncDone() {
+                    function onSyncDone(payload) {
                         if (mainViewRoot.activeRoomId.length > 0) {
                             MatrixClient.loadRoomMessages(mainViewRoot.activeRoomId)
                         }
