@@ -10,6 +10,20 @@ Rectangle {
     color: Theme.windowBg
     property string roomId: ""
 
+    // Resolve the display name for the current room from RoomModel.
+    property string roomDisplayName: {
+        if (roomId.length === 0) return ""
+        for (var j = 0; j < RoomModel.count; j++) {
+            var ix = RoomModel.index(j, 0)
+            var rid = RoomModel.data(ix, 257).toString()   // room_id role
+            if (rid === roomId) {
+                var name = RoomModel.data(ix, 257 + 1).toString() // name role
+                return name.length > 0 ? name : roomId
+            }
+        }
+        return roomId
+    }
+
     ColumnLayout {
         anchors.fill: parent
         spacing: 0
@@ -26,36 +40,28 @@ Rectangle {
                 anchors.rightMargin: Theme.paddingMd
                 spacing: Theme.spacingSm
 
-                // Close conversation button — on the LEFT, before the
-                // room name, so it clearly means "close this conversation"
-                // rather than "close the whole window".
+                // Back button — simply deselects the room (goes back).
+                // The "close/leave DM" button lives inline next to the
+                // DM entry in the sidebar, not here.
                 ToolButton {
                     text: "\u2190"  // ← back arrow
                     font.pixelSize: Theme.fontSizeMd
                     visible: roomId.length > 0
                     enabled: roomId.length > 0
                     onClicked: {
-                        var name = ""
-                        for (var j = 0; j < RoomModel.count; j++) {
-                            var ix = RoomModel.index(j, 0)
-                            var rid = RoomModel.data(ix, 257).toString()
-                            if (rid === roomId) {
-                                name = RoomModel.data(ix, 257 + 1).toString()
-                                break
-                            }
-                        }
-                        leaveRoomDialog.roomId = roomId
-                        leaveRoomDialog.roomName = name
-                        leaveRoomDialog.open()
+                        chatPageRoot.roomId = ""
                     }
                 }
                 Label {
-                    text: roomId.length > 0 ? qsTr("Room %1").arg(roomId) : qsTr("No room selected")
+                    Layout.fillWidth: true
+                    text: roomId.length > 0
+                          ? roomDisplayName
+                          : qsTr("No room selected")
                     color: Theme.sidebarFg
                     font.pixelSize: Theme.fontSizeMd
                     font.bold: true
+                    elide: Text.ElideRight
                 }
-                Item { Layout.fillWidth: true }
                 Label {
                     text: MatrixClient.busy ? qsTr("Syncing…") : qsTr("Ready")
                     color: Theme.muted
@@ -73,8 +79,9 @@ Rectangle {
             ListView {
                 id: messagesView
                 model: MessageModel
-                spacing: Theme.spacingSm
+                spacing: 8
                 verticalLayoutDirection: ListView.BottomToTop
+                cacheBuffer: 4000
 
                 delegate: MessageBubble {
                     width: messagesView.width - Theme.paddingMd * 2
