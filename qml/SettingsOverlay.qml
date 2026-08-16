@@ -836,7 +836,7 @@ Item {
             font.pixelSize: Theme.fontSizeSm
             onClicked: {
                 picker.targetBind = bind
-                picker.color = Theme[bind]
+                picker.selectedColor = Theme[bind]
                 picker.open()
             }
         }
@@ -901,7 +901,7 @@ Item {
         id: picker
         property string targetBind: ""
         onAccepted: {
-            Theme[targetBind] = picker.color.toString()
+            Theme[targetBind] = picker.selectedColor.toString()
         }
     }
 
