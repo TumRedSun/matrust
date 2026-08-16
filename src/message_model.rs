@@ -107,9 +107,9 @@ impl MessageModel {
         //
         // We create a temporary Timeline, paginate backwards, read the
         // (now decrypted) items, then drop the Timeline.
-        use matrix_sdk_ui::timeline::{Timeline, TimelineItemKind, PaginationOptions};
+        use matrix_sdk_ui::timeline::{Timeline, TimelineItemKind, TimelineBuilder};
 
-        let timeline = match Timeline::builder(&room).build().await {
+        let timeline = match TimelineBuilder::new(&room).build().await {
             Ok(t) => {
                 ::log::info!("fetch_messages: Timeline created for room={}", room_id);
                 t
@@ -122,13 +122,13 @@ impl MessageModel {
         };
 
         // Paginate backwards to load history
-        match timeline.paginate_backwards(PaginationOptions::simple(50)).await {
+        match timeline.paginate_backwards(50).await {
             Ok(()) => ::log::info!("fetch_messages: Timeline pagination OK"),
             Err(e) => ::log::warn!("fetch_messages: Timeline pagination error: {e}"),
         }
 
         // Read items from the timeline
-        let items = timeline.items();
+        let items = timeline.items().await;
         ::log::info!("fetch_messages: Timeline returned {} items", items.len());
 
         for item in items.iter() {
@@ -144,31 +144,22 @@ impl MessageModel {
             let is_own = event_item.is_own();
 
             // Timestamp
-            let ts_val = event_item.origin_server_ts()
-                .map(|dt| dt.timestamp_millis())
-                .unwrap_or(0);
+            let ts_val = event_item.timestamp().0 as i64;
 
             // Display name and avatar from profile
             let (display_name, avatar_url) = {
                 let profile = event_item.sender_profile();
-                let dn = profile.display_name
-                    .as_deref()
-                    .unwrap_or("")
-                    .to_string();
-                let av = profile.avatar_url
-                    .as_ref()
-                    .map(|u| u.to_string())
-                    .unwrap_or_default();
-                (dn, av)
-            };
-            // Also check member_map as fallback
-            let (display_name, avatar_url) = if display_name.is_empty() {
-                member_map
-                    .get(&sender_str)
-                    .map(|(dn, av)| (dn.clone(), av.clone()))
-                    .unwrap_or_default()
-            } else {
-                (display_name, avatar_url)
+                match profile {
+                    matrix_sdk_ui::timeline::TimelineDetails::Ready(p) => {
+                        let dn = p.display_name.as_deref().unwrap_or("").to_string();
+                        let av = p.avatar_url.as_ref().map(|u| u.to_string()).unwrap_or_default();
+                        (dn, av)
+                    }
+                    _ => member_map
+                        .get(&sender_str)
+                        .map(|(dn, av)| (dn.clone(), av.clone()))
+                        .unwrap_or_default(),
+                }
             };
 
             let mut entry = MessageEntry {
@@ -184,91 +175,104 @@ impl MessageModel {
             // Extract message content from TimelineItemContent
             use matrix_sdk_ui::timeline::TimelineItemContent;
             match event_item.content() {
-                TimelineItemContent::Message(msg) => {
-                    use matrix_sdk::ruma::events::room::message::MessageType;
-                    match msg.msgtype() {
-                        MessageType::Text(t) => {
-                            entry.kind = QString::from("text");
-                            entry.body = QString::from(t.body.as_str());
-                            if let Some(formatted) = &t.formatted {
-                                entry.body_html = QString::from(formatted.body.as_str());
+                TimelineItemContent::MsgLike(msg_like) => {
+                    use matrix_sdk_ui::timeline::MsgLikeKind;
+                    match &msg_like.kind {
+                        MsgLikeKind::Message(msg) => {
+                            use matrix_sdk::ruma::events::room::message::MessageType;
+                            match msg.msgtype() {
+                                MessageType::Text(t) => {
+                                    entry.kind = QString::from("text");
+                                    entry.body = QString::from(t.body.as_str());
+                                    if let Some(formatted) = &t.formatted {
+                                        entry.body_html = QString::from(formatted.body.as_str());
+                                    }
+                                }
+                                MessageType::Emote(t) => {
+                                    entry.kind = QString::from("text");
+                                    entry.body = QString::from(format!("* {}", t.body));
+                                }
+                                MessageType::Notice(t) => {
+                                    entry.kind = QString::from("text");
+                                    entry.body = QString::from(t.body.as_str());
+                                }
+                                MessageType::Image(t) => {
+                                    entry.kind = QString::from("image");
+                                    entry.mxc_url = QString::from(media_source_url(&t.source).unwrap_or(""));
+                                    entry.body = QString::from(t.body.as_str());
+                                    entry.file_name = QString::from(t.body.as_str());
+                                    entry.mime_type = QString::from(
+                                        t.info.as_ref().and_then(|i| i.mimetype.as_deref()).unwrap_or("image/*")
+                                    );
+                                }
+                                MessageType::Video(t) => {
+                                    entry.kind = QString::from("video");
+                                    entry.mxc_url = QString::from(media_source_url(&t.source).unwrap_or(""));
+                                    entry.file_name = QString::from(t.body.as_str());
+                                    entry.mime_type = QString::from(
+                                        t.info.as_ref().and_then(|i| i.mimetype.as_deref()).unwrap_or("video/*")
+                                    );
+                                }
+                                MessageType::File(t) => {
+                                    entry.kind = QString::from("file");
+                                    entry.mxc_url = QString::from(media_source_url(&t.source).unwrap_or(""));
+                                    entry.file_name = QString::from(t.body.as_str());
+                                    entry.mime_type = QString::from(
+                                        t.info.as_ref().and_then(|i| i.mimetype.as_deref()).unwrap_or("application/octet-stream")
+                                    );
+                                    entry.file_size = t.info.as_ref()
+                                        .and_then(|i| i.size)
+                                        .map(|s| u64::from(s) as i64)
+                                        .unwrap_or(0);
+                                }
+                                MessageType::Audio(t) => {
+                                    entry.kind = QString::from("audio");
+                                    entry.mxc_url = QString::from(media_source_url(&t.source).unwrap_or(""));
+                                    entry.file_name = QString::from(t.body.as_str());
+                                    entry.mime_type = QString::from(
+                                        t.info.as_ref().and_then(|i| i.mimetype.as_deref()).unwrap_or("audio/*")
+                                    );
+                                }
+                                _ => {
+                                    entry.kind = QString::from("system");
+                                    entry.body = QString::from("(unsupported message type)");
+                                }
                             }
                         }
-                        MessageType::Emote(t) => {
-                            entry.kind = QString::from("text");
-                            entry.body = QString::from(format!("* {}", t.body));
-                        }
-                        MessageType::Notice(t) => {
-                            entry.kind = QString::from("text");
-                            entry.body = QString::from(t.body.as_str());
-                        }
-                        MessageType::Image(t) => {
+                        MsgLikeKind::Sticker(s) => {
                             entry.kind = QString::from("image");
-                            entry.mxc_url = QString::from(media_source_url(&t.source).unwrap_or(""));
-                            entry.body = QString::from(t.body.as_str());
-                            entry.file_name = QString::from(t.body.as_str());
-                            entry.mime_type = QString::from(
-                                t.info.as_ref().and_then(|i| i.mimetype.as_deref()).unwrap_or("image/*")
-                            );
+                            entry.body = QString::from(s.content().body.as_str());
+                            entry.mxc_url = QString::from(media_source_url(&s.content().image.source).unwrap_or(""));
                         }
-                        MessageType::Video(t) => {
-                            entry.kind = QString::from("video");
-                            entry.mxc_url = QString::from(media_source_url(&t.source).unwrap_or(""));
-                            entry.file_name = QString::from(t.body.as_str());
-                            entry.mime_type = QString::from(
-                                t.info.as_ref().and_then(|i| i.mimetype.as_deref()).unwrap_or("video/*")
-                            );
+                        MsgLikeKind::Redacted => {
+                            entry.kind = QString::from("system");
+                            entry.body = QString::from("(message deleted)");
                         }
-                        MessageType::File(t) => {
-                            entry.kind = QString::from("file");
-                            entry.mxc_url = QString::from(media_source_url(&t.source).unwrap_or(""));
-                            entry.file_name = QString::from(t.body.as_str());
-                            entry.mime_type = QString::from(
-                                t.info.as_ref().and_then(|i| i.mimetype.as_deref()).unwrap_or("application/octet-stream")
-                            );
-                            entry.file_size = t.info.as_ref()
-                                .and_then(|i| i.size)
-                                .map(|s| u64::from(s) as i64)
-                                .unwrap_or(0);
-                        }
-                        MessageType::Audio(t) => {
-                            entry.kind = QString::from("audio");
-                            entry.mxc_url = QString::from(media_source_url(&t.source).unwrap_or(""));
-                            entry.file_name = QString::from(t.body.as_str());
-                            entry.mime_type = QString::from(
-                                t.info.as_ref().and_then(|i| i.mimetype.as_deref()).unwrap_or("audio/*")
-                            );
+                        MsgLikeKind::UnableToDecrypt(_) => {
+                            entry.kind = QString::from("system");
+                            entry.is_own = false;
+                            entry.body = QString::from("🔒 Encrypted message (decryption pending)");
                         }
                         _ => {
                             entry.kind = QString::from("system");
-                            entry.body = QString::from("(unsupported message type)");
+                            entry.body = QString::from("(event)");
                         }
                     }
                 }
-                TimelineItemContent::RedactedMessage => {
+                TimelineItemContent::MembershipChange(m) => {
                     entry.kind = QString::from("system");
-                    entry.body = QString::from("(message deleted)");
+                    entry.body = QString::from(m.user_id().to_string().as_str());
                 }
-                TimelineItemContent::Sticker(s) => {
-                    entry.kind = QString::from("image");
-                    entry.body = QString::from(s.content.body.as_str());
-                    entry.mxc_url = QString::from(media_source_url(&s.content.image.source).unwrap_or(""));
-                }
-                TimelineItemContent::MembershipChange(_) => {
+                TimelineItemContent::ProfileChange(p) => {
                     entry.kind = QString::from("system");
-                    entry.body = QString::from(event_item.body_for_read_receipt().unwrap_or(""));
-                }
-                TimelineItemContent::ProfileChange(_) => {
-                    entry.kind = QString::from("system");
-                    entry.body = QString::from(event_item.body_for_read_receipt().unwrap_or(""));
-                }
-                TimelineItemContent::Other(_) => {
-                    entry.kind = QString::from("system");
-                    entry.body = QString::from(event_item.body_for_read_receipt().unwrap_or(""));
+                    let dn = p.displayname_change()
+                        .and_then(|c| c.new.as_deref())
+                        .unwrap_or("");
+                    entry.body = QString::from(format!("changed display name to {}", dn));
                 }
                 _ => {
                     entry.kind = QString::from("system");
-                    entry.body = QString::from(event_item.body_for_read_receipt().unwrap_or(""));
+                    entry.body = QString::from("(event)");
                 }
             }
 
@@ -351,6 +355,9 @@ impl MessageModel {
                             let Some(original) = msg.as_original() else { continue };
                             use matrix_sdk::ruma::events::room::message::MessageType;
                             match &original.content.msgtype {
+                                MsgLikeKind::Message(msg) => {
+                            use matrix_sdk::ruma::events::room::message::MessageType;
+                            match msg.msgtype() {
                                 MessageType::Text(t) => {
                                     entry.kind = QString::from("text");
                                     entry.body = QString::from(t.body.as_str());
