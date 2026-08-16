@@ -21,11 +21,17 @@ Item {
     property string mimeType
     property string roomId
 
-    implicitHeight: layout.implicitHeight
+    // Use explicit height from the layout's implicit height.
+    // This avoids a circular dependency between implicitHeight
+    // and anchors.fill that could collapse the bubble to 0.
+    height: layout.implicitHeight
 
     RowLayout {
         id: layout
-        anchors.fill: parent
+        anchors.left: parent.left
+        anchors.right: parent.right
+        // Do NOT anchor top/bottom — let the layout calculate its
+        // own height from its contents so implicitHeight is correct.
         spacing: Theme.spacingSm
         layoutDirection: root.isOwn ? Qt.RightToLeft : Qt.LeftToRight
 
@@ -119,7 +125,8 @@ Item {
             TextEdit {
                 Layout.fillWidth: true
                 textFormat: root.bodyHtml.length > 0 ? Text.RichText : Text.PlainText
-                text: root.bodyHtml.length > 0 ? root.bodyHtml : root.body
+                text: root.bodyHtml.length > 0 ? root.bodyHtml
+                      : (root.body.length > 0 ? root.body : qsTr("(empty)"))
                 wrapMode: Text.Wrap
                 readOnly: true
                 selectByMouse: true
