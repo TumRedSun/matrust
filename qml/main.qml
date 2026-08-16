@@ -304,7 +304,10 @@ ApplicationWindow {
                                     RowLayout {
                                         anchors.fill: parent
                                         anchors.leftMargin: Theme.paddingSm
-                                        anchors.rightMargin: Theme.paddingSm
+                                        // Leave room for the × close button on DMs
+                                        anchors.rightMargin: (model.is_direct && mainViewRoot.sidebarMode === "home")
+                                                              ? Theme.paddingSm + 28
+                                                              : Theme.paddingSm
                                         spacing: Theme.spacingSm
 
                                         Rectangle {
@@ -371,6 +374,23 @@ ApplicationWindow {
                                             MatrixClient.loadRoomMessages(model.room_id)
                                         }
                                     }
+
+                                    // × close button for DMs — placed AFTER MouseArea
+                                    // so it sits on top in z-order and captures its
+                                    // own clicks.  Only visible in the DM sidebar.
+                                    ToolButton {
+                                        visible: model.is_direct && mainViewRoot.sidebarMode === "home"
+                                        anchors.right: parent.right
+                                        anchors.rightMargin: Theme.paddingSm
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: "\u2715"  // ✕
+                                        font.pixelSize: Theme.fontSizeXs
+                                        onClicked: {
+                                            leaveRoomDialog.roomId = model.room_id
+                                            leaveRoomDialog.roomName = model.name.length > 0 ? model.name : model.room_id
+                                            leaveRoomDialog.open()
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -382,6 +402,7 @@ ApplicationWindow {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     roomId: mainViewRoot.activeRoomId
+                    onGoBack: mainViewRoot.activeRoomId = ""
                 }
 
                 // Reload messages for the active room after each sync cycle
