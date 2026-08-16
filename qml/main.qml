@@ -276,7 +276,7 @@ ApplicationWindow {
                             ListView {
                                 id: roomList
                                 model: RoomModel
-                                spacing: 0
+                                spacing: 2
 
                                 delegate: Item {
                                     width: ListView.view.width
@@ -290,10 +290,9 @@ ApplicationWindow {
                                     //   - In "space" mode: show non-direct
                                     //       rooms.
                                     property bool showItem: mainViewRoot.sidebarMode === "home"
-                                            ? (model.is_direct && (model.message_count > 0
-                                                || model.room_id === mainViewRoot.activeRoomId))
+                                            ? model.is_direct
                                             : !model.is_direct
-                                    height: showItem ? 52 : 0
+                                    height: showItem ? 56 : 0
                                     visible: showItem
 
                                     Rectangle {
@@ -382,6 +381,17 @@ ApplicationWindow {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     roomId: mainViewRoot.activeRoomId
+                }
+
+                // Reload messages for the active room after each sync cycle
+                // so new messages appear in real-time without re-clicking.
+                Connections {
+                    target: MatrixClient
+                    function onSyncDone() {
+                        if (mainViewRoot.activeRoomId.length > 0) {
+                            MatrixClient.loadRoomMessages(mainViewRoot.activeRoomId)
+                        }
+                    }
                 }
 
                 // ── Column 4: Member list (right sidebar) ──
