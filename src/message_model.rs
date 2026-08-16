@@ -355,15 +355,57 @@ impl MessageModel {
                             let Some(original) = msg.as_original() else { continue };
                             use matrix_sdk::ruma::events::room::message::MessageType;
                             match &original.content.msgtype {
-                                MsgLikeKind::Message(msg) => {
-                            use matrix_sdk::ruma::events::room::message::MessageType;
-                            match msg.msgtype() {
                                 MessageType::Text(t) => {
                                     entry.kind = QString::from("text");
                                     entry.body = QString::from(t.body.as_str());
                                     if let Some(formatted) = &t.formatted {
                                         entry.body_html = QString::from(formatted.body.as_str());
                                     }
+                                }
+                                MessageType::Emote(t) => {
+                                    entry.kind = QString::from("text");
+                                    entry.body = QString::from(format!("* {}", t.body));
+                                }
+                                MessageType::Notice(t) => {
+                                    entry.kind = QString::from("text");
+                                    entry.body = QString::from(t.body.as_str());
+                                }
+                                MessageType::Image(t) => {
+                                    entry.kind = QString::from("image");
+                                    entry.mxc_url = QString::from(media_source_url(&t.source).unwrap_or(""));
+                                    entry.body = QString::from(t.body.as_str());
+                                    entry.file_name = QString::from(t.body.as_str());
+                                    entry.mime_type = QString::from(
+                                        t.info.as_ref().and_then(|i| i.mimetype.as_deref()).unwrap_or("image/*")
+                                    );
+                                }
+                                MessageType::Video(t) => {
+                                    entry.kind = QString::from("video");
+                                    entry.mxc_url = QString::from(media_source_url(&t.source).unwrap_or(""));
+                                    entry.file_name = QString::from(t.body.as_str());
+                                    entry.mime_type = QString::from(
+                                        t.info.as_ref().and_then(|i| i.mimetype.as_deref()).unwrap_or("video/*")
+                                    );
+                                }
+                                MessageType::File(t) => {
+                                    entry.kind = QString::from("file");
+                                    entry.mxc_url = QString::from(media_source_url(&t.source).unwrap_or(""));
+                                    entry.file_name = QString::from(t.body.as_str());
+                                    entry.mime_type = QString::from(
+                                        t.info.as_ref().and_then(|i| i.mimetype.as_deref()).unwrap_or("application/octet-stream")
+                                    );
+                                    entry.file_size = t.info.as_ref()
+                                        .and_then(|i| i.size)
+                                        .map(|s| u64::from(s) as i64)
+                                        .unwrap_or(0);
+                                }
+                                MessageType::Audio(t) => {
+                                    entry.kind = QString::from("audio");
+                                    entry.mxc_url = QString::from(media_source_url(&t.source).unwrap_or(""));
+                                    entry.file_name = QString::from(t.body.as_str());
+                                    entry.mime_type = QString::from(
+                                        t.info.as_ref().and_then(|i| i.mimetype.as_deref()).unwrap_or("audio/*")
+                                    );
                                 }
                                 _ => {
                                     entry.kind = QString::from("system");
