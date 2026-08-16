@@ -246,10 +246,10 @@ Rectangle {
     }
 
     // Reactively update room display name when RoomModel changes
-    // (rows_changed signal is emitted by RoomModel.apply_entries)
+    // (count_changed signal is emitted by RoomModel.apply_entries)
     Connections {
         target: RoomModel
-        function onRowsChanged() {
+        function onCountChanged() {
             lookupRoomName()
         }
     }
