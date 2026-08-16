@@ -222,12 +222,13 @@ impl MessageModel {
             messages.push(entry);
         }
 
+        let own_c = messages.iter().filter(|m| m.is_own).count();
+        let other_c = messages.iter().filter(|m| !m.is_own && m.kind.to_string() != "system").count();
+        let system_c = messages.iter().filter(|m| m.kind.to_string() == "system").count();
+        let img_c = messages.iter().filter(|m| m.kind.to_string() == "image").count();
         ::log::info!(
-            "fetch_messages: parsed {} messages for room={} (own={}, other={}, system={})",
-            messages.len(), room_id,
-            messages.iter().filter(|m| m.is_own).count(),
-            messages.iter().filter(|m| !m.is_own && m.kind.to_string() != "system").count(),
-            messages.iter().filter(|m| m.kind.to_string() == "system").count()
+            "fetch_messages: parsed {} messages for room={} (own={}, other={}, system={}, images={})",
+            messages.len(), room_id, own_c, other_c, system_c, img_c
         );
 
         Ok(messages)
@@ -252,17 +253,26 @@ impl MessageModel {
                 return;
             }
         }
+        let own_count = entries.iter().filter(|m| m.is_own).count();
+        let other_count = entries.iter().filter(|m| !m.is_own && m.kind.to_string() != "system").count();
+        let system_count = entries.iter().filter(|m| m.kind.to_string() == "system").count();
+        ::log::info!(
+            "MessageModel::apply_entries: {} messages for room={} (own={}, other={}, system={}), replacing {} existing",
+            entries.len(), room_id, own_count, other_count, system_count, self.entries.borrow().len()
+        );
         self.begin_reset_model();
         *self.entries.borrow_mut() = entries;
         self.end_reset_model();
         self.count_changed();
         self.historyLoaded(QString::from(room_id));
+        ::log::info!("MessageModel::apply_entries: model reset complete, count={}", self.entries.borrow().len());
     }
 
     /// Set which room's messages are currently displayed.
     /// Called from `MatrixClient::loadRoomMessages` before the
     /// async fetch starts, so stale responses can be detected.
     pub fn set_current_room(&mut self, room_id: &str) {
+        ::log::info!("MessageModel::set_current_room: {}", room_id);
         *self.current_room_id.borrow_mut() = Some(room_id.to_owned());
     }
 }
