@@ -263,7 +263,7 @@ impl qmetaobject::QAbstractListModel for MessageModel {
         if i >= entries.len() {
             return QVariant::default();
         }
-        entries[i].get(role)
+        entries[i].get(role - qmetaobject::USER_ROLE)
     }
     fn role_names(&self) -> std::collections::HashMap<i32, QByteArray> {
         role_names_from_vec(MessageEntry::names())
