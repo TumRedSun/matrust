@@ -83,7 +83,8 @@ impl MessageModel {
 
         // In matrix-sdk 0.18+, room.messages(MessagesOptions) is still
         // available for backward-compatible message fetching.
-        let options = matrix_sdk::room::MessagesOptions::backward();
+        let mut options = matrix_sdk::room::MessagesOptions::backward();
+        options.limit = 50u32.into();
         let result = room.messages(options).await?;
 
         // result.chunk contains TimelineEvent items.
