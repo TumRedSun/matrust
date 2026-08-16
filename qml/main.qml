@@ -422,10 +422,25 @@ ApplicationWindow {
                 Connections {
                     target: MatrixClient
                     function onSyncDone(payload) {
+                        // Refresh room list after every sync so new DMs/rooms
+                        // appear immediately without manual button press.
+                        MatrixClient.refreshRooms()
+                        // Reload messages for the active room so new
+                        // messages appear in real-time.
                         if (mainViewRoot.activeRoomId.length > 0) {
                             MatrixClient.loadRoomMessages(mainViewRoot.activeRoomId)
                         }
                     }
+                }
+
+                // Backup timer: refresh rooms every 10s even if
+                // onSyncDone signal is missed (queued_callback can be
+                // unreliable across Tokio→Qt).
+                Timer {
+                    interval: 10000
+                    running: MatrixClient.userId.length > 0
+                    repeat: true
+                    onTriggered: MatrixClient.refreshRooms()
                 }
 
                 // ── Column 4: Member list (right sidebar) ──
