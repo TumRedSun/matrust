@@ -57,6 +57,7 @@ Item {
         // Bubble
         Rectangle {
             Layout.fillWidth: true
+            Layout.minimumHeight: 24
             Layout.maximumWidth: layout.width * (Theme.bubbleMaxWidthPct / 100.0) - Theme.avatarSizeSm - Theme.spacingSm
             Layout.alignment: root.isOwn ? Qt.AlignRight : Qt.AlignLeft
             Layout.topMargin: 2
@@ -268,11 +269,14 @@ Item {
     Component {
         id: systemComp
         Label {
+            Layout.fillWidth: true
+            Layout.alignment: Qt.AlignHCenter
             text: root.body
             color: Theme.muted
-            font.pixelSize: Theme.fontSizeXs
+            font.pixelSize: Theme.fontSizeSm
             font.italic: true
-            Layout.alignment: Qt.AlignHCenter
+            wrapMode: Text.Wrap
+            horizontalAlignment: Text.AlignHCenter
         }
     }
 
