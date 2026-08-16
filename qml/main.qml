@@ -306,7 +306,7 @@ ApplicationWindow {
                                         anchors.leftMargin: Theme.paddingSm
                                         // Leave room for the × close button on DMs
                                         anchors.rightMargin: (model.is_direct && mainViewRoot.sidebarMode === "home")
-                                                              ? Theme.paddingSm + 28
+                                                              ? Theme.paddingSm + 24
                                                               : Theme.paddingSm
                                         spacing: Theme.spacingSm
 
@@ -378,17 +378,29 @@ ApplicationWindow {
                                     // × close button for DMs — placed AFTER MouseArea
                                     // so it sits on top in z-order and captures its
                                     // own clicks.  Only visible in the DM sidebar.
-                                    ToolButton {
+                                    Item {
                                         visible: model.is_direct && mainViewRoot.sidebarMode === "home"
                                         anchors.right: parent.right
                                         anchors.rightMargin: Theme.paddingSm
                                         anchors.verticalCenter: parent.verticalCenter
-                                        text: "\u2715"  // ✕
-                                        font.pixelSize: Theme.fontSizeXs
-                                        onClicked: {
-                                            leaveRoomDialog.roomId = model.room_id
-                                            leaveRoomDialog.roomName = model.name.length > 0 ? model.name : model.room_id
-                                            leaveRoomDialog.open()
+                                        width: 24
+                                        height: 24
+
+                                        Label {
+                                            anchors.centerIn: parent
+                                            text: "\u2715"  // ✕
+                                            color: Theme.muted
+                                            font.pixelSize: Theme.fontSizeXs
+                                        }
+
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: {
+                                                leaveRoomDialog.roomId = model.room_id
+                                                leaveRoomDialog.roomName = model.name.length > 0 ? model.name : model.room_id
+                                                leaveRoomDialog.open()
+                                            }
                                         }
                                     }
                                 }
