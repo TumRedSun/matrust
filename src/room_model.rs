@@ -137,11 +137,15 @@ impl RoomModel {
     /// Apply pre-fetched entries on the Qt thread.
     /// Must only be called from the Qt event loop (e.g. inside a queued_callback).
     pub fn apply_entries(&mut self, entries: Vec<RoomEntry>) {
+        let dm_count = entries.iter().filter(|e| e.is_direct).count();
+        ::log::info!("RoomModel::apply_entries: {} rooms ({} DMs), replacing {} existing entries",
+            entries.len(), dm_count, self.entries.borrow().len());
         self.begin_reset_model();
         *self.entries.borrow_mut() = entries;
         self.end_reset_model();
         self.count_changed();
         self.rows_changed();
+        ::log::info!("RoomModel::apply_entries: model reset complete, count={}", self.entries.borrow().len());
     }
 
     pub fn count(&self) -> i64 {
