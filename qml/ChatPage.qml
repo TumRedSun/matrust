@@ -26,30 +26,15 @@ Rectangle {
                 anchors.rightMargin: Theme.paddingMd
                 spacing: Theme.spacingSm
 
-                Label {
-                    text: roomId.length > 0 ? qsTr("Room %1").arg(roomId) : qsTr("No room selected")
-                    color: Theme.sidebarFg
-                    font.pixelSize: Theme.fontSizeMd
-                    font.bold: true
-                }
-                Item { Layout.fillWidth: true }
-                Label {
-                    text: MatrixClient.busy ? qsTr("Syncing…") : qsTr("Ready")
-                    color: Theme.muted
-                    font.pixelSize: Theme.fontSizeSm
-                }
-                // Close conversation button — visible only when a room is open.
-                // Triggers the "close conversation" dialog (leave room).
+                // Close conversation button — on the LEFT, before the
+                // room name, so it clearly means "close this conversation"
+                // rather than "close the whole window".
                 ToolButton {
-                    text: "\u2715"  // ✕
+                    text: "\u2190"  // ← back arrow
                     font.pixelSize: Theme.fontSizeMd
                     visible: roomId.length > 0
                     enabled: roomId.length > 0
                     onClicked: {
-                        // Look up the room's display name from RoomModel so
-                        // the confirm dialog can show it. We don't gate the
-                        // button on is_direct — users may want to leave a
-                        // regular room too.
                         var name = ""
                         for (var j = 0; j < RoomModel.count; j++) {
                             var ix = RoomModel.index(j, 0)
@@ -64,6 +49,18 @@ Rectangle {
                         leaveRoomDialog.open()
                     }
                 }
+                Label {
+                    text: roomId.length > 0 ? qsTr("Room %1").arg(roomId) : qsTr("No room selected")
+                    color: Theme.sidebarFg
+                    font.pixelSize: Theme.fontSizeMd
+                    font.bold: true
+                }
+                Item { Layout.fillWidth: true }
+                Label {
+                    text: MatrixClient.busy ? qsTr("Syncing…") : qsTr("Ready")
+                    color: Theme.muted
+                    font.pixelSize: Theme.fontSizeSm
+                }
             }
         }
 
@@ -76,7 +73,7 @@ Rectangle {
             ListView {
                 id: messagesView
                 model: MessageModel
-                spacing: Theme.spacingXs
+                spacing: Theme.spacingSm
                 verticalLayoutDirection: ListView.BottomToTop
 
                 delegate: MessageBubble {
