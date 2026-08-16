@@ -64,19 +64,18 @@ impl MessageModel {
     /// Returns the parsed message entries; the caller is responsible for
     /// applying them to the model on the Qt thread (e.g. via queued_callback).
     pub async fn fetch_messages(
-        client: Arc<Mutex<matrix_sdk::Client>>,
+        client: matrix_sdk::Client,
         room_id: String,
     ) -> crate::errors::AppResult<Vec<MessageEntry>> {
         ::log::info!("fetch_messages: loading messages for room={}", room_id);
-        let c = client.lock().await;
         let rid: ruma::OwnedRoomId = room_id
             .parse()
             .map_err(|e: ruma::IdParseError| crate::errors::AppError::Other(e.to_string()))?;
-        let room = c
+        let room = client
             .get_room(&rid)
             .ok_or_else(|| crate::errors::AppError::RoomNotFound(room_id.clone()))?;
 
-        let me = c
+        let me = client
             .user_id()
             .map(|u| u.to_owned())
             .ok_or(crate::errors::AppError::NotLoggedIn)?;
@@ -85,7 +84,7 @@ impl MessageModel {
         // the room's member cache so we can populate sender_display and
         // avatar_url for each message.
         let mut member_map: std::collections::HashMap<String, (String, String)> = std::collections::HashMap::new();
-        match room.members().await {
+        match room.members(matrix_sdk::RoomMemberships::ACTIVE).await {
             Ok(members) => {
                 for member in members {
                     let uid = member.user_id().to_string();
