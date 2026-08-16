@@ -885,7 +885,8 @@ impl MatrixClient {
             // avoids the "use of moved value" error.
             let mut sync_token: Option<String> = None;
             loop {
-                let mut sync_settings = matrix_sdk::config::SyncSettings::default();
+                let mut sync_settings = matrix_sdk::config::SyncSettings::default()
+                    .timeout(std::time::Duration::from_secs(30));
                 if let Some(token) = sync_token.take() {
                     sync_settings = sync_settings.token(token);
                 }
@@ -901,7 +902,7 @@ impl MatrixClient {
                         // Back off briefly before retrying to avoid hammering
                         // the server in case of a persistent failure (e.g.
                         // network down).
-                        tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+                        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
                     }
                 }
             }
