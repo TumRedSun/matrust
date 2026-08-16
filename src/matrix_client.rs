@@ -396,6 +396,7 @@ impl MatrixClient {
 
     pub fn loadRoomMessages(&self, room_id: QString) {
         let room_id_str = room_id.to_string();
+        ::log::info!("loadRoomMessages: room={}", room_id_str);
         let model = MessageModel::get();
         // Mark this room as the current target so stale responses
         // from a previous room are discarded by apply_entries.
@@ -420,6 +421,7 @@ impl MatrixClient {
     }
 
     pub fn refreshRooms(&self) {
+        ::log::info!("refreshRooms: starting room refresh");
         let rooms_ptr = RoomModel::get();
         let spaces_ptr = SpaceModel::get();
         let client_arc = match self.inner.borrow().clone() {
@@ -889,21 +891,28 @@ impl MatrixClient {
             // Building a fresh SyncSettings from the token each iteration
             // avoids the "use of moved value" error.
             let mut sync_token: Option<String> = None;
+            let mut sync_cycle: u32 = 0;
             loop {
+                sync_cycle += 1;
                 let mut sync_settings = matrix_sdk::config::SyncSettings::default()
                     .timeout(std::time::Duration::from_secs(30));
                 if let Some(token) = sync_token.take() {
                     sync_settings = sync_settings.token(token);
                 }
+                ::log::debug!("sync_once: starting cycle #{}", sync_cycle);
                 let result = client_clone.sync_once(sync_settings).await;
                 match result {
                     Ok(response) => {
                         sync_token = Some(response.next_batch);
+                        ::log::info!(
+                            "sync_once: cycle #{} OK, next_batch token present={}",
+                            sync_cycle, sync_token.is_some()
+                        );
                         // Notify QML + refresh room list + refresh profile.
                         sync_cb(());
                     }
                     Err(e) => {
-                        ::log::warn!("sync error: {e}");
+                        ::log::warn!("sync_once: cycle #{} error: {e}", sync_cycle);
                         // Back off briefly before retrying to avoid hammering
                         // the server in case of a persistent failure (e.g.
                         // network down).
