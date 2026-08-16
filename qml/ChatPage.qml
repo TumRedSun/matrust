@@ -6,6 +6,7 @@ import QtQuick.Dialogs
 import MatrixClient
 
 Rectangle {
+    id: chatPageRoot
     color: Theme.windowBg
     property string roomId: ""
 
@@ -80,7 +81,7 @@ Rectangle {
 
                 delegate: MessageBubble {
                     width: messagesView.width - Theme.paddingMd * 2
-                    anchors.horizontalCenter: parent ? parent.horizontalCenter : undefined
+                    anchors.horizontalCenter: undefined
                     eventId: model.event_id
                     sender: model.sender_display.length > 0 ? model.sender_display : model.sender
                     avatarUrl: model.avatar_url
@@ -93,7 +94,7 @@ Rectangle {
                     fileName: model.file_name
                     fileSize: model.file_size
                     mimeType: model.mime_type
-                    roomId: parent.parent.parent.roomId
+                    roomId: chatPageRoot.roomId
                 }
             }
         }
