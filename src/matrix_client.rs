@@ -213,15 +213,18 @@ impl MatrixClient {
     /// Called from QML on startup.
     pub fn autoLogin(&self) {
         let path = Self::session_file_path();
+        ::log::info!("autoLogin: looking for saved session at {:?}", path);
         match std::fs::read_to_string(&path) {
             Ok(body) => match serde_json::from_str::<SessionStore>(&body) {
                 Ok(sess) => {
+                    ::log::info!("autoLogin: found session for user={} homeserver={}", sess.user_id, sess.homeserver);
                     let homeserver = sess.homeserver.clone();
                     let user_id = sess.user_id.clone();
                     let device_id = sess.device_id.clone();
                     let access_token = sess.access_token.clone();
                     let ipv6 = sess.force_ipv6;
                     self.spawn(async move {
+                        ::log::info!("autoLogin: starting session restore");
                         Self::do_restore_session_with_full(
                             homeserver, user_id, device_id, access_token, ipv6,
                         ).await
@@ -396,7 +399,7 @@ impl MatrixClient {
 
     pub fn loadRoomMessages(&self, room_id: QString) {
         let room_id_str = room_id.to_string();
-        ::log::info!("loadRoomMessages: room={}", room_id_str);
+        ::log::info!("loadRoomMessages: room={} (current model count={})", room_id_str, MessageModel::get().as_pinned().map(|m| m.borrow().count()).unwrap_or(-1));
         let model = MessageModel::get();
         // Mark this room as the current target so stale responses
         // from a previous room are discarded by apply_entries.
@@ -426,11 +429,17 @@ impl MatrixClient {
         let spaces_ptr = SpaceModel::get();
         let client_arc = match self.inner.borrow().clone() {
             Some(c) => c,
-            None => return,
+            None => {
+                ::log::warn!("refreshRooms: no client available, skipping");
+                return;
+            }
         };
         let rooms_cb = qmetaobject::queued_callback(move |entries: Vec<RoomEntry>| {
+            ::log::info!("refreshRooms: applying {} room entries to RoomModel", entries.len());
             if let Some(r) = rooms_ptr.as_pinned() {
                 r.borrow_mut().apply_entries(entries);
+            } else {
+                ::log::warn!("refreshRooms: RoomModel QPointer is null, dropping entries");
             }
         });
         let spaces_cb = qmetaobject::queued_callback(move |entries: Vec<SpaceEntry>| {
@@ -806,6 +815,7 @@ impl MatrixClient {
         client: matrix_sdk::Client,
         sess: &SessionStore,
     ) -> AppResult<()> {
+        ::log::info!("finish_login: user={} device={}", sess.user_id, sess.device_id);
         let arc = Arc::new(Mutex::new(client));
 
         // Handle the QPointer work on the Qt thread first (synchronously),
@@ -870,9 +880,13 @@ impl MatrixClient {
         // Creating the callback outside `rt.spawn` and then moving only the
         // already-`Send` callback handle into the async block avoids that.
         let sync_cb = qmetaobject::queued_callback(move |_: ()| {
+            ::log::info!("sync_cb: running on Qt thread after sync cycle");
             if let Some(this) = sync_cb_qptr.as_pinned() {
                 this.borrow().emit_sync_done(QString::from("{}"));
+                ::log::info!("sync_cb: calling refreshRooms");
                 this.borrow().refreshRooms();
+            } else {
+                ::log::warn!("sync_cb: MatrixClient QPointer is null!");
             }
             // Nudge ProfileManager so presence / display name / banner
             // changes from other devices are picked up. Safe to touch
@@ -892,6 +906,28 @@ impl MatrixClient {
             // avoids the "use of moved value" error.
             let mut sync_token: Option<String> = None;
             let mut sync_cycle: u32 = 0;
+
+            // Perform an initial sync with a SHORT timeout first.
+            // This ensures rooms appear in the sidebar immediately
+            // after login, instead of waiting for the first long-poll
+            // cycle (which can take up to 30s).
+            ::log::info!("sync: performing initial sync with short timeout");
+            let initial_settings = matrix_sdk::config::SyncSettings::default()
+                .timeout(std::time::Duration::from_secs(10));
+            match client_clone.sync_once(initial_settings).await {
+                Ok(response) => {
+                    sync_token = Some(response.next_batch);
+                    ::log::info!("sync: initial sync OK, next_batch present={}", sync_token.is_some());
+                    // Immediately refresh rooms so the sidebar populates
+                    // without waiting for the user to press "Refresh".
+                    sync_cb(());
+                }
+                Err(e) => {
+                    ::log::warn!("sync: initial sync error: {e}");
+                    // Continue anyway — the loop will retry.
+                }
+            }
+
             loop {
                 sync_cycle += 1;
                 let mut sync_settings = matrix_sdk::config::SyncSettings::default()
@@ -900,19 +936,21 @@ impl MatrixClient {
                     sync_settings = sync_settings.token(token);
                 }
                 ::log::debug!("sync_once: starting cycle #{}", sync_cycle);
+                let start = std::time::Instant::now();
                 let result = client_clone.sync_once(sync_settings).await;
+                let elapsed = start.elapsed();
                 match result {
                     Ok(response) => {
                         sync_token = Some(response.next_batch);
                         ::log::info!(
-                            "sync_once: cycle #{} OK, next_batch token present={}",
-                            sync_cycle, sync_token.is_some()
+                            "sync_once: cycle #{} OK in {:.1}s, next_batch token present={}",
+                            sync_cycle, elapsed.as_secs_f64(), sync_token.is_some()
                         );
                         // Notify QML + refresh room list + refresh profile.
                         sync_cb(());
                     }
                     Err(e) => {
-                        ::log::warn!("sync_once: cycle #{} error: {e}", sync_cycle);
+                        ::log::warn!("sync_once: cycle #{} error after {:.1}s: {e}", sync_cycle, elapsed.as_secs_f64());
                         // Back off briefly before retrying to avoid hammering
                         // the server in case of a persistent failure (e.g.
                         // network down).
