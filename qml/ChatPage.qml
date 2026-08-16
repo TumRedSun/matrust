@@ -15,17 +15,27 @@ Rectangle {
     signal goBack()
 
     // Resolve the display name for the current room from RoomModel.
-    property string roomDisplayName: {
-        if (roomId.length === 0) return ""
+    // This is updated reactively when RoomModel changes (see Connections below).
+    property string roomDisplayName: ""
+
+    // Helper to look up room name from RoomModel
+    function lookupRoomName() {
+        if (roomId.length === 0) {
+            roomDisplayName = ""
+            return
+        }
         for (var j = 0; j < RoomModel.count; j++) {
             var ix = RoomModel.index(j, 0)
             var rid = RoomModel.data(ix, 257).toString()   // room_id role
             if (rid === roomId) {
-                var name = RoomModel.data(ix, 257 + 1).toString() // name role
-                return name.length > 0 ? name : roomId
+                var name = RoomModel.data(ix, 258).toString() // name role
+                console.log("ChatPage: found room name=\"" + name + "\" for roomId=" + roomId)
+                roomDisplayName = name.length > 0 ? name : roomId
+                return
             }
         }
-        return roomId
+        console.log("ChatPage: room not found in RoomModel, roomId=" + roomId + " count=" + RoomModel.count)
+        roomDisplayName = roomId
     }
 
     ColumnLayout {
@@ -220,4 +230,16 @@ Rectangle {
             }
         }
     }
+
+    // Reactively update room display name when RoomModel changes
+    // (rows_changed signal is emitted by RoomModel.apply_entries)
+    Connections {
+        target: RoomModel
+        function onRowsChanged() {
+            lookupRoomName()
+        }
+    }
+
+    // Also update when roomId changes
+    onRoomIdChanged: lookupRoomName()
 }
