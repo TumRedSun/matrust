@@ -21,16 +21,17 @@ Item {
     property string mimeType
     property string roomId
 
-    // Use explicit height from the layout's implicit height.
-    // This avoids a circular dependency between implicitHeight
-    // and anchors.fill that could collapse the bubble to 0.
-    height: layout.implicitHeight
+    // Explicit height from the layout.  We add a small vertical pad
+    // so bubbles never collapse to 0 and have a guaranteed gap even
+    // if the ListView spacing is small.
+    height: layout.implicitHeight + 4
 
     RowLayout {
         id: layout
         anchors.left: parent.left
         anchors.right: parent.right
-        // Do NOT anchor top/bottom — let the layout calculate its
+        anchors.top: parent.top
+        // Do NOT anchor bottom — let the layout calculate its
         // own height from its contents so implicitHeight is correct.
         spacing: Theme.spacingSm
         layoutDirection: root.isOwn ? Qt.RightToLeft : Qt.LeftToRight
@@ -154,6 +155,21 @@ Item {
                 fillMode: Image.PreserveAspectFit
                 source: root.mxcUrl.length > 0 ? "image://matrix/" + root.mxcUrl : ""
                 asynchronous: true
+                // Show a placeholder while loading / on error
+                Label {
+                    anchors.centerIn: parent
+                    visible: parent.status === Image.Loading
+                    text: qsTr("Loading…")
+                    color: Theme.muted
+                    font.pixelSize: Theme.fontSizeXs
+                }
+                Label {
+                    anchors.centerIn: parent
+                    visible: parent.status === Image.Error
+                    text: qsTr("Image unavailable")
+                    color: Theme.muted
+                    font.pixelSize: Theme.fontSizeXs
+                }
                 MouseArea {
                     anchors.fill: parent
                     cursorShape: Qt.PointingHandCursor
