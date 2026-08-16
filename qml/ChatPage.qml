@@ -10,6 +10,10 @@ Rectangle {
     color: Theme.windowBg
     property string roomId: ""
 
+    // Emitted when the user presses the back arrow — the parent
+    // (main.qml) should clear activeRoomId.
+    signal goBack()
+
     // Resolve the display name for the current room from RoomModel.
     property string roomDisplayName: {
         if (roomId.length === 0) return ""
@@ -49,7 +53,10 @@ Rectangle {
                     visible: roomId.length > 0
                     enabled: roomId.length > 0
                     onClicked: {
-                        chatPageRoot.roomId = ""
+                        // Just go back — deselect the room.
+                        // The actual "close/leave" button lives inline
+                        // next to the DM in the sidebar.
+                        chatPageRoot.goBack()
                     }
                 }
                 Label {
