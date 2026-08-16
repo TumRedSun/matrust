@@ -48,11 +48,9 @@ impl SpaceModel {
     /// Pure async data fetching — does NOT take `&self` so the future is `Send`.
     /// Returns the space entries; the caller applies them on the Qt thread.
     pub async fn fetch_spaces(
-        client: Arc<Mutex<matrix_sdk::Client>>,
+        client: matrix_sdk::Client,
     ) -> crate::errors::AppResult<Vec<SpaceEntry>> {
-        let c = client.lock().await;
-        let rooms = c.rooms();
-        drop(c);
+        let rooms = client.rooms();
 
         let mut out: Vec<SpaceEntry> = Vec::new();
 
