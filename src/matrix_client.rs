@@ -864,53 +864,58 @@ impl MatrixClient {
             c.clone()
         };
 
-        // Re-acquire the QPointer AFTER the await point so we can build the
-        // sync callback. This `qptr` is consumed by `queued_callback`'s
-        // closure and is NOT held across any further `.await` — the resulting
-        // async block stays `Send`.
-        let sync_cb_qptr = Self::singleton_ptr();
-        // Build the per-cycle callback ONCE, BEFORE `rt.spawn`.
+        // Build queued_callbacks for posting data from the Tokio sync loop
+        // back to the Qt thread. These are created BEFORE `rt.spawn` so the
+        // QPointer captures stay Send-safe.
         //
-        // `queued_callback` accepts closures that capture `!Send` types like
-        // `QPointer` (the closure is internally marshalled to the Qt thread),
-        // but if we created the callback inside the async block the `QPointer`
-        // would also be captured by the async state machine, making the whole
-        // future `!Send` and breaking `rt.spawn`.
-        //
-        // Creating the callback outside `rt.spawn` and then moving only the
-        // already-`Send` callback handle into the async block avoids that.
-        let sync_cb = qmetaobject::queued_callback(move |_: ()| {
-            ::log::info!("sync_cb: running on Qt thread after sync cycle");
-            if let Some(this) = sync_cb_qptr.as_pinned() {
+        // IMPORTANT: We no longer use sync_cb to call refreshRooms().
+        // The queued_callback mechanism was unreliable — callbacks posted from
+        // Tokio were not delivered to the Qt event loop for 10+ seconds.
+        // Instead, the sync loop directly calls RoomModel::fetch_rooms() from
+        // Tokio and posts the results via these dedicated callbacks.
+
+        // Callback to emit syncDone signal on Qt thread
+        let sync_signal_qptr = Self::singleton_ptr();
+        let sync_signal_cb = qmetaobject::queued_callback(move |_: ()| {
+            if let Some(this) = sync_signal_qptr.as_pinned() {
                 this.borrow().emit_sync_done(QString::from("{}"));
-                ::log::info!("sync_cb: calling refreshRooms");
-                this.borrow().refreshRooms();
-            } else {
-                ::log::warn!("sync_cb: MatrixClient QPointer is null!");
             }
-            // Nudge ProfileManager so presence / display name / banner
-            // changes from other devices are picked up. Safe to touch
-            // QPointer here — this closure runs on the Qt thread.
-            let pm = crate::profile::ProfileManager::get();
-            if let Some(pm_pinned) = pm.as_pinned() {
+        });
+
+        // Callback to apply room entries on Qt thread
+        let rooms_apply_ptr = RoomModel::get();
+        let rooms_apply_cb = qmetaobject::queued_callback(move |entries: Vec<RoomEntry>| {
+            ::log::info!("rooms_apply_cb: applying {} room entries on Qt thread", entries.len());
+            if let Some(r) = rooms_apply_ptr.as_pinned() {
+                r.borrow_mut().apply_entries(entries);
+            } else {
+                ::log::warn!("rooms_apply_cb: RoomModel QPointer is null!");
+            }
+        });
+
+        // Callback to apply space entries on Qt thread
+        let spaces_apply_ptr = SpaceModel::get();
+        let spaces_apply_cb = qmetaobject::queued_callback(move |entries: Vec<SpaceEntry>| {
+            if let Some(s) = spaces_apply_ptr.as_pinned() {
+                s.borrow_mut().apply_entries(entries);
+            }
+        });
+
+        // Callback to nudge ProfileManager on Qt thread
+        let profile_qptr = crate::profile::ProfileManager::get();
+        let profile_cb = qmetaobject::queued_callback(move |_: ()| {
+            if let Some(pm_pinned) = profile_qptr.as_pinned() {
                 pm_pinned.borrow().refresh();
             }
         });
 
         let rt = crate::get_runtime();
         rt.spawn(async move {
-            // Hold the sync token in an Option<String> rather than a
-            // SyncSettings value, because `sync_once` consumes its
-            // `SyncSettings` argument by value (it does NOT take &self).
-            // Building a fresh SyncSettings from the token each iteration
-            // avoids the "use of moved value" error.
             let mut sync_token: Option<String> = None;
             let mut sync_cycle: u32 = 0;
 
-            // Perform an initial sync with a SHORT timeout first.
-            // This ensures rooms appear in the sidebar immediately
-            // after login, instead of waiting for the first long-poll
-            // cycle (which can take up to 30s).
+            // ── Initial sync ──
+            // Do a quick sync first so rooms appear immediately after login.
             ::log::info!("sync: performing initial sync with short timeout");
             let initial_settings = matrix_sdk::config::SyncSettings::default()
                 .timeout(std::time::Duration::from_secs(10));
@@ -918,16 +923,28 @@ impl MatrixClient {
                 Ok(response) => {
                     sync_token = Some(response.next_batch);
                     ::log::info!("sync: initial sync OK, next_batch present={}", sync_token.is_some());
-                    // Immediately refresh rooms so the sidebar populates
-                    // without waiting for the user to press "Refresh".
-                    sync_cb(());
+                    // Directly refresh rooms from Tokio — no queued_callback indirection.
+                    match RoomModel::fetch_rooms(client_clone.clone()).await {
+                        Ok(room_entries) => {
+                            ::log::info!("sync: fetched {} rooms after initial sync", room_entries.len());
+                            rooms_apply_cb(room_entries);
+                        }
+                        Err(e) => ::log::warn!("sync: fetch_rooms after initial sync error: {e}"),
+                    }
+                    match SpaceModel::fetch_spaces(client_clone.clone()).await {
+                        Ok(space_entries) => spaces_apply_cb(space_entries),
+                        Err(e) => ::log::warn!("sync: fetch_spaces after initial sync error: {e}"),
+                    }
+                    // Notify QML that sync is done (for message reload)
+                    sync_signal_cb(());
+                    profile_cb(());
                 }
                 Err(e) => {
                     ::log::warn!("sync: initial sync error: {e}");
-                    // Continue anyway — the loop will retry.
                 }
             }
 
+            // ── Main sync loop ──
             loop {
                 sync_cycle += 1;
                 let mut sync_settings = matrix_sdk::config::SyncSettings::default()
@@ -946,14 +963,25 @@ impl MatrixClient {
                             "sync_once: cycle #{} OK in {:.1}s, next_batch token present={}",
                             sync_cycle, elapsed.as_secs_f64(), sync_token.is_some()
                         );
-                        // Notify QML + refresh room list + refresh profile.
-                        sync_cb(());
+                        // Directly refresh rooms from Tokio — bypasses
+                        // sync_cb/queued_callback which was unreliable.
+                        match RoomModel::fetch_rooms(client_clone.clone()).await {
+                            Ok(room_entries) => {
+                                ::log::info!("sync: fetched {} rooms after cycle #{}", room_entries.len(), sync_cycle);
+                                rooms_apply_cb(room_entries);
+                            }
+                            Err(e) => ::log::warn!("sync: fetch_rooms error after cycle #{}: {e}", sync_cycle),
+                        }
+                        match SpaceModel::fetch_spaces(client_clone.clone()).await {
+                            Ok(space_entries) => spaces_apply_cb(space_entries),
+                            Err(e) => ::log::warn!("sync: fetch_spaces error after cycle #{}: {e}", sync_cycle),
+                        }
+                        // Notify QML that sync is done (for message reload)
+                        sync_signal_cb(());
+                        profile_cb(());
                     }
                     Err(e) => {
                         ::log::warn!("sync_once: cycle #{} error after {:.1}s: {e}", sync_cycle, elapsed.as_secs_f64());
-                        // Back off briefly before retrying to avoid hammering
-                        // the server in case of a persistent failure (e.g.
-                        // network down).
                         tokio::time::sleep(std::time::Duration::from_secs(5)).await;
                     }
                 }
