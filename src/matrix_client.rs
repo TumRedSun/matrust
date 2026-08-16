@@ -948,7 +948,7 @@ impl MatrixClient {
             loop {
                 sync_cycle += 1;
                 let mut sync_settings = matrix_sdk::config::SyncSettings::default()
-                    .timeout(std::time::Duration::from_secs(30));
+                    .timeout(std::time::Duration::from_secs(15));
                 if let Some(token) = sync_token.take() {
                     sync_settings = sync_settings.token(token);
                 }
