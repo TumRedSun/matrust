@@ -34,7 +34,8 @@ pub struct MessageEntry {
 pub struct MessageModel {
     base: qt_base_class!(trait QAbstractListModel),
     entries: RefCell<Vec<MessageEntry>>,
-    #[allow(dead_code)]
+    /// Tracks which room's messages are currently displayed so that
+    /// stale async responses (from a previous room) can be discarded.
     current_room_id: RefCell<Option<String>>,
 
     count: qt_property!(i64; READ count NOTIFY count_changed),
@@ -219,12 +220,35 @@ impl MessageModel {
 
     /// Apply a pre-fetched list of entries on the Qt thread.
     /// Must only be called from the Qt event loop (e.g. inside a queued_callback).
+    ///
+    /// If `current_room_id` is set and differs from `room_id`, the
+    /// response is discarded — the user has since switched to a
+    /// different room and these entries are stale.
     pub fn apply_entries(&mut self, entries: Vec<MessageEntry>, room_id: &str) {
+        // Guard against stale responses: if the user navigated to a
+        // different room while the fetch was in flight, skip.
+        let current = self.current_room_id.borrow().clone();
+        if let Some(ref cur) = current {
+            if cur != room_id {
+                ::log::warn!(
+                    "apply_entries: discarding stale response for {} (current: {})",
+                    room_id, cur
+                );
+                return;
+            }
+        }
         self.begin_reset_model();
         *self.entries.borrow_mut() = entries;
         self.end_reset_model();
         self.count_changed();
         self.historyLoaded(QString::from(room_id));
+    }
+
+    /// Set which room's messages are currently displayed.
+    /// Called from `MatrixClient::loadRoomMessages` before the
+    /// async fetch starts, so stale responses can be detected.
+    pub fn set_current_room(&mut self, room_id: &str) {
+        *self.current_room_id.borrow_mut() = Some(room_id.to_owned());
     }
 }
 
