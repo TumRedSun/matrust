@@ -67,6 +67,7 @@ impl MessageModel {
         client: Arc<Mutex<matrix_sdk::Client>>,
         room_id: String,
     ) -> crate::errors::AppResult<Vec<MessageEntry>> {
+        ::log::info!("fetch_messages: loading messages for room={}", room_id);
         let c = client.lock().await;
         let rid: ruma::OwnedRoomId = room_id
             .parse()
@@ -87,6 +88,12 @@ impl MessageModel {
         let mut options = matrix_sdk::room::MessagesOptions::backward();
         options.limit = 50u32.into();
         let result = room.messages(options).await?;
+
+        ::log::info!(
+            "fetch_messages: server returned {} events (chunk), end={:?}",
+            result.chunk.len(),
+            result.end.as_deref()
+        );
 
         // result.chunk contains TimelineEvent items.
         // In 0.18+, TimelineEvent has .kind (TimelineEventKind) instead of .event.
@@ -214,6 +221,14 @@ impl MessageModel {
 
             messages.push(entry);
         }
+
+        ::log::info!(
+            "fetch_messages: parsed {} messages for room={} (own={}, other={}, system={})",
+            messages.len(), room_id,
+            messages.iter().filter(|m| m.is_own).count(),
+            messages.iter().filter(|m| !m.is_own && m.kind.to_string() != "system").count(),
+            messages.iter().filter(|m| m.kind.to_string() == "system").count()
+        );
 
         Ok(messages)
     }
