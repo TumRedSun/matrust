@@ -397,6 +397,11 @@ impl MatrixClient {
     pub fn loadRoomMessages(&self, room_id: QString) {
         let room_id_str = room_id.to_string();
         let model = MessageModel::get();
+        // Mark this room as the current target so stale responses
+        // from a previous room are discarded by apply_entries.
+        if let Some(m) = model.as_pinned() {
+            m.borrow_mut().set_current_room(&room_id_str);
+        }
         let client_arc = match self.inner.borrow().clone() {
             Some(c) => c,
             None => return,
