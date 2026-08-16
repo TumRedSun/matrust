@@ -922,33 +922,43 @@ impl MatrixClient {
             let mut sync_token: Option<String> = None;
             let mut sync_cycle: u32 = 0;
 
-            // ── Initial sync ──
+            // ── Initial sync with retry ──
             // Do a quick sync first so rooms appear immediately after login.
-            ::log::info!("sync: performing initial sync with short timeout");
-            let initial_settings = matrix_sdk::config::SyncSettings::default()
-                .timeout(std::time::Duration::from_secs(10));
-            match client_clone.sync_once(initial_settings).await {
-                Ok(response) => {
-                    sync_token = Some(response.next_batch);
-                    ::log::info!("sync: initial sync OK, next_batch present={}", sync_token.is_some());
-                    // Directly refresh rooms from Tokio — no queued_callback indirection.
-                    match RoomModel::fetch_rooms(client_clone.clone()).await {
-                        Ok(room_entries) => {
-                            ::log::info!("sync: fetched {} rooms after initial sync", room_entries.len());
-                            rooms_apply_cb(room_entries);
+            // Retry up to 5 times with increasing backoff if the server is
+            // temporarily unreachable.
+            let max_initial_retries: u32 = 5;
+            for attempt in 1..=max_initial_retries {
+                ::log::info!("sync: initial sync attempt {}/{}", attempt, max_initial_retries);
+                let initial_settings = matrix_sdk::config::SyncSettings::default()
+                    .timeout(std::time::Duration::from_secs(10));
+                match client_clone.sync_once(initial_settings).await {
+                    Ok(response) => {
+                        sync_token = Some(response.next_batch);
+                        ::log::info!("sync: initial sync OK on attempt {}, next_batch present={}", attempt, sync_token.is_some());
+                        // Directly refresh rooms from Tokio — no queued_callback indirection.
+                        match RoomModel::fetch_rooms(client_clone.clone()).await {
+                            Ok(room_entries) => {
+                                ::log::info!("sync: fetched {} rooms after initial sync", room_entries.len());
+                                rooms_apply_cb(room_entries);
+                            }
+                            Err(e) => ::log::warn!("sync: fetch_rooms after initial sync error: {e}"),
                         }
-                        Err(e) => ::log::warn!("sync: fetch_rooms after initial sync error: {e}"),
+                        match SpaceModel::fetch_spaces(client_clone.clone()).await {
+                            Ok(space_entries) => spaces_apply_cb(space_entries),
+                            Err(e) => ::log::warn!("sync: fetch_spaces after initial sync error: {e}"),
+                        }
+                        // Notify QML that sync is done (for message reload)
+                        sync_signal_cb(());
+                        profile_cb(());
+                        break; // success — exit retry loop
                     }
-                    match SpaceModel::fetch_spaces(client_clone.clone()).await {
-                        Ok(space_entries) => spaces_apply_cb(space_entries),
-                        Err(e) => ::log::warn!("sync: fetch_spaces after initial sync error: {e}"),
+                    Err(e) => {
+                        let backoff = std::time::Duration::from_secs(5 * attempt as u64);
+                        ::log::warn!("sync: initial sync attempt {} failed: {e} — retrying in {:?}", attempt, backoff);
+                        if attempt < max_initial_retries {
+                            tokio::time::sleep(backoff).await;
+                        }
                     }
-                    // Notify QML that sync is done (for message reload)
-                    sync_signal_cb(());
-                    profile_cb(());
-                }
-                Err(e) => {
-                    ::log::warn!("sync: initial sync error: {e}");
                 }
             }
 
@@ -989,8 +999,10 @@ impl MatrixClient {
                         profile_cb(());
                     }
                     Err(e) => {
-                        ::log::warn!("sync_once: cycle #{} error after {:.1}s: {e}", sync_cycle, elapsed.as_secs_f64());
-                        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                        // Exponential backoff: 5s, 10s, 20s, 40s, max 60s
+                        let backoff_secs = std::cmp::min(5 * 2u64.pow(std::cmp::min(sync_cycle, 4)), 60);
+                        ::log::warn!("sync_once: cycle #{} error after {:.1}s: {e} — retry in {}s", sync_cycle, elapsed.as_secs_f64(), backoff_secs);
+                        tokio::time::sleep(std::time::Duration::from_secs(backoff_secs)).await;
                     }
                 }
             }
