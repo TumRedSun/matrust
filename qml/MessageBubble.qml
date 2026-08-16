@@ -21,10 +21,9 @@ Item {
     property string mimeType
     property string roomId
 
-    // Explicit height from the layout.  We add a small vertical pad
-    // so bubbles never collapse to 0 and have a guaranteed gap even
-    // if the ListView spacing is small.
-    height: layout.implicitHeight + 4
+    // Use implicitHeight from the layout + a small pad.
+    // Do NOT anchor layout bottom to parent bottom — let implicitHeight drive it.
+    height: layout.implicitHeight + 8
 
     RowLayout {
         id: layout
@@ -58,8 +57,10 @@ Item {
         // Bubble
         Rectangle {
             Layout.fillWidth: true
-            Layout.maximumWidth: parent.width * (Theme.bubbleMaxWidthPct / 100.0)
+            Layout.maximumWidth: layout.width * (Theme.bubbleMaxWidthPct / 100.0) - Theme.avatarSizeSm - Theme.spacingSm
             Layout.alignment: root.isOwn ? Qt.AlignRight : Qt.AlignLeft
+            Layout.topMargin: 2
+            Layout.bottomMargin: 2
             color: root.isOwn ? Theme.bubbleBgMe : Theme.bubbleBgThem
             radius: Theme.bubbleRadius
             // Tail (subtle asymmetric corner)
@@ -77,6 +78,7 @@ Item {
             }
 
             ColumnLayout {
+                id: bubbleContent
                 anchors.fill: parent
                 anchors.margins: 0
                 spacing: 0
@@ -97,12 +99,14 @@ Item {
 
                 // Content area
                 Loader {
+                    id: contentLoader
                     Layout.fillWidth: true
                     Layout.leftMargin: Theme.bubblePaddingH
                     Layout.rightMargin: Theme.bubblePaddingH
                     Layout.topMargin: root.isOwn || root.sender.length === 0
                                       ? Theme.bubblePaddingV : 2
                     Layout.bottomMargin: Theme.bubblePaddingV
+                    Layout.minimumHeight: item ? item.implicitHeight : 0
                     sourceComponent: {
                         switch (root.kind) {
                             case "image": return imageComp
@@ -159,7 +163,7 @@ Item {
                 Label {
                     anchors.centerIn: parent
                     visible: parent.status === Image.Loading
-                    text: qsTr("Loading…")
+                    text: qsTr("Loading\u2026")
                     color: Theme.muted
                     font.pixelSize: Theme.fontSizeXs
                 }
@@ -193,7 +197,7 @@ Item {
             RowLayout {
                 Layout.fillWidth: true
                 spacing: Theme.spacingSm
-                Label { text: "🎬"; font.pixelSize: Theme.fontSizeLg }
+                Label { text: "\uD83C\uDFAC"; font.pixelSize: Theme.fontSizeLg }
                 ColumnLayout {
                     Layout.fillWidth: true
                     Label {
@@ -203,13 +207,13 @@ Item {
                         Layout.fillWidth: true
                     }
                     Label {
-                        text: qsTr("Video · click to download")
+                        text: qsTr("Video \u00B7 click to download")
                         color: Theme.muted
                         font.pixelSize: Theme.fontSizeXs
                     }
                 }
                 Button {
-                    text: qsTr("↓")
+                    text: qsTr("\u2193")
                     onClicked: MatrixClient.downloadMedia(root.roomId, root.mxcUrl, root.fileName)
                 }
             }
@@ -225,13 +229,13 @@ Item {
         id: audioComp
         RowLayout {
             spacing: Theme.spacingSm
-            Label { text: "🎵"; font.pixelSize: Theme.fontSizeLg }
+            Label { text: "\uD83C\uDFB5"; font.pixelSize: Theme.fontSizeLg }
             Label {
-                text: root.fileName + " · " + formatBytes(root.fileSize)
+                text: root.fileName + " \u00B7 " + formatBytes(root.fileSize)
                 color: root.isOwn ? Theme.bubbleFgMe : Theme.bubbleFgThem
                 Layout.fillWidth: true; elide: Text.ElideRight
             }
-            Button { text: qsTr("↓"); onClicked: MatrixClient.downloadMedia(root.roomId, root.mxcUrl, root.fileName) }
+            Button { text: qsTr("\u2193"); onClicked: MatrixClient.downloadMedia(root.roomId, root.mxcUrl, root.fileName) }
         }
     }
 
@@ -239,7 +243,7 @@ Item {
         id: fileComp
         RowLayout {
             spacing: Theme.spacingSm
-            Label { text: "📄"; font.pixelSize: Theme.fontSizeLg }
+            Label { text: "\uD83D\uDCC4"; font.pixelSize: Theme.fontSizeLg }
             ColumnLayout {
                 Layout.fillWidth: true
                 Label {
@@ -249,7 +253,7 @@ Item {
                     Layout.fillWidth: true
                 }
                 Label {
-                    text: formatBytes(root.fileSize) + (root.mimeType.length > 0 ? " · " + root.mimeType : "")
+                    text: formatBytes(root.fileSize) + (root.mimeType.length > 0 ? " \u00B7 " + root.mimeType : "")
                     color: Theme.muted
                     font.pixelSize: Theme.fontSizeXs
                 }
