@@ -2,8 +2,6 @@
 
 use qmetaobject::*;
 use std::cell::RefCell;
-use std::sync::Arc;
-use tokio::sync::Mutex;
 
 /// Module-level singleton storage for MessageModel.
 static SINGLETON: crate::singleton::QtSingleton<QPointer<MessageModel>> =
