@@ -35,6 +35,7 @@ mod theme;
 mod avatar_cache;
 mod member_model;
 mod errors;
+mod pending;
 
 use crate::matrix_client::MatrixClient;
 use crate::theme::Theme;

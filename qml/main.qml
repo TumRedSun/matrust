@@ -795,6 +795,9 @@ ApplicationWindow {
         }
         function onLoggedIn(userId) {
             stack.replace(null, loadingScreen);
+            // uiTickTimer is started unconditionally from
+            // Component.onCompleted, so we don't need to start it here.
+            // Keep loadingTransitionTimer.start() as a legacy backup.
             loadingTransitionTimer.start();
         }
         function onLoggedOut() {
@@ -840,13 +843,60 @@ ApplicationWindow {
         // singleton construction race.
         Theme.applyPreset(Theme.preset)
         MatrixClient.autoLogin()
+        // Start the UI tick timer unconditionally. This drains the
+        // pending-events queue (the reliable Tokio→Qt bridge that
+        // replaces qmetaobject's broken queued_callback when created
+        // from a Tokio worker thread) and also checks whether the
+        // loading screen should transition to the main view.
+        uiTickTimer.start()
     }
 
-    // ── Loading-screen transition timer ──
+    // ── UI tick timer ──
+    // Runs every 100 ms for the entire lifetime of the app.
+    //
+    // 1. Calls MatrixClient.pollPending() to drain the pending-events
+    //    queue. This is the reliable replacement for
+    //    qmetaobject::queued_callback for events that originate on the
+    //    Tokio runtime (sync loop, finish_login, etc.). Without this,
+    //    Qt property changes and signal emissions triggered from Tokio
+    //    never reach QML, and the loading screen never transitions.
+    //
+    // 2. If we're still on the loading screen, checks whether sync has
+    //    completed (MatrixClient.ready || RoomModel.count > 0) and
+    //    transitions to the main view.
+    //
+    // 100 ms is fast enough that the loading screen disappears promptly
+    // after sync (user-perceived delay < 100 ms) and slow enough that
+    // the overhead is negligible.
+    Timer {
+        id: uiTickTimer
+        interval: 100
+        repeat: true
+        onTriggered: {
+            // 1. Drain pending events from Tokio.
+            MatrixClient.pollPending()
+
+            // 2. Check loading-screen transition.
+            if (stack.currentItem === null) return
+            if (stack.currentItem.objectName === "mainViewRoot") return
+            if (MatrixClient.ready || RoomModel.count > 0) {
+                stack.replace(null, mainView)
+                // Keep the timer running — it's still needed to drain
+                // pending events from the sync loop after login.
+            }
+        }
+    }
+
+    // ── Loading-screen transition timer (legacy, kept as backup) ──
     // Polls every 500 ms: when rooms appear (initial sync done) or
     // MatrixClient.ready becomes true, replaces the loading screen
     // with the main view.  This is more reliable than depending on
     // Rust queued_callback / signal delivery which has been flaky.
+    //
+    // NOTE: uiTickTimer (above) now handles both pollPending() and
+    // the loading-screen transition. This timer is retained as a
+    // backup and is no longer started by onLoggedIn — uiTickTimer
+    // is started unconditionally from Component.onCompleted.
     Timer {
         id: loadingTransitionTimer
         interval: 500

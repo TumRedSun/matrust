@@ -111,6 +111,16 @@ pub struct MatrixClient {
     openDirectMessage: qt_method!(fn(&self, user_id: QString)),
     /// Leave (and forget) a room. On success emits `roomLeft(roomId)`.
     leaveRoom: qt_method!(fn(&self, room_id: QString)),
+
+    /// Drain the pending-events queue and apply each event on the Qt
+    /// main thread. Called from a QML `Timer` every 100 ms.
+    ///
+    /// This replaces `qmetaobject::queued_callback` for events that
+    /// originate on the Tokio runtime — `queued_callback` created on a
+    /// Tokio worker thread captures a null `QPointer<QThread>` and
+    /// silently drops every invocation. See `src/pending.rs` for the
+    /// full rationale.
+    pollPending: qt_method!(fn(&self)),
 }
 
 impl MatrixClient {
@@ -192,6 +202,71 @@ impl MatrixClient {
     /// Public wrapper to emit the `logged_out` signal from outside this module.
     pub fn emit_logged_out(&self) {
         self.loggedOut();
+    }
+
+    /// Drain the pending-events queue and apply each event on the Qt
+    /// main thread. Called from a QML `Timer` every 100 ms.
+    ///
+    /// This is the reliable replacement for `qmetaobject::queued_callback`
+    /// for events that originate on the Tokio runtime.
+    pub fn pollPending(&self) {
+        let events = crate::pending::drain();
+        if events.is_empty() {
+            return;
+        }
+        ::log::debug!("pollPending: processing {} pending events", events.len());
+        for ev in events {
+            match ev {
+                crate::pending::PendingEvent::SetUserId(id) => {
+                    self.set_user_id(id);
+                }
+                crate::pending::PendingEvent::SetBusy(b) => {
+                    self.set_busy(b);
+                }
+                crate::pending::PendingEvent::SetReady(b) => {
+                    self.set_ready(b);
+                }
+                crate::pending::PendingEvent::SetOffline(b) => {
+                    self.set_offline(b);
+                }
+                crate::pending::PendingEvent::SetError(msg) => {
+                    self.set_error(msg);
+                }
+                crate::pending::PendingEvent::EmitLoggedIn(uid) => {
+                    ::log::info!("pollPending: emitting loggedIn user_id={}", uid);
+                    self.emit_logged_in(QString::from(uid.as_str()));
+                }
+                crate::pending::PendingEvent::EmitSyncDone => {
+                    self.emit_sync_done(QString::from("{}"));
+                }
+                crate::pending::PendingEvent::EmitLoggedOut => {
+                    self.emit_logged_out();
+                }
+                crate::pending::PendingEvent::ApplyRooms(entries) => {
+                    let n = entries.len();
+                    if let Some(r) = RoomModel::get().as_pinned() {
+                        ::log::info!("pollPending: applying {} room entries", n);
+                        r.borrow_mut().apply_entries(entries);
+                    } else {
+                        ::log::warn!("pollPending: RoomModel QPointer is null, dropping {} room entries", n);
+                    }
+                }
+                crate::pending::PendingEvent::ApplySpaces(entries) => {
+                    let n = entries.len();
+                    if let Some(s) = SpaceModel::get().as_pinned() {
+                        ::log::info!("pollPending: applying {} space entries", n);
+                        s.borrow_mut().apply_entries(entries);
+                    } else {
+                        ::log::warn!("pollPending: SpaceModel QPointer is null, dropping {} space entries", n);
+                    }
+                }
+                crate::pending::PendingEvent::RefreshProfile => {
+                    if let Some(pm) = crate::profile::ProfileManager::get().as_pinned() {
+                        pm.borrow().refresh();
+                    }
+                }
+            }
+        }
     }
 
     /// Spawn a future on the Tokio runtime. Errors are forwarded to the UI
@@ -790,12 +865,13 @@ impl MatrixClient {
         access_token: String,
         force_ipv6: bool,
     ) -> AppResult<()> {
-        {
-            let qptr = Self::singleton_ptr();
-            if let Some(this) = qptr.as_pinned() {
-                this.borrow_mut().set_busy(true);
-            }
-        }
+        // NOTE: We must NOT call `set_busy(true)` directly here. This
+        // function runs on a Tokio worker thread, and Qt property
+        // mutations / signal emissions from non-Qt threads do not
+        // reliably propagate to QML. Instead, push a pending event
+        // that will be applied on the Qt main thread by
+        // `MatrixClient::pollPending()` (driven by a QML Timer).
+        crate::pending::push(crate::pending::PendingEvent::SetBusy(true));
 
         let client = crate::auth::build_client(&homeserver, force_ipv6).await?;
 
@@ -825,12 +901,9 @@ impl MatrixClient {
         password: String,
         force_ipv6: bool,
     ) -> AppResult<()> {
-        {
-            let qptr = Self::singleton_ptr();
-            if let Some(this) = qptr.as_pinned() {
-                this.borrow_mut().set_busy(true);
-            }
-        }
+        // See note in `do_restore_session_with_full`: must not call
+        // `set_busy` directly from this Tokio context.
+        crate::pending::push(crate::pending::PendingEvent::SetBusy(true));
 
         let client = crate::auth::build_client(&homeserver, force_ipv6).await?;
 
@@ -864,123 +937,56 @@ impl MatrixClient {
         ::log::info!("finish_login: user={} device={}", sess.user_id, sess.device_id);
         let arc = Arc::new(Mutex::new(client));
 
-        // Handle the QPointer work on the Qt thread first (synchronously),
-        // then DROP the qptr before we await anything — otherwise Rust thinks
-        // the `QPointer` might still be live across the `.await` point and
-        // marks the whole async block `!Send`, which breaks `self.spawn` /
-        // `rt.spawn` everywhere that calls into `finish_login`.
+        // Store the matrix_sdk::Client and SessionStore on the singleton.
+        //
+        // These two fields are interior-mutable `RefCell<Option<...>>`, not
+        // `qt_property!`s — so writing them does NOT emit any Qt signal and
+        // is safe to do from the Tokio thread (the `borrow_mut()` on the
+        // RefCell is a runtime check, not a Qt-thread check). All other
+        // Qt-side state changes (set_user_id, set_busy, set_ready,
+        // emit_logged_in) are pushed to the pending-events queue and
+        // applied on the Qt main thread by `MatrixClient::pollPending()`.
+        //
+        // We scope the `QPointer`/`QPinned` borrow so it is dropped before
+        // we await anything later in this function.
         {
             let qptr = Self::singleton_ptr();
             if let Some(this) = qptr.as_pinned() {
-                let mut mc = this.borrow_mut();
+                let mc = this.borrow();
                 *mc.inner.borrow_mut() = Some(arc.clone());
                 *mc.session.borrow_mut() = Some(sess.clone());
                 mc.persist_session();
-                mc.set_user_id(sess.user_id.clone());
-                mc.set_busy(true);  // busy while initial sync runs
-                mc.set_ready(false); // NOT ready until first sync completes
-                mc.emit_logged_in(QString::from(sess.user_id.as_str()));
-
-                // NOTE: Do NOT call refreshRooms() here. The SDK's
-                // internal room state is empty before the first sync.
-                // The sync loop's callback will call refreshRooms()
-                // automatically after each successful sync cycle,
-                // which is when rooms are actually available.
             }
-        } // qptr dropped here
+        }
 
-        // Kick off the sync loop in the background.
-        //
-        // IMPORTANT: We clone the `matrix_sdk::Client` out of the `Arc<Mutex<…>>`
-        // before starting the loop. `matrix_sdk::Client` is internally `Arc`-backed
-        // and `Send + Sync`, so the clone shares the same underlying state. Holding
-        // our outer `Mutex` for the entire duration of `sync()` would block every
-        // other code path that needs the client (refreshRooms, sendText, setAvatar,
-        // profile lookups, …) forever, because `sync()` loops internally until
-        // logout.
-        //
-        // We use `sync_once` in a manual loop instead of `sync` so that:
-        //   1. The outer Mutex is never held during sync.
-        //   2. We can call `refreshRooms()` on the Qt thread after every
-        //      successful sync cycle, so newly-arrived state (e.g. `m.direct`
-        //      account data that marks a room as a DM) is reflected in the UI
-        //      without requiring the user to hit the refresh button.
+        // Push Qt-side state changes onto the pending-events queue.
+        // `pollPending()` (called by a QML Timer every 100 ms) will drain
+        // these and apply them on the Qt main thread, where signal
+        // emissions actually propagate to QML.
+        crate::pending::push(crate::pending::PendingEvent::SetUserId(sess.user_id.clone()));
+        crate::pending::push(crate::pending::PendingEvent::SetBusy(true));
+        crate::pending::push(crate::pending::PendingEvent::SetReady(false));
+        crate::pending::push(crate::pending::PendingEvent::EmitLoggedIn(sess.user_id.clone()));
+        ::log::info!("finish_login: queued loggedIn/set_busy/set_ready events for Qt thread");
+
+        // NOTE: Do NOT call refreshRooms() here. The SDK's internal room
+        // state is empty before the first sync. The sync loop below calls
+        // RoomModel::fetch_rooms() after each cycle, which is when rooms
+        // are actually available.
+
+        // Clone the matrix_sdk::Client out of the Arc<Mutex<…>> before
+        // starting the sync loop. `matrix_sdk::Client` is internally
+        // `Arc`-backed and `Send + Sync`, so the clone shares state.
+        // Holding the outer Mutex during sync() would block every other
+        // code path that needs the client.
         let client_clone = {
             let c = arc.lock().await;
             c.clone()
         };
 
-        // Build queued_callbacks for posting data from the Tokio sync loop
-        // back to the Qt thread. These are created BEFORE `rt.spawn` so the
-        // QPointer captures stay Send-safe.
-        //
-        // IMPORTANT: We no longer use sync_cb to call refreshRooms().
-        // The queued_callback mechanism was unreliable — callbacks posted from
-        // Tokio were not delivered to the Qt event loop for 10+ seconds.
-        // Instead, the sync loop directly calls RoomModel::fetch_rooms() from
-        // Tokio and posts the results via these dedicated callbacks.
-
-        // Callback to emit syncDone signal on Qt thread.
-        // On the FIRST call (after initial sync), also sets ready=true
-        // and busy=false so the loading screen transitions to the main view.
-        // We merge this into sync_signal_cb because standalone queued_callback
-        // invocations proved unreliable (see comment above).
-        let sync_signal_qptr = Self::singleton_ptr();
+        // Track whether this is the first successful sync, so we can
+        // push `SetReady(true)` + `SetBusy(false)` only once.
         let first_sync = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
-        let sync_signal_cb = qmetaobject::queued_callback(move |_: ()| {
-            if let Some(this) = sync_signal_qptr.as_pinned() {
-                // Emit syncDone so ChatPage can reload messages.
-                // The Ref from borrow() must be dropped before we can
-                // borrow_mut() below, so we scope it in a block.
-                {
-                    this.borrow().emit_sync_done(QString::from("{}"));
-                } // Ref dropped here
-                // On the very first sync, mark the client as ready
-                if first_sync.swap(false, std::sync::atomic::Ordering::SeqCst) {
-                    ::log::info!("sync_signal_cb: first sync — setting ready=true, busy=false");
-                    let mut mc = this.borrow_mut();
-                    mc.set_ready(true);
-                    mc.set_busy(false);
-                }
-            } else {
-                ::log::warn!("sync_signal_cb: QPointer is null!");
-            }
-        });
-
-        // Callback to set offline mode on Qt thread
-        let offline_qptr = Self::singleton_ptr();
-        let offline_cb = qmetaobject::queued_callback(move |is_offline: bool| {
-            if let Some(this) = offline_qptr.as_pinned() {
-                this.borrow_mut().set_offline(is_offline);
-            }
-        });
-
-        // Callback to apply room entries on Qt thread
-        let rooms_apply_ptr = RoomModel::get();
-        let rooms_apply_cb = qmetaobject::queued_callback(move |entries: Vec<RoomEntry>| {
-            ::log::info!("rooms_apply_cb: applying {} room entries on Qt thread", entries.len());
-            if let Some(r) = rooms_apply_ptr.as_pinned() {
-                r.borrow_mut().apply_entries(entries);
-            } else {
-                ::log::warn!("rooms_apply_cb: RoomModel QPointer is null!");
-            }
-        });
-
-        // Callback to apply space entries on Qt thread
-        let spaces_apply_ptr = SpaceModel::get();
-        let spaces_apply_cb = qmetaobject::queued_callback(move |entries: Vec<SpaceEntry>| {
-            if let Some(s) = spaces_apply_ptr.as_pinned() {
-                s.borrow_mut().apply_entries(entries);
-            }
-        });
-
-        // Callback to nudge ProfileManager on Qt thread
-        let profile_qptr = crate::profile::ProfileManager::get();
-        let profile_cb = qmetaobject::queued_callback(move |_: ()| {
-            if let Some(pm_pinned) = profile_qptr.as_pinned() {
-                pm_pinned.borrow().refresh();
-            }
-        });
 
         let rt = crate::get_runtime();
         rt.spawn(async move {
@@ -988,9 +994,6 @@ impl MatrixClient {
             let mut sync_cycle: u32 = 0;
 
             // ── Initial sync with retry ──
-            // Do a quick sync first so rooms appear immediately after login.
-            // Retry up to 5 times with increasing backoff if the server is
-            // temporarily unreachable.
             let max_initial_retries: u32 = 5;
             for attempt in 1..=max_initial_retries {
                 ::log::info!("sync: initial sync attempt {}/{}", attempt, max_initial_retries);
@@ -1000,23 +1003,36 @@ impl MatrixClient {
                     Ok(response) => {
                         sync_token = Some(response.next_batch);
                         ::log::info!("sync: initial sync OK on attempt {}, next_batch present={}", attempt, sync_token.is_some());
-                        // Directly refresh rooms from Tokio — no queued_callback indirection.
+                        // Fetch rooms/spaces on Tokio, push the entries to
+                        // the pending queue, and let pollPending() apply
+                        // them on the Qt thread.
                         match RoomModel::fetch_rooms(client_clone.clone()).await {
                             Ok(room_entries) => {
                                 ::log::info!("sync: fetched {} rooms after initial sync", room_entries.len());
-                                rooms_apply_cb(room_entries);
+                                crate::pending::push(
+                                    crate::pending::PendingEvent::ApplyRooms(room_entries)
+                                );
                             }
                             Err(e) => ::log::warn!("sync: fetch_rooms after initial sync error: {e}"),
                         }
                         match SpaceModel::fetch_spaces(client_clone.clone()).await {
-                            Ok(space_entries) => spaces_apply_cb(space_entries),
+                            Ok(space_entries) => {
+                                crate::pending::push(
+                                    crate::pending::PendingEvent::ApplySpaces(space_entries)
+                                );
+                            }
                             Err(e) => ::log::warn!("sync: fetch_spaces after initial sync error: {e}"),
                         }
-                        // Notify QML that sync is done (for message reload)
-                        sync_signal_cb(());
-                        profile_cb(());
-                        offline_cb(false); // server is reachable
-                        // ready is set by sync_signal_cb on first call
+                        // Emit syncDone so ChatPage can reload messages.
+                        crate::pending::push(crate::pending::PendingEvent::EmitSyncDone);
+                        // On the very first sync, mark ready + clear busy.
+                        if first_sync.swap(false, std::sync::atomic::Ordering::SeqCst) {
+                            ::log::info!("sync: first sync done — queueing ready=true, busy=false");
+                            crate::pending::push(crate::pending::PendingEvent::SetReady(true));
+                            crate::pending::push(crate::pending::PendingEvent::SetBusy(false));
+                        }
+                        crate::pending::push(crate::pending::PendingEvent::RefreshProfile);
+                        crate::pending::push(crate::pending::PendingEvent::SetOffline(false));
                         break; // success — exit retry loop
                     }
                     Err(e) => {
@@ -1048,27 +1064,29 @@ impl MatrixClient {
                             "sync_once: cycle #{} OK in {:.1}s, next_batch token present={}",
                             sync_cycle, elapsed.as_secs_f64(), sync_token.is_some()
                         );
-                        // Directly refresh rooms from Tokio — bypasses
-                        // sync_cb/queued_callback which was unreliable.
                         match RoomModel::fetch_rooms(client_clone.clone()).await {
                             Ok(room_entries) => {
                                 ::log::info!("sync: fetched {} rooms after cycle #{}", room_entries.len(), sync_cycle);
-                                rooms_apply_cb(room_entries);
+                                crate::pending::push(
+                                    crate::pending::PendingEvent::ApplyRooms(room_entries)
+                                );
                             }
                             Err(e) => ::log::warn!("sync: fetch_rooms error after cycle #{}: {e}", sync_cycle),
                         }
                         match SpaceModel::fetch_spaces(client_clone.clone()).await {
-                            Ok(space_entries) => spaces_apply_cb(space_entries),
+                            Ok(space_entries) => {
+                                crate::pending::push(
+                                    crate::pending::PendingEvent::ApplySpaces(space_entries)
+                                );
+                            }
                             Err(e) => ::log::warn!("sync: fetch_spaces error after cycle #{}: {e}", sync_cycle),
                         }
-                        // Notify QML that sync is done (for message reload)
-                        sync_signal_cb(());
-                        profile_cb(());
-                        offline_cb(false); // server is reachable
+                        crate::pending::push(crate::pending::PendingEvent::EmitSyncDone);
+                        crate::pending::push(crate::pending::PendingEvent::RefreshProfile);
+                        crate::pending::push(crate::pending::PendingEvent::SetOffline(false));
                     }
                     Err(e) => {
-                        offline_cb(true); // server unreachable
-                        // Exponential backoff: 5s, 10s, 20s, 40s, max 60s
+                        crate::pending::push(crate::pending::PendingEvent::SetOffline(true));
                         let backoff_secs = std::cmp::min(5 * 2u64.pow(std::cmp::min(sync_cycle, 4)), 60);
                         ::log::warn!("sync_once: cycle #{} error after {:.1}s: {e} — retry in {}s", sync_cycle, elapsed.as_secs_f64(), backoff_secs);
                         tokio::time::sleep(std::time::Duration::from_secs(backoff_secs)).await;
