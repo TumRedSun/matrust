@@ -246,6 +246,7 @@ impl MessageModel {
                                 match &s.content().source {
                                     matrix_sdk::ruma::events::sticker::StickerMediaSource::Plain(uri) => uri.as_str(),
                                     matrix_sdk::ruma::events::sticker::StickerMediaSource::Encrypted(_) => "",
+                                    _ => "",
                                 }
                             );
                         }
