@@ -27,6 +27,7 @@ ApplicationWindow {
     }
 
     Component { id: loginPage; LoginPage {} }
+    Component { id: loadingScreen; LoadingScreen {} }
 
     // ────────────────────── MainView (Discord-style 4-column) ──────────────────────
     Component {
@@ -34,6 +35,7 @@ ApplicationWindow {
 
         Rectangle {
             id: mainViewRoot
+            objectName: "mainViewRoot"
             color: Theme.windowBg
             property string activeSpaceId: ""
             property string activeRoomId: ""
@@ -792,7 +794,12 @@ ApplicationWindow {
             }
         }
         function onLoggedIn(userId) {
-            stack.replace(null, mainView);
+            stack.replace(null, loadingScreen);
+        }
+        function onReadyChanged() {
+            if (MatrixClient.ready && stack.currentItem !== null && stack.currentItem.objectName !== "mainViewRoot") {
+                stack.replace(null, mainView);
+            }
         }
         function onLoggedOut() {
             stack.replace(null, loginPage);
