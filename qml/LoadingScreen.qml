@@ -63,20 +63,24 @@ Rectangle {
         }
     }
 
-    // Update stage text based on MatrixClient state
+    // Update stage text based on MatrixClient state.
+    // Also listen for syncDone (proven to arrive) as the primary
+    // trigger to show "Ready!" — busyChanged/readyChanged via
+    // queued_callback have been unreliable.
     Connections {
         target: MatrixClient
         function onBusyChanged() {
             if (MatrixClient.busy) {
                 loadingRoot.stageText = qsTr("Synchronizing\u2026")
-            } else if (MatrixClient.ready) {
-                loadingRoot.stageText = qsTr("Ready!")
             }
         }
         function onReadyChanged() {
             if (MatrixClient.ready) {
                 loadingRoot.stageText = qsTr("Ready!")
             }
+        }
+        function onSyncDone(payload) {
+            loadingRoot.stageText = qsTr("Ready!")
         }
     }
 }

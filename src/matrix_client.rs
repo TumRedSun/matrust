@@ -920,11 +920,27 @@ impl MatrixClient {
         // Instead, the sync loop directly calls RoomModel::fetch_rooms() from
         // Tokio and posts the results via these dedicated callbacks.
 
-        // Callback to emit syncDone signal on Qt thread
+        // Callback to emit syncDone signal on Qt thread.
+        // On the FIRST call (after initial sync), also sets ready=true
+        // and busy=false so the loading screen transitions to the main view.
+        // We merge this into sync_signal_cb because standalone queued_callback
+        // invocations proved unreliable (see comment above).
         let sync_signal_qptr = Self::singleton_ptr();
+        let first_sync = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
         let sync_signal_cb = qmetaobject::queued_callback(move |_: ()| {
             if let Some(this) = sync_signal_qptr.as_pinned() {
+                // Emit syncDone so ChatPage can reload messages
                 this.borrow().emit_sync_done(QString::from("{}"));
+                // On the very first sync, mark the client as ready
+                if first_sync.swap(false, std::sync::atomic::Ordering::SeqCst) {
+                    // Drop the immutable borrow before taking mutable one
+                    drop(this);
+                    if let Some(this2) = sync_signal_qptr.as_pinned() {
+                        let mut mc = this2.borrow_mut();
+                        mc.set_ready(true);
+                        mc.set_busy(false);
+                    }
+                }
             }
         });
 
@@ -933,16 +949,6 @@ impl MatrixClient {
         let offline_cb = qmetaobject::queued_callback(move |is_offline: bool| {
             if let Some(this) = offline_qptr.as_pinned() {
                 this.borrow_mut().set_offline(is_offline);
-            }
-        });
-
-        // Callback to set ready=true on Qt thread (after initial sync)
-        let ready_qptr = Self::singleton_ptr();
-        let ready_cb = qmetaobject::queued_callback(move |_: ()| {
-            if let Some(this) = ready_qptr.as_pinned() {
-                let mut mc = this.borrow_mut();
-                mc.set_ready(true);
-                mc.set_busy(false);
             }
         });
 
@@ -1007,7 +1013,7 @@ impl MatrixClient {
                         sync_signal_cb(());
                         profile_cb(());
                         offline_cb(false); // server is reachable
-                        ready_cb(());      // initial sync done → ready!
+                        // ready is set by sync_signal_cb on first call
                         break; // success — exit retry loop
                     }
                     Err(e) => {

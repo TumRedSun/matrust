@@ -801,6 +801,13 @@ ApplicationWindow {
                 stack.replace(null, mainView);
             }
         }
+        function onSyncDone(payload) {
+            // Fallback: if still on loading screen after initial sync,
+            // transition to main view. (syncDone is proven to arrive.)
+            if (stack.currentItem !== null && stack.currentItem.objectName !== "mainViewRoot") {
+                stack.replace(null, mainView);
+            }
+        }
         function onLoggedOut() {
             stack.replace(null, loginPage);
             settingsOverlay.visible = false;
