@@ -76,8 +76,10 @@ Rectangle {
                     elide: Text.ElideRight
                 }
                 Label {
-                    text: MatrixClient.busy ? qsTr("Syncing\u2026") : qsTr("Ready")
-                    color: Theme.muted
+                    text: MatrixClient.offline
+                          ? qsTr("Offline")
+                          : (MatrixClient.busy ? qsTr("Syncing\u2026") : qsTr("Ready"))
+                    color: MatrixClient.offline ? Theme.accent : Theme.muted
                     font.pixelSize: Theme.fontSizeSm
                 }
             }
@@ -151,21 +153,21 @@ Rectangle {
                     background: Rectangle { color: "transparent"; radius: Theme.radiusSm }
                     font.pixelSize: Theme.fontSizeLg
                     onClicked: fileDialog.open()
-                    enabled: roomId.length > 0
+                    enabled: roomId.length > 0 && !MatrixClient.offline
                 }
                 Button {
                     text: qsTr("\uD83D\uDDBC")
                     background: Rectangle { color: "transparent"; radius: Theme.radiusSm }
                     font.pixelSize: Theme.fontSizeLg
                     onClicked: imageDialog.open()
-                    enabled: roomId.length > 0
+                    enabled: roomId.length > 0 && !MatrixClient.offline
                 }
                 Button {
                     text: qsTr("\uD83C\uDFAC")
                     background: Rectangle { color: "transparent"; radius: Theme.radiusSm }
                     font.pixelSize: Theme.fontSizeLg
                     onClicked: videoDialog.open()
-                    enabled: roomId.length > 0
+                    enabled: roomId.length > 0 && !MatrixClient.offline
                 }
 
                 ScrollView {
@@ -173,12 +175,16 @@ Rectangle {
                     Layout.fillHeight: true
                     TextArea {
                         id: composer
-                        placeholderText: qsTr("Type a message\u2026")
-                        placeholderTextColor: Theme.muted
-                        color: Theme.sidebarFg
+                        placeholderText: MatrixClient.offline
+                                               ? qsTr("Offline \u2014 messages cannot be sent")
+                                               : qsTr("Type a message\u2026")
+                        placeholderTextColor: MatrixClient.offline ? Theme.accent : Theme.muted
+                        color: MatrixClient.offline ? Theme.muted : Theme.sidebarFg
                         wrapMode: TextArea.Wrap
                         background: Rectangle { color: "transparent" }
+                        readOnly: MatrixClient.offline
                         Keys.onReturnPressed: function(event) {
+                            if (MatrixClient.offline) return
                             if (event.modifiers & Qt.ControlModifier) {
                                 composer.append("\n")
                             } else {
@@ -194,10 +200,11 @@ Rectangle {
 
                 Button {
                     text: qsTr("Send")
-                    enabled: roomId.length > 0 && composer.text.trim().length > 0
+                    enabled: roomId.length > 0 && composer.text.trim().length > 0 && !MatrixClient.offline
                     background: Rectangle { color: parent.enabled ? Theme.accent : Theme.muted; radius: Theme.radiusSm }
                     contentItem: Label { text: parent.text; color: Theme.accentFg }
                     onClicked: {
+                        if (MatrixClient.offline) return
                         MatrixClient.sendText(roomId, composer.text)
                         composer.text = ""
                     }
