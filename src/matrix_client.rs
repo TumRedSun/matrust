@@ -52,6 +52,8 @@ pub struct MatrixClient {
     ready: qt_property!(bool; NOTIFY readyChanged),
     /// True while a network call is in flight.
     busy: qt_property!(bool; NOTIFY busyChanged),
+    /// True when server is unreachable — offline mode.
+    offline: qt_property!(bool; NOTIFY offlineChanged),
     /// Current user MXID, "" if logged out.
     userId: qt_property!(QString; NOTIFY userIdChanged),
     /// Last error message surfaced to the UI.
@@ -59,6 +61,7 @@ pub struct MatrixClient {
 
     readyChanged: qt_signal!(),
     busyChanged: qt_signal!(),
+    offlineChanged: qt_signal!(),
     userIdChanged: qt_signal!(),
     lastErrorChanged: qt_signal!(),
 
@@ -132,6 +135,18 @@ impl MatrixClient {
     fn set_ready(&mut self, on: bool) {
         self.ready = on;
         self.readyChanged();
+    }
+
+    fn set_offline(&mut self, on: bool) {
+        if self.offline != on {
+            self.offline = on;
+            self.offlineChanged();
+            if on {
+                ::log::warn!("MatrixClient: entering OFFLINE mode");
+            } else {
+                ::log::info!("MatrixClient: back ONLINE");
+            }
+        }
     }
 
     fn set_user_id(&mut self, id: impl Into<String>) {
@@ -913,6 +928,14 @@ impl MatrixClient {
             }
         });
 
+        // Callback to set offline mode on Qt thread
+        let offline_qptr = Self::singleton_ptr();
+        let offline_cb = qmetaobject::queued_callback(move |is_offline: bool| {
+            if let Some(this) = offline_qptr.as_pinned() {
+                this.borrow_mut().set_offline(is_offline);
+            }
+        });
+
         // Callback to apply room entries on Qt thread
         let rooms_apply_ptr = RoomModel::get();
         let rooms_apply_cb = qmetaobject::queued_callback(move |entries: Vec<RoomEntry>| {
@@ -973,6 +996,7 @@ impl MatrixClient {
                         // Notify QML that sync is done (for message reload)
                         sync_signal_cb(());
                         profile_cb(());
+                        offline_cb(false); // server is reachable
                         break; // success — exit retry loop
                     }
                     Err(e) => {
@@ -1020,8 +1044,10 @@ impl MatrixClient {
                         // Notify QML that sync is done (for message reload)
                         sync_signal_cb(());
                         profile_cb(());
+                        offline_cb(false); // server is reachable
                     }
                     Err(e) => {
+                        offline_cb(true); // server unreachable
                         // Exponential backoff: 5s, 10s, 20s, 40s, max 60s
                         let backoff_secs = std::cmp::min(5 * 2u64.pow(std::cmp::min(sync_cycle, 4)), 60);
                         ::log::warn!("sync_once: cycle #{} error after {:.1}s: {e} — retry in {}s", sync_cycle, elapsed.as_secs_f64(), backoff_secs);
