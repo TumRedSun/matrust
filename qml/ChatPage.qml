@@ -245,6 +245,17 @@ Rectangle {
         }
     }
 
+    // After each sync cycle, reload messages for the current room
+    // so incoming messages from the server appear immediately.
+    Connections {
+        target: MatrixClient
+        function onSyncDone(payload) {
+            if (roomId.length > 0) {
+                MatrixClient.loadRoomMessages(roomId)
+            }
+        }
+    }
+
     // Reactively update room display name when RoomModel changes
     // (count_changed signal is emitted by RoomModel.apply_entries)
     Connections {
