@@ -21,115 +21,109 @@ Item {
     property string mimeType
     property string roomId
 
-    // Use implicitHeight from the layout + a small pad.
-    // Do NOT anchor layout bottom to parent bottom — let implicitHeight drive it.
-    height: layout.implicitHeight + 8
+    // Max bubble width as fraction of parent width
+    readonly property real maxBubbleWidth: width * (Theme.bubbleMaxWidthPct / 100.0)
 
-    RowLayout {
-        id: layout
+    // ── Avatar (only for non-own messages) ──
+    Rectangle {
+        id: avatar
+        visible: Theme.showAvatars && !root.isOwn
+        width: visible ? Theme.avatarSizeSm : 0
+        height: visible ? Theme.avatarSizeSm : 0
         anchors.left: parent.left
-        anchors.right: parent.right
         anchors.top: parent.top
-        // Do NOT anchor bottom — let the layout calculate its
-        // own height from its contents so implicitHeight is correct.
-        spacing: Theme.spacingSm
-        layoutDirection: root.isOwn ? Qt.RightToLeft : Qt.LeftToRight
+        anchors.topMargin: 2
+        radius: Theme.avatarShape === "circle" ? Theme.avatarSizeSm/2
+                : (Theme.avatarShape === "square" ? 0 : Theme.avatarRadius)
+        color: Theme.accent
+        opacity: 0.3
+        Label {
+            anchors.centerIn: parent
+            text: root.sender.length > 0 ? root.sender.charAt(0).toUpperCase() : "?"
+            color: Theme.accentFg
+            font.pixelSize: Theme.fontSizeSm
+            font.bold: true
+        }
+    }
 
-        // Avatar (optional)
+    // ── Bubble ──
+    Rectangle {
+        id: bubble
+        // Position: own messages → right, others → left (after avatar)
+        anchors.top: parent.top
+        anchors.topMargin: 2
+        anchors.right: root.isOwn ? parent.right : undefined
+        anchors.left: root.isOwn ? undefined : (avatar.visible ? avatar.right : parent.left)
+        anchors.leftMargin: avatar.visible ? Theme.spacingSm : 0
+        anchors.rightMargin: 0
+
+        // Width: fit content up to maxBubbleWidth
+        width: Math.min(bubbleContent.implicitWidth + Theme.bubblePaddingH * 2,
+                        root.maxBubbleWidth - (avatar.visible ? avatar.width + Theme.spacingSm : 0))
+        height: bubbleContent.implicitHeight
+
+        color: root.isOwn ? Theme.bubbleBgMe : Theme.bubbleBgThem
+        radius: Theme.bubbleRadius
+
+        // Tail (subtle asymmetric corner)
         Rectangle {
-            visible: Theme.showAvatars && !root.isOwn
-            Layout.preferredWidth: Theme.avatarSizeSm
-            Layout.preferredHeight: Theme.avatarSizeSm
-            Layout.alignment: Qt.AlignTop
-            radius: Theme.avatarShape === "circle" ? Theme.avatarSizeSm/2
-                    : (Theme.avatarShape === "square" ? 0 : Theme.avatarRadius)
-            color: Theme.accent
-            opacity: 0.3
+            visible: Theme.bubbleTail
+            anchors.bottom: parent.bottom
+            anchors.left: root.isOwn ? undefined : parent.left
+            anchors.right: root.isOwn ? parent.right : undefined
+            anchors.leftMargin: -4
+            anchors.rightMargin: -4
+            width: 12; height: 12
+            color: parent.color
+            radius: 4
+            z: -1
+        }
+
+        ColumnLayout {
+            id: bubbleContent
+            anchors.fill: parent
+            spacing: 0
+
+            // Sender label (for non-own messages only)
             Label {
-                anchors.centerIn: parent
-                text: root.sender.length > 0 ? root.sender.charAt(0).toUpperCase() : "?"
-                color: Theme.accentFg
-                font.pixelSize: Theme.fontSizeSm
+                Layout.fillWidth: true
+                Layout.leftMargin: Theme.bubblePaddingH
+                Layout.rightMargin: Theme.bubblePaddingH
+                Layout.topMargin: Theme.bubblePaddingV
+                visible: !root.isOwn && root.sender.length > 0
+                text: root.sender
+                color: Theme.accent
+                font.pixelSize: Theme.fontSizeXs
                 font.bold: true
-            }
-        }
-
-        // Horizontal spacer — for own messages pushes bubble right,
-        // for others pushes bubble left (acts as margin).
-        Item {
-            Layout.fillWidth: true
-            Layout.minimumWidth: 0
-        }
-
-        // Bubble
-        Rectangle {
-            Layout.minimumHeight: 24
-            Layout.maximumWidth: layout.width * (Theme.bubbleMaxWidthPct / 100.0) - Theme.avatarSizeSm - Theme.spacingSm
-            Layout.preferredWidth: Math.min(bubbleContent.implicitWidth + Theme.bubblePaddingH * 2,
-                                            Layout.maximumWidth)
-            Layout.alignment: root.isOwn ? Qt.AlignRight : Qt.AlignLeft
-            Layout.topMargin: 2
-            Layout.bottomMargin: 2
-            color: root.isOwn ? Theme.bubbleBgMe : Theme.bubbleBgThem
-            radius: Theme.bubbleRadius
-            // Tail (subtle asymmetric corner)
-            Rectangle {
-                visible: Theme.bubbleTail
-                anchors.bottom: parent.bottom
-                anchors.left: root.isOwn ? undefined : parent.left
-                anchors.right: root.isOwn ? parent.right : undefined
-                anchors.leftMargin: -4
-                anchors.rightMargin: -4
-                width: 12; height: 12
-                color: parent.color
-                radius: 4
-                z: -1
+                elide: Text.ElideRight
             }
 
-            ColumnLayout {
-                id: bubbleContent
-                anchors.fill: parent
-                anchors.margins: 0
-                spacing: 0
-
-                // Sender label (for non-own messages only)
-                Label {
-                    Layout.fillWidth: true
-                    Layout.leftMargin: Theme.bubblePaddingH
-                    Layout.rightMargin: Theme.bubblePaddingH
-                    Layout.topMargin: Theme.bubblePaddingV
-                    visible: !root.isOwn && root.sender.length > 0
-                    text: root.sender
-                    color: Theme.accent
-                    font.pixelSize: Theme.fontSizeXs
-                    font.bold: true
-                    elide: Text.ElideRight
-                }
-
-                // Content area
-                Loader {
-                    id: contentLoader
-                    Layout.fillWidth: true
-                    Layout.leftMargin: Theme.bubblePaddingH
-                    Layout.rightMargin: Theme.bubblePaddingH
-                    Layout.topMargin: root.isOwn || root.sender.length === 0
-                                      ? Theme.bubblePaddingV : 2
-                    Layout.bottomMargin: Theme.bubblePaddingV
-                    Layout.minimumHeight: item ? item.implicitHeight : 0
-                    sourceComponent: {
-                        switch (root.kind) {
-                            case "image": return imageComp
-                            case "video": return videoComp
-                            case "audio": return audioComp
-                            case "file":  return fileComp
-                            case "system": return systemComp
-                            default: return textComp
-                        }
+            // Content area
+            Loader {
+                id: contentLoader
+                Layout.fillWidth: true
+                Layout.leftMargin: Theme.bubblePaddingH
+                Layout.rightMargin: Theme.bubblePaddingH
+                Layout.topMargin: root.isOwn || root.sender.length === 0
+                                  ? Theme.bubblePaddingV : 2
+                Layout.bottomMargin: Theme.bubblePaddingV
+                Layout.minimumHeight: item ? item.implicitHeight : 0
+                sourceComponent: {
+                    switch (root.kind) {
+                        case "image": return imageComp
+                        case "video": return videoComp
+                        case "audio": return audioComp
+                        case "file":  return fileComp
+                        case "system": return systemComp
+                        default: return textComp
                     }
                 }
             }
         }
     }
+
+    // Item height driven by bubble position
+    height: bubble.y + bubble.height + 4
 
     // ─── Components ────────────────────────────────────────────────
     Component {
@@ -168,7 +162,6 @@ Item {
                 fillMode: Image.PreserveAspectFit
                 source: root.mxcUrl.length > 0 ? "image://matrix/" + root.mxcUrl : ""
                 asynchronous: true
-                // Show a placeholder while loading / on error
                 Label {
                     anchors.centerIn: parent
                     visible: parent.status === Image.Loading
