@@ -929,17 +929,17 @@ impl MatrixClient {
         let first_sync = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
         let sync_signal_cb = qmetaobject::queued_callback(move |_: ()| {
             if let Some(this) = sync_signal_qptr.as_pinned() {
-                // Emit syncDone so ChatPage can reload messages
-                this.borrow().emit_sync_done(QString::from("{}"));
+                // Emit syncDone so ChatPage can reload messages.
+                // The Ref from borrow() must be dropped before we can
+                // borrow_mut() below, so we scope it in a block.
+                {
+                    this.borrow().emit_sync_done(QString::from("{}"));
+                } // Ref dropped here
                 // On the very first sync, mark the client as ready
                 if first_sync.swap(false, std::sync::atomic::Ordering::SeqCst) {
-                    // Drop the immutable borrow before taking mutable one
-                    drop(this);
-                    if let Some(this2) = sync_signal_qptr.as_pinned() {
-                        let mut mc = this2.borrow_mut();
-                        mc.set_ready(true);
-                        mc.set_busy(false);
-                    }
+                    let mut mc = this.borrow_mut();
+                    mc.set_ready(true);
+                    mc.set_busy(false);
                 }
             }
         });

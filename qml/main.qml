@@ -13,8 +13,8 @@ ApplicationWindow {
     minimumWidth: 720
     minimumHeight: 480
     title: MatrixClient.userId.length > 0
-           ? qsTr("matrust — %1").arg(MatrixClient.userId)
-           : qsTr("matrust")
+           ? qsTr("Rustrix — %1").arg(MatrixClient.userId)
+           : qsTr("Rustrix")
     color: Theme.windowBg
 
     font.family: Theme.fontFamily
