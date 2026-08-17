@@ -244,8 +244,8 @@ impl MessageModel {
                             entry.body = QString::from(s.content().body.as_str());
                             entry.mxc_url = QString::from(
                                 match &s.content().source {
-                                    matrix_sdk::ruma::events::room::MediaSource::Plain(uri) => uri.as_str(),
-                                    matrix_sdk::ruma::events::room::MediaSource::Encrypted(_) => "",
+                                    matrix_sdk::ruma::events::sticker::StickerMediaSource::Plain(uri) => uri.as_str(),
+                                    matrix_sdk::ruma::events::sticker::StickerMediaSource::Encrypted(_) => "",
                                 }
                             );
                         }
