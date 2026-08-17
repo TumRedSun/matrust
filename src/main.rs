@@ -48,6 +48,7 @@ qrc! {
     "qml" as "/qml" {
         "main.qml",
         "LoginPage.qml",
+        "LoadingScreen.qml",
         "ChatPage.qml",
         "SpacesPage.qml",
         "RoomsSidebar.qml",

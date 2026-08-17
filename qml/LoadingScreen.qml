@@ -1,6 +1,7 @@
 // LoadingScreen.qml — splash screen shown during initial sync.
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Layouts
 import MatrixClient
 
 Rectangle {
@@ -22,8 +23,9 @@ Rectangle {
             font.bold: true
         }
 
-        // Animated progress bar
+        // Animated progress bar (indeterminate shimmer)
         Rectangle {
+            id: loadingBar
             Layout.preferredWidth: 280
             Layout.preferredHeight: 4
             Layout.alignment: Qt.AlignHCenter
@@ -36,6 +38,7 @@ Rectangle {
                 height: parent.height
                 radius: 2
                 color: Theme.accent
+                width: 100
 
                 // Animated shimmer: slides left-to-right continuously
                 SequentialAnimation on x {
@@ -47,7 +50,6 @@ Rectangle {
                         easing.type: Easing.InOutCubic
                     }
                 }
-                width: 100
             }
         }
 
