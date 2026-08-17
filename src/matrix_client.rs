@@ -120,7 +120,7 @@ pub struct MatrixClient {
     /// Tokio worker thread captures a null `QPointer<QThread>` and
     /// silently drops every invocation. See `src/pending.rs` for the
     /// full rationale.
-    pollPending: qt_method!(fn(&self)),
+    pollPending: qt_method!(fn(&mut self)),
 }
 
 impl MatrixClient {
@@ -209,7 +209,7 @@ impl MatrixClient {
     ///
     /// This is the reliable replacement for `qmetaobject::queued_callback`
     /// for events that originate on the Tokio runtime.
-    pub fn pollPending(&self) {
+    pub fn pollPending(&mut self) {
         let events = crate::pending::drain();
         if events.is_empty() {
             return;
