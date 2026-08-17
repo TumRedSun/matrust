@@ -318,6 +318,7 @@ impl MatrixClient {
         // After sending, reload messages for this room so the sent
         // message appears immediately (instead of waiting for next sync).
         let reload_room_id = room_id.clone();
+        let reload_room_id_for_cb = reload_room_id.clone();
         let model = MessageModel::get();
         let client_arc = match self.inner.borrow().clone() {
             Some(c) => c,
@@ -325,7 +326,7 @@ impl MatrixClient {
         };
         let reload_cb = qmetaobject::queued_callback(move |entries: Vec<MessageEntry>| {
             if let Some(m) = model.as_pinned() {
-                m.borrow_mut().apply_entries(entries, &reload_room_id);
+                m.borrow_mut().apply_entries(entries, &reload_room_id_for_cb);
             }
         });
         self.spawn(async move {
@@ -343,7 +344,7 @@ impl MatrixClient {
                 let c = client_arc.lock().await;
                 c.clone()
             };
-            match MessageModel::fetch_messages(client, reload_room_id.clone()).await {
+            match MessageModel::fetch_messages(client, reload_room_id).await {
                 Ok(entries) => reload_cb(entries),
                 Err(e) => ::log::warn!("sendText: reload after send failed: {e}"),
             }
@@ -931,15 +932,6 @@ impl MatrixClient {
             }
         });
 
-        // Callback to apply message entries on Qt thread (for auto-reload
-        // after sync cycles when a room is currently displayed).
-        let msg_apply_ptr = MessageModel::get();
-        let msg_apply_cb = qmetaobject::queued_callback(move |(entries, room_id): (Vec<MessageEntry>, String)| {
-            if let Some(m) = msg_apply_ptr.as_pinned() {
-                m.borrow_mut().apply_entries(entries, &room_id);
-            }
-        });
-
         // Callback to nudge ProfileManager on Qt thread
         let profile_qptr = crate::profile::ProfileManager::get();
         let profile_cb = qmetaobject::queued_callback(move |_: ()| {
@@ -981,17 +973,6 @@ impl MatrixClient {
                         // Notify QML that sync is done (for message reload)
                         sync_signal_cb(());
                         profile_cb(());
-                        // Auto-reload messages for the currently displayed room
-                        // so new incoming messages appear immediately.
-                        {
-                            let cur_room = msg_apply_ptr.as_pinned().and_then(|m| m.borrow().current_room_id());
-                            if let Some(ref rid) = cur_room {
-                                match MessageModel::fetch_messages(client_clone.clone(), rid.clone()).await {
-                                    Ok(entries) => msg_apply_cb((entries, rid.clone())),
-                                    Err(e) => ::log::warn!("sync: message reload for {} failed: {e}", rid),
-                                }
-                            }
-                        }
                         break; // success — exit retry loop
                     }
                     Err(e) => {
@@ -1039,18 +1020,6 @@ impl MatrixClient {
                         // Notify QML that sync is done (for message reload)
                         sync_signal_cb(());
                         profile_cb(());
-                        // Auto-reload messages for the currently displayed room
-                        // so new incoming messages appear immediately.
-                        {
-                            let cur_room = msg_apply_ptr.as_pinned().and_then(|m| m.borrow().current_room_id());
-                            if let Some(ref rid) = cur_room {
-                                ::log::debug!("sync: auto-reloading messages for room={}", rid);
-                                match MessageModel::fetch_messages(client_clone.clone(), rid.clone()).await {
-                                    Ok(entries) => msg_apply_cb((entries, rid.clone())),
-                                    Err(e) => ::log::warn!("sync: message reload for {} failed: {e}", rid),
-                                }
-                            }
-                        }
                     }
                     Err(e) => {
                         // Exponential backoff: 5s, 10s, 20s, 40s, max 60s
