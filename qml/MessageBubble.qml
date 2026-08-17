@@ -54,11 +54,19 @@ Item {
             }
         }
 
+        // Horizontal spacer — for own messages pushes bubble right,
+        // for others pushes bubble left (acts as margin).
+        Item {
+            Layout.fillWidth: true
+            Layout.minimumWidth: 0
+        }
+
         // Bubble
         Rectangle {
-            Layout.fillWidth: true
             Layout.minimumHeight: 24
             Layout.maximumWidth: layout.width * (Theme.bubbleMaxWidthPct / 100.0) - Theme.avatarSizeSm - Theme.spacingSm
+            Layout.preferredWidth: Math.min(bubbleContent.implicitWidth + Theme.bubblePaddingH * 2,
+                                            Layout.maximumWidth)
             Layout.alignment: root.isOwn ? Qt.AlignRight : Qt.AlignLeft
             Layout.topMargin: 2
             Layout.bottomMargin: 2
