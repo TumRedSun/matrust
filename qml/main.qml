@@ -372,8 +372,14 @@ ApplicationWindow {
                                         anchors.fill: parent
                                         cursorShape: Qt.PointingHandCursor
                                         onClicked: {
+                                            // Only set activeRoomId here. ChatPage.qml's
+                                            // onRoomIdChanged handler takes care of calling
+                                            // loadRoomMessages — that's the single source
+                                            // of truth for "when does this room's messages
+                                            // get loaded". Calling loadRoomMessages from
+                                            // here too would cause duplicate fetches every
+                                            // time the user clicks a room.
                                             mainViewRoot.activeRoomId = model.room_id
-                                            MatrixClient.loadRoomMessages(model.room_id)
                                         }
                                     }
 
@@ -427,11 +433,13 @@ ApplicationWindow {
                         // Refresh room list after every sync so new DMs/rooms
                         // appear immediately without manual button press.
                         MatrixClient.refreshRooms()
-                        // Reload messages for the active room so new
-                        // messages appear in real-time.
-                        if (mainViewRoot.activeRoomId.length > 0) {
-                            MatrixClient.loadRoomMessages(mainViewRoot.activeRoomId)
-                        }
+                        // NOTE: Do NOT call loadRoomMessages here.
+                        // Reloading on every sync cycle causes:
+                        //   - duplicate fetches (one per sync, ~every 30s)
+                        //   - UI flicker (model gets reset → list scrolls to top)
+                        //   - wasted bandwidth
+                        // ChatPage.qml's onRoomIdChanged is the single
+                        // trigger for loading a room's messages.
                     }
                 }
 

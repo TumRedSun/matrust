@@ -255,9 +255,23 @@ impl MessageModel {
                             entry.body = QString::from("(message deleted)");
                         }
                         MsgLikeKind::UnableToDecrypt(_) => {
-                            entry.kind = QString::from("system");
+                            // Use a dedicated "encrypted" kind so the QML
+                            // delegate can render it differently from a
+                            // regular system notice — same centered
+                            // muted italic line, but with explicit
+                            // "decryption pending" wording so the user
+                            // understands WHY the message is blank.
+                            //
+                            // The most common cause of mass UnableToDecrypt
+                            // is the Olm identity bootstrap problem:
+                            // session.json was created before the SQLite
+                            // crypto store was enabled, so the device_id
+                            // in session.json doesn't match the new Olm
+                            // identity in the DB. The fix is to log out
+                            // and log back in fresh.
+                            entry.kind = QString::from("encrypted");
                             entry.is_own = false;
-                            entry.body = QString::from("🔒 Encrypted message (decryption pending)");
+                            entry.body = QString::from("");
                         }
                         _ => {
                             entry.kind = QString::from("system");
@@ -324,12 +338,17 @@ impl MessageModel {
         }
 
         let own_c = messages.iter().filter(|m| m.is_own).count();
-        let other_c = messages.iter().filter(|m| !m.is_own && m.kind.to_string() != "system").count();
+        let enc_c = messages.iter().filter(|m| m.kind.to_string() == "encrypted").count();
         let system_c = messages.iter().filter(|m| m.kind.to_string() == "system").count();
+        let other_c = messages.iter().filter(|m| {
+            !m.is_own
+                && m.kind.to_string() != "system"
+                && m.kind.to_string() != "encrypted"
+        }).count();
         let img_c = messages.iter().filter(|m| m.kind.to_string() == "image").count();
         ::log::info!(
-            "fetch_messages: parsed {} messages for room={} (own={}, other={}, system={}, images={})",
-            messages.len(), room_id, own_c, other_c, system_c, img_c
+            "fetch_messages: parsed {} messages for room={} (own={}, other={}, system={}, encrypted={}, images={})",
+            messages.len(), room_id, own_c, other_c, system_c, enc_c, img_c
         );
 
         Ok(messages)
