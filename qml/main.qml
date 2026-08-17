@@ -795,18 +795,7 @@ ApplicationWindow {
         }
         function onLoggedIn(userId) {
             stack.replace(null, loadingScreen);
-        }
-        function onReadyChanged() {
-            if (MatrixClient.ready && stack.currentItem !== null && stack.currentItem.objectName !== "mainViewRoot") {
-                stack.replace(null, mainView);
-            }
-        }
-        function onSyncDone(payload) {
-            // Fallback: if still on loading screen after initial sync,
-            // transition to main view. (syncDone is proven to arrive.)
-            if (stack.currentItem !== null && stack.currentItem.objectName !== "mainViewRoot") {
-                stack.replace(null, mainView);
-            }
+            loadingTransitionTimer.start();
         }
         function onLoggedOut() {
             stack.replace(null, loginPage);
@@ -851,6 +840,27 @@ ApplicationWindow {
         // singleton construction race.
         Theme.applyPreset(Theme.preset)
         MatrixClient.autoLogin()
+    }
+
+    // ── Loading-screen transition timer ──
+    // Polls every 500 ms: when rooms appear (initial sync done) or
+    // MatrixClient.ready becomes true, replaces the loading screen
+    // with the main view.  This is more reliable than depending on
+    // Rust queued_callback / signal delivery which has been flaky.
+    Timer {
+        id: loadingTransitionTimer
+        interval: 500
+        repeat: true
+        onTriggered: {
+            // Only act while we're on the loading screen
+            if (stack.currentItem === null) return
+            if (stack.currentItem.objectName === "mainViewRoot") return
+            // Transition when sync is done (rooms loaded or ready flag set)
+            if (MatrixClient.ready || RoomModel.count > 0) {
+                stack.replace(null, mainView)
+                loadingTransitionTimer.stop()
+            }
+        }
     }
 
     // Re-apply the theme when any of its NOTIFY signals fire. QML bindings

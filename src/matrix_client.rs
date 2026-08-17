@@ -937,10 +937,13 @@ impl MatrixClient {
                 } // Ref dropped here
                 // On the very first sync, mark the client as ready
                 if first_sync.swap(false, std::sync::atomic::Ordering::SeqCst) {
+                    ::log::info!("sync_signal_cb: first sync — setting ready=true, busy=false");
                     let mut mc = this.borrow_mut();
                     mc.set_ready(true);
                     mc.set_busy(false);
                 }
+            } else {
+                ::log::warn!("sync_signal_cb: QPointer is null!");
             }
         });
 
