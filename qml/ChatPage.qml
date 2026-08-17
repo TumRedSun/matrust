@@ -252,17 +252,6 @@ Rectangle {
         }
     }
 
-    // After each sync cycle, reload messages for the current room
-    // so incoming messages from the server appear immediately.
-    Connections {
-        target: MatrixClient
-        function onSyncDone(payload) {
-            if (roomId.length > 0) {
-                MatrixClient.loadRoomMessages(roomId)
-            }
-        }
-    }
-
     // Reactively update room display name when RoomModel changes
     // (count_changed signal is emitted by RoomModel.apply_entries)
     Connections {
@@ -272,6 +261,29 @@ Rectangle {
         }
     }
 
+    // After each sync cycle, do NOT reload messages for the current
+    // room. The Timeline API in fetch_messages() already paginates
+    // backwards to load history, and the message model is reset on
+    // every call — reloading on every sync would lose scroll position,
+    // waste bandwidth, and cause UI flicker.
+    //
+    // Incoming messages from the sync loop should be appended
+    // incrementally (a future enhancement). For now, the user can
+    // pull-to-refresh or switch rooms to see new messages.
+    //
+    // If you DO want to reload on sync, gate it behind a manual
+    // refresh button instead of doing it automatically.
+
     // Also update when roomId changes
-    onRoomIdChanged: lookupRoomName()
+    onRoomIdChanged: {
+        lookupRoomName()
+        // Explicitly load messages for the newly selected room.
+        // This is the ONLY place we trigger loadRoomMessages from
+        // ChatPage.qml — every other path (sync, room name lookup)
+        // must NOT trigger a reload to avoid the duplicate-load storm
+        // we saw in the logs.
+        if (roomId.length > 0) {
+            MatrixClient.loadRoomMessages(roomId)
+        }
+    }
 }

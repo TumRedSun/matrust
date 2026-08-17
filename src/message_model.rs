@@ -266,15 +266,53 @@ impl MessageModel {
                     }
                 }
                 TimelineItemContent::MembershipChange(m) => {
+                    use matrix_sdk_ui::timeline::MembershipChange as MCh;
                     entry.kind = QString::from("system");
-                    entry.body = QString::from(m.user_id().to_string().as_str());
+                    // Build a human-readable sentence instead of dumping
+                    // the raw user_id. Prefer the display name when we
+                    // have one; fall back to the user_id.
+                    let who = m.display_name()
+                        .filter(|s| !s.is_empty())
+                        .unwrap_or_else(|| m.user_id().to_string());
+                    let verb = match m.change() {
+                        Some(MCh::Joined) => "joined",
+                        Some(MCh::Left) => "left",
+                        Some(MCh::Banned) => "was banned",
+                        Some(MCh::Unbanned) => "was unbanned",
+                        Some(MCh::Kicked) => "was kicked",
+                        Some(MCh::Invited) => "was invited",
+                        Some(MCh::KickedAndBanned) => "was kicked and banned",
+                        Some(MCh::InvitationAccepted) => "accepted the invite",
+                        Some(MCh::InvitationRejected) => "rejected the invite",
+                        Some(MCh::InvitationRevoked) => "had their invite revoked",
+                        Some(MCh::Knocked) => "knocked",
+                        Some(MCh::KnockAccepted) => "had their knock accepted",
+                        Some(MCh::KnockRetracted) => "retracted their knock",
+                        Some(MCh::KnockDenied) => "had their knock denied",
+                        _ => "changed membership",
+                    };
+                    entry.body = QString::from(format!("{} {}", who, verb));
                 }
                 TimelineItemContent::ProfileChange(p) => {
                     entry.kind = QString::from("system");
-                    let dn = p.displayname_change()
-                        .and_then(|c| c.new.as_deref())
-                        .unwrap_or("");
-                    entry.body = QString::from(format!("changed display name to {}", dn));
+                    // Build a readable description of the profile change.
+                    // Only describe the display name change for now (the
+                    // most common case); avatar changes are too noisy in
+                    // a DM and would flood the timeline.
+                    let who = display_name.clone();
+                    if let Some(dn_change) = p.displayname_change() {
+                        let new_dn = dn_change.new.as_deref().unwrap_or("");
+                        let old_dn = dn_change.old.as_deref().unwrap_or("");
+                        if !new_dn.is_empty() && old_dn.is_empty() {
+                            entry.body = QString::from(format!("{} set their display name to \"{}\"", who, new_dn));
+                        } else if !new_dn.is_empty() {
+                            entry.body = QString::from(format!("{} changed their display name to \"{}\"", who, new_dn));
+                        } else {
+                            entry.body = QString::from(format!("{} removed their display name", who));
+                        }
+                    } else {
+                        entry.body = QString::from(format!("{} updated their profile", who));
+                    }
                 }
                 _ => {
                     entry.kind = QString::from("system");

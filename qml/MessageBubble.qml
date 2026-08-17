@@ -27,111 +27,142 @@ Item {
     // ── Layout: RowLayout with layoutDirection to flip for own messages ──
     // Using RowLayout + layoutDirection is the cleanest way to mirror
     // the entire row (avatar + bubble) for own messages.
-    RowLayout {
-        id: row
+    //
+    // System messages bypass this RowLayout entirely and are rendered
+    // centered by `systemFullComp` (see below).
+    Loader {
+        id: rowLoader
         anchors.fill: parent
-        spacing: Theme.showAvatars && !root.isOwn ? Theme.spacingSm : 0
-        layoutDirection: root.isOwn ? Qt.RightToLeft : Qt.LeftToRight
+        sourceComponent: root.kind === "system" ? systemFullComp : rowComp
+    }
 
-        // ── Avatar (only for non-own messages) ──
-        Rectangle {
-            visible: Theme.showAvatars && !root.isOwn
-            Layout.preferredWidth: visible ? Theme.avatarSizeSm : 0
-            Layout.preferredHeight: visible ? Theme.avatarSizeSm : 0
-            Layout.alignment: Qt.AlignTop
-            radius: Theme.avatarShape === "circle" ? Theme.avatarSizeSm/2
-                    : (Theme.avatarShape === "square" ? 0 : Theme.avatarRadius)
-            color: Theme.accent
-            opacity: 0.3
-            Label {
-                anchors.centerIn: parent
-                text: root.sender.length > 0 ? root.sender.charAt(0).toUpperCase() : "?"
-                color: Theme.accentFg
-                font.pixelSize: Theme.fontSizeSm
-                font.bold: true
-            }
-        }
+    Component {
+        id: rowComp
+        RowLayout {
+            spacing: Theme.showAvatars && !root.isOwn ? Theme.spacingSm : 0
+            layoutDirection: root.isOwn ? Qt.RightToLeft : Qt.LeftToRight
 
-        // ── Bubble ──
-        Rectangle {
-            id: bubble
-            Layout.alignment: Qt.AlignTop
-            // Do NOT use Layout.fillWidth — it would stretch to fill the
-            // remaining space, pushing the bubble all the way across.
-            // Instead, let the bubble size to its content and cap it.
-            Layout.maximumWidth: root.maxBubbleWidth
-            Layout.preferredWidth: Math.min(bubbleContent.implicitWidth + Theme.bubblePaddingH * 2,
-                                            root.maxBubbleWidth)
-            Layout.preferredHeight: bubbleContent.implicitHeight
-
-            color: root.isOwn ? Theme.bubbleBgMe : Theme.bubbleBgThem
-            radius: Theme.bubbleRadius
-
-            // Tail (subtle asymmetric corner)
+            // ── Avatar (only for non-own messages) ──
             Rectangle {
-                visible: Theme.bubbleTail
-                anchors.bottom: parent.bottom
-                anchors.left: root.isOwn ? undefined : parent.left
-                anchors.right: root.isOwn ? parent.right : undefined
-                anchors.leftMargin: -4
-                anchors.rightMargin: -4
-                width: 12; height: 12
-                color: parent.color
-                radius: 4
-                z: -1
+                visible: Theme.showAvatars && !root.isOwn
+                Layout.preferredWidth: visible ? Theme.avatarSizeSm : 0
+                Layout.preferredHeight: visible ? Theme.avatarSizeSm : 0
+                Layout.alignment: Qt.AlignTop
+                radius: Theme.avatarShape === "circle" ? Theme.avatarSizeSm/2
+                        : (Theme.avatarShape === "square" ? 0 : Theme.avatarRadius)
+                color: Theme.accent
+                opacity: 0.3
+                Label {
+                    anchors.centerIn: parent
+                    text: root.sender.length > 0 ? root.sender.charAt(0).toUpperCase() : "?"
+                    color: Theme.accentFg
+                    font.pixelSize: Theme.fontSizeSm
+                    font.bold: true
+                }
             }
 
-            ColumnLayout {
-                id: bubbleContent
-                anchors.fill: parent
-                spacing: 0
+            // ── Bubble ──
+            Rectangle {
+                id: bubble
+                Layout.alignment: Qt.AlignTop
+                // Do NOT use Layout.fillWidth — it would stretch to fill the
+                // remaining space, pushing the bubble all the way across.
+                // Instead, let the bubble size to its content and cap it.
+                Layout.maximumWidth: root.maxBubbleWidth
+                Layout.preferredWidth: Math.min(bubbleContent.implicitWidth + Theme.bubblePaddingH * 2,
+                                                root.maxBubbleWidth)
+                Layout.preferredHeight: bubbleContent.implicitHeight
 
-                // Sender label (for non-own messages only)
-                Label {
-                    Layout.fillWidth: true
-                    Layout.leftMargin: Theme.bubblePaddingH
-                    Layout.rightMargin: Theme.bubblePaddingH
-                    Layout.topMargin: Theme.bubblePaddingV
-                    visible: !root.isOwn && root.sender.length > 0
-                    text: root.sender
-                    color: Theme.accent
-                    font.pixelSize: Theme.fontSizeXs
-                    font.bold: true
-                    elide: Text.ElideRight
+                color: root.isOwn ? Theme.bubbleBgMe : Theme.bubbleBgThem
+                radius: Theme.bubbleRadius
+
+                // Tail (subtle asymmetric corner)
+                Rectangle {
+                    visible: Theme.bubbleTail
+                    anchors.bottom: parent.bottom
+                    anchors.left: root.isOwn ? undefined : parent.left
+                    anchors.right: root.isOwn ? parent.right : undefined
+                    anchors.leftMargin: -4
+                    anchors.rightMargin: -4
+                    width: 12; height: 12
+                    color: parent.color
+                    radius: 4
+                    z: -1
                 }
 
-                // Content area
-                Loader {
-                    id: contentLoader
-                    Layout.fillWidth: true
-                    Layout.leftMargin: Theme.bubblePaddingH
-                    Layout.rightMargin: Theme.bubblePaddingH
-                    Layout.topMargin: root.isOwn || root.sender.length === 0
-                                      ? Theme.bubblePaddingV : 2
-                    Layout.bottomMargin: Theme.bubblePaddingV
-                    Layout.minimumHeight: item ? item.implicitHeight : 0
-                    sourceComponent: {
-                        switch (root.kind) {
-                            case "image": return imageComp
-                            case "video": return videoComp
-                            case "audio": return audioComp
-                            case "file":  return fileComp
-                            case "system": return systemComp
-                            default: return textComp
+                ColumnLayout {
+                    id: bubbleContent
+                    anchors.fill: parent
+                    spacing: 0
+
+                    // Sender label (for non-own messages only)
+                    Label {
+                        Layout.fillWidth: true
+                        Layout.leftMargin: Theme.bubblePaddingH
+                        Layout.rightMargin: Theme.bubblePaddingH
+                        Layout.topMargin: Theme.bubblePaddingV
+                        visible: !root.isOwn && root.sender.length > 0
+                        text: root.sender
+                        color: Theme.accent
+                        font.pixelSize: Theme.fontSizeXs
+                        font.bold: true
+                        elide: Text.ElideRight
+                    }
+
+                    // Content area
+                    Loader {
+                        id: contentLoader
+                        Layout.fillWidth: true
+                        Layout.leftMargin: Theme.bubblePaddingH
+                        Layout.rightMargin: Theme.bubblePaddingH
+                        Layout.topMargin: root.isOwn || root.sender.length === 0
+                                          ? Theme.bubblePaddingV : 2
+                        Layout.bottomMargin: Theme.bubblePaddingV
+                        Layout.minimumHeight: item ? item.implicitHeight : 0
+                        sourceComponent: {
+                            switch (root.kind) {
+                                case "image": return imageComp
+                                case "video": return videoComp
+                                case "audio": return audioComp
+                                case "file":  return fileComp
+                                case "system": return systemComp
+                                default: return textComp
+                            }
                         }
                     }
                 }
             }
-        }
 
-        // ── Spacer: fills remaining space so bubble doesn't stretch ──
-        // For own messages (RightToLeft), this spacer is on the LEFT,
-        // pushing the bubble to the right edge.
-        // For other messages (LeftToRight), this spacer is on the RIGHT,
-        // keeping the bubble at the left edge.
+            // ── Spacer: fills remaining space so bubble doesn't stretch ──
+            // For own messages (RightToLeft), this spacer is on the LEFT,
+            // pushing the bubble to the right edge.
+            // For other messages (LeftToRight), this spacer is on the RIGHT,
+            // keeping the bubble at the left edge.
+            Item {
+                Layout.fillWidth: true
+                Layout.minimumWidth: 0
+            }
+        }
+    }
+
+    // ── Full-width centered layout for system messages ──
+    // System messages (joins, leaves, profile changes, encryption
+    // notices) should NOT use the bubble+avatar layout — they should
+    // appear as a centered, muted, italic line spanning the full row.
+    Component {
+        id: systemFullComp
         Item {
-            Layout.fillWidth: true
-            Layout.minimumWidth: 0
+            anchors.fill: parent
+            Label {
+                anchors.centerIn: parent
+                width: parent.width - Theme.paddingMd * 2
+                text: root.body.length > 0 ? root.body : qsTr("(event)")
+                color: Theme.muted
+                font.pixelSize: Theme.fontSizeSm
+                font.italic: true
+                wrapMode: Text.Wrap
+                horizontalAlignment: Text.AlignHCenter
+            }
         }
     }
 

@@ -842,6 +842,24 @@ ApplicationWindow {
         // propagate even if QML cached a stale value during the initial
         // singleton construction race.
         Theme.applyPreset(Theme.preset)
+
+        // Force QML to eagerly create ALL the singleton models RIGHT
+        // NOW. qmetaobject creates singletons lazily on first reference,
+        // but the sync loop running on Tokio may push ApplyRooms /
+        // ApplySpaces / RefreshProfile events into the pending queue
+        // before QML ever touches RoomModel, SpaceModel, etc. If the
+        // singleton hasn't been created yet, pollPending() logs
+        // "QPointer is null, dropping N entries" and the data is lost
+        // until the next sync cycle. Touching each model's `count`
+        // property here forces singleton creation before autoLogin()
+        // kicks off the sync.
+        // eslint-disable-next-line no-unused-expressions
+        RoomModel.count
+        MessageModel.count
+        SpaceModel.count
+        ProfileManager.userId
+        MemberModel.count
+
         MatrixClient.autoLogin()
         // Start the UI tick timer unconditionally. This drains the
         // pending-events queue (the reliable Tokio→Qt bridge that
