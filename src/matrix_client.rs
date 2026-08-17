@@ -877,8 +877,8 @@ impl MatrixClient {
                 *mc.session.borrow_mut() = Some(sess.clone());
                 mc.persist_session();
                 mc.set_user_id(sess.user_id.clone());
-                mc.set_busy(false);
-                mc.set_ready(true);
+                mc.set_busy(true);  // busy while initial sync runs
+                mc.set_ready(false); // NOT ready until first sync completes
                 mc.emit_logged_in(QString::from(sess.user_id.as_str()));
 
                 // NOTE: Do NOT call refreshRooms() here. The SDK's
@@ -933,6 +933,16 @@ impl MatrixClient {
         let offline_cb = qmetaobject::queued_callback(move |is_offline: bool| {
             if let Some(this) = offline_qptr.as_pinned() {
                 this.borrow_mut().set_offline(is_offline);
+            }
+        });
+
+        // Callback to set ready=true on Qt thread (after initial sync)
+        let ready_qptr = Self::singleton_ptr();
+        let ready_cb = qmetaobject::queued_callback(move |_: ()| {
+            if let Some(this) = ready_qptr.as_pinned() {
+                let mut mc = this.borrow_mut();
+                mc.set_ready(true);
+                mc.set_busy(false);
             }
         });
 
@@ -997,6 +1007,7 @@ impl MatrixClient {
                         sync_signal_cb(());
                         profile_cb(());
                         offline_cb(false); // server is reachable
+                        ready_cb(());      // initial sync done → ready!
                         break; // success — exit retry loop
                     }
                     Err(e) => {

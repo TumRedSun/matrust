@@ -17,7 +17,7 @@ Rectangle {
         // App title
         Label {
             Layout.alignment: Qt.AlignHCenter
-            text: qsTr("Matrix Client")
+            text: qsTr("matrust")
             color: Theme.sidebarFg
             font.pixelSize: Theme.fontSizeXl * 1.5
             font.bold: true
