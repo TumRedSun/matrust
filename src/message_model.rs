@@ -467,6 +467,12 @@ impl MessageModel {
             "MessageModel::apply_entries: {} messages for room={} (own={}, other={}, system={}), replacing {} existing",
             entries.len(), room_id, own_count, other_count, system_count, self.entries.borrow().len()
         );
+        // Reverse to newest-first order so that the ListView with
+        // BottomToTop direction shows the newest message at the bottom
+        // (index 0 = bottom in BottomToTop).
+        let mut entries = entries;
+        entries.reverse();
+
         self.begin_reset_model();
         *self.entries.borrow_mut() = entries;
         self.end_reset_model();
@@ -501,6 +507,12 @@ impl MessageModel {
     /// Alias matching the naming convention used by MatrixClient.
     pub fn singleton_ptr() -> QPointer<MessageModel> {
         Self::get()
+    }
+
+    /// Returns the room_id currently being displayed, if any.
+    /// Used by the sync loop to auto-reload messages after each cycle.
+    pub fn current_room_id(&self) -> Option<String> {
+        self.current_room_id.borrow().clone()
     }
 }
 
