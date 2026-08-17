@@ -242,7 +242,12 @@ impl MessageModel {
                         MsgLikeKind::Sticker(s) => {
                             entry.kind = QString::from("image");
                             entry.body = QString::from(s.content().body.as_str());
-                            entry.mxc_url = QString::from(media_source_url(&s.content().source).unwrap_or(""));
+                            entry.mxc_url = QString::from(
+                                match &s.content().source {
+                                    matrix_sdk::ruma::events::room::MediaSource::Plain(uri) => uri.as_str(),
+                                    matrix_sdk::ruma::events::room::MediaSource::Encrypted(_) => "",
+                                }
+                            );
                         }
                         MsgLikeKind::Redacted => {
                             entry.kind = QString::from("system");
