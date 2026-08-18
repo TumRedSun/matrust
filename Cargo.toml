@@ -1,14 +1,14 @@
 [package]
-name = "matrix-client"
+name = "rustrix"
 version = "0.1.0"
 edition = "2021"
 authors = ["Your Name <you@example.com>"]
-description = "Highly customizable Matrix client for Linux built with Rust and Qt/QML"
+description = "Rustrix — highly customizable Matrix client for Linux built with Rust and Qt/QML"
 license = "GPL-3.0-or-later"
 rust-version = "1.80"
 
 [[bin]]
-name = "matrix-client"
+name = "rustrix"
 path = "src/main.rs"
 
 [dependencies]

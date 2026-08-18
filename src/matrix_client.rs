@@ -74,6 +74,14 @@ pub struct MatrixClient {
     /// Emitted when a media download finishes. The third arg is the local
     /// filesystem path the file was saved to.
     fileDownloaded: qt_signal!(room_id: QString, mxc: QString, local_path: QString),
+    /// Emitted when an inline media preview is ready. The first arg is
+    /// the source JSON that was passed to `requestMedia` (so QML can
+    /// match the response to the request), the second is the local file
+    /// path (no `file://` prefix — QML adds it).
+    mediaReady: qt_signal!(source_json: QString, local_path: QString),
+    /// Emitted when an inline media preview fetch fails. The arg is the
+    /// source JSON that was requested + the error message.
+    mediaError: qt_signal!(source_json: QString, error: QString),
     /// Emitted after `setBanner` finishes copying the image to the cache dir.
     /// The argument is the `file://` URL of the new banner.
     bannerSet: qt_signal!(url: QString),
@@ -96,6 +104,19 @@ pub struct MatrixClient {
     sendText: qt_method!(fn(&self, room_id: QString, body: QString)),
     sendFile: qt_method!(fn(&self, room_id: QString, local_path: QString, mime: QString, kind: QString)),
     downloadMedia: qt_method!(fn(&self, room_id: QString, mxc: QString, suggested_name: QString)),
+    /// Asynchronously fetch a media file by its serialized `MediaSource`
+    /// JSON and write it to the on-disk cache. When ready (or on error),
+    /// emits `mediaReady(sourceJson, localPath)` / `mediaError(sourceJson, err)`.
+    /// QML uses this to populate inline image previews and video players
+    /// for both plain and E2EE-encrypted media.
+    requestMedia: qt_method!(fn(&self, source_json: QString, mime: QString)),
+    /// List the contents of a local directory. Returns a JSON array of
+    /// entries: `[{"name": "foo.txt", "is_dir": false, "size": 1234}, …]`.
+    /// Used by the custom FileBrowserDialog (which supports showing
+    /// dotfiles — the stock Qt FileDialog doesn't).
+    listDirectory: qt_method!(fn(&self, path: QString, include_hidden: bool) -> QString),
+    /// Returns the user's home directory path (without `file://` prefix).
+    homeDir: qt_method!(fn(&self) -> QString),
     setDisplayName: qt_method!(fn(&self, name: QString)),
     setAvatar: qt_method!(fn(&self, local_path: QString)),
     setBanner: qt_method!(fn(&self, local_path: QString)),
@@ -125,9 +146,10 @@ pub struct MatrixClient {
 
 impl MatrixClient {
     fn session_file_path() -> PathBuf {
-        let base = directories::ProjectDirs::from("dev", "matrixclient", "matrix-client")
+        let base = directories::ProjectDirs::from("dev", "rustrix", "Rustrix")
             .map(|d| d.data_dir().to_path_buf())
-            .unwrap_or_else(|| std::env::temp_dir().join("matrix-client"));
+            .unwrap_or_else(|| std::env::temp_dir().join("Rustrix"));
+        crate::avatar_cache::migrate_old_data_dir(&base);
         std::fs::create_dir_all(&base).ok();
         base.join("session.json")
     }
@@ -167,6 +189,16 @@ impl MatrixClient {
     /// Public wrapper to emit the `file_downloaded` signal from outside this module.
     pub fn emit_file_downloaded(&self, room_id: QString, mxc: QString, local_path: QString) {
         self.fileDownloaded(room_id, mxc, local_path);
+    }
+
+    /// Public wrapper to emit the `media_ready` signal.
+    pub fn emit_media_ready(&self, source_json: QString, local_path: QString) {
+        self.mediaReady(source_json, local_path);
+    }
+
+    /// Public wrapper to emit the `media_error` signal.
+    pub fn emit_media_error(&self, source_json: QString, error: QString) {
+        self.mediaError(source_json, error);
     }
 
     /// Public wrapper to emit the `banner_set` signal from outside this module.
@@ -484,6 +516,150 @@ impl MatrixClient {
         self.spawn(async move {
             crate::file_transfer::download_media(room_id, media_source_json, name).await
         });
+    }
+
+    /// Fetch a media file by its serialized `MediaSource` JSON, write it
+    /// to the cache, and emit `mediaReady` / `mediaError`.
+    ///
+    /// If the file is already cached, we still emit `mediaReady` (on the
+    /// Qt thread) so QML can populate the Image/Video source. This makes
+    /// the API uniform: QML always calls requestMedia and listens for
+    /// mediaReady, regardless of cache state.
+    pub fn requestMedia(&self, source_json: QString, mime: QString) {
+        let source_json_str = source_json.to_string();
+        let mime_str = mime.to_string();
+
+        // Cache-hit fast path: emit immediately on the Qt thread, no spawn.
+        if let Some(path) = crate::media_provider::try_cache(&source_json_str, &mime_str) {
+            let qptr = Self::singleton_ptr();
+            let sj = source_json_str.clone();
+            let p = path.to_string_lossy().to_string();
+            let cb = qmetaobject::queued_callback(move |_: ()| {
+                if let Some(this) = qptr.as_pinned() {
+                    this.borrow_mut().emit_media_ready(
+                        QString::from(sj.as_str()),
+                        QString::from(p.as_str()),
+                    );
+                }
+            });
+            cb(());
+            return;
+        }
+
+        // Cache miss: spawn a fetch on the Tokio runtime.
+        let sj_for_cb = source_json_str.clone();
+        self.spawn(async move {
+            match crate::media_provider::fetch_media_bytes(&source_json_str).await {
+                Ok(bytes) => {
+                    match crate::media_provider::write_cache(&source_json_str, &mime_str, &bytes) {
+                        Ok(path) => {
+                            let qptr = crate::MatrixClient::singleton_ptr();
+                            let p = path.to_string_lossy().to_string();
+                            let sj2 = source_json_str.clone();
+                            let cb = qmetaobject::queued_callback(move |_: ()| {
+                                if let Some(this) = qptr.as_pinned() {
+                                    this.borrow_mut().emit_media_ready(
+                                        QString::from(sj2.as_str()),
+                                        QString::from(p.as_str()),
+                                    );
+                                }
+                            });
+                            cb(());
+                        }
+                        Err(e) => {
+                            ::log::warn!("requestMedia: cache write failed: {e}");
+                            Self::emit_media_err(&sj_for_cb, &format!("cache write: {e}"));
+                        }
+                    }
+                }
+                Err(e) => {
+                    ::log::warn!("requestMedia: fetch failed: {e}");
+                    Self::emit_media_err(&sj_for_cb, &format!("fetch: {e}"));
+                }
+            }
+            AppResult::Ok(())
+        });
+    }
+
+    fn emit_media_err(source_json: &str, err: &str) {
+        let qptr = Self::singleton_ptr();
+        let sj = source_json.to_string();
+        let e = err.to_string();
+        let cb = qmetaobject::queued_callback(move |_: ()| {
+            if let Some(this) = qptr.as_pinned() {
+                this.borrow_mut().emit_media_error(
+                    QString::from(sj.as_str()),
+                    QString::from(e.as_str()),
+                );
+            }
+        });
+        cb(());
+    }
+
+    /// List the contents of a local directory. Returns a JSON array of
+    /// objects: `[{"name": "foo", "is_dir": true, "size": 0}, …]`.
+    /// Directories come first, then files, both alphabetically.
+    /// On error, returns `[]`.
+    pub fn listDirectory(&self, path: QString, include_hidden: bool) -> QString {
+        let path_str = path.to_string();
+        let p = std::path::Path::new(&path_str);
+        let entries = match std::fs::read_dir(p) {
+            Ok(e) => e,
+            Err(e) => {
+                ::log::warn!("listDirectory: failed to read {path_str}: {e}");
+                return QString::from("[]");
+            }
+        };
+
+        let mut dirs: Vec<(String, u64)> = Vec::new();
+        let mut files: Vec<(String, u64)> = Vec::new();
+        for entry in entries.flatten() {
+            let name = match entry.file_name().to_str() {
+                Some(s) => s.to_string(),
+                None => continue,
+            };
+            // Hidden = starts with '.' (but exclude "." and ".." which
+            // are special — read_dir already excludes them on Unix).
+            if !include_hidden && name.starts_with('.') {
+                continue;
+            }
+            let meta = match entry.metadata() {
+                Ok(m) => m,
+                Err(_) => continue,
+            };
+            let size = meta.len();
+            if meta.is_dir() {
+                dirs.push((name, size));
+            } else {
+                files.push((name, size));
+            }
+        }
+        dirs.sort_by(|a, b| a.0.to_lowercase().cmp(&b.0.to_lowercase()));
+        files.sort_by(|a, b| a.0.to_lowercase().cmp(&b.0.to_lowercase()));
+
+        // Build JSON manually (avoid pulling in serde_json for this).
+        let mut out = String::from("[");
+        for (name, size) in dirs.iter() {
+            // Escape backslash and double-quote in the name.
+            let escaped = name.replace('\\', "\\\\").replace('"', "\\\"");
+            out.push_str(&format!("{{\"name\":\"{}\",\"is_dir\":true,\"size\":{}}},", escaped, size));
+        }
+        for (name, size) in files.iter() {
+            let escaped = name.replace('\\', "\\\\").replace('"', "\\\"");
+            out.push_str(&format!("{{\"name\":\"{}\",\"is_dir\":false,\"size\":{}}},", escaped, size));
+        }
+        // Remove trailing comma if any entries were added.
+        if out.ends_with(',') {
+            out.pop();
+        }
+        out.push(']');
+        QString::from(out.as_str())
+    }
+
+    /// Returns the user's home directory path.
+    pub fn homeDir(&self) -> QString {
+        let home = std::env::var("HOME").unwrap_or_else(|_| "/".to_string());
+        QString::from(home.as_str())
     }
 
     pub fn setDisplayName(&self, name: QString) {
@@ -935,7 +1111,7 @@ impl MatrixClient {
         client
             .matrix_auth()
             .login_username(&username, &password)
-            .initial_device_display_name("matrix-client (rust+qt)")
+            .initial_device_display_name("Rustrix")
             .await?;
 
         let session_meta = client.session_meta()

@@ -49,6 +49,13 @@ pub async fn send_attachment(
         .unwrap_or("file")
         .to_owned();
 
+    // File size in bytes. Used to populate AttachmentInfo so the receiver
+    // (and our own sent-message echo) shows the real size instead of 0 B.
+    // Before this fix, our own sent files always showed "0 B" because we
+    // built BaseFileInfo::default() (size=None), even though the receiver
+    // saw the correct size from the server's metadata echo.
+    let file_size = bytes.len() as u64;
+
     // Infer the MIME type. The caller may pass an empty string (fileDialog
     // sends "") or a wildcard like "image/*". In both cases, fall back to
     // mime_guess so we get a concrete Content-Type for the upload.
@@ -61,18 +68,35 @@ pub async fn send_attachment(
             .map_err(|e: mime::FromStrError| AppError::Other(e.to_string()))?
     };
 
-    // Build the AttachmentConfig with type-specific metadata. For images and
-    // videos we'd ideally populate dimensions/duration, but since we don't
-    // decode the file here we just send an empty BaseImageInfo / BaseVideoInfo.
-    // The server/client will still display the file correctly.
+    // Build the AttachmentConfig with type-specific metadata. For images
+    // and videos we'd ideally populate dimensions/duration, but since we
+    // don't decode the file here we just send an empty BaseImageInfo /
+    // BaseVideoInfo (size is set automatically by the SDK from data.len()).
+    // For File attachments, BaseFileInfo has an explicit `size` field we
+    // populate to make sure the receiver sees the right size.
     use matrix_sdk::attachment::{AttachmentConfig, AttachmentInfo,
         BaseAudioInfo, BaseFileInfo, BaseImageInfo, BaseVideoInfo};
+    use matrix_sdk::ruma::UInt;
+
+    let size_uint = UInt::try_from(file_size).ok();
 
     let attachment_info = match kind.as_str() {
-        "image" => AttachmentInfo::Image(BaseImageInfo::default()),
-        "video" => AttachmentInfo::Video(BaseVideoInfo::default()),
-        "audio" => AttachmentInfo::Audio(BaseAudioInfo::default()),
-        _ => AttachmentInfo::File(BaseFileInfo::default()),
+        "image" => AttachmentInfo::Image(BaseImageInfo {
+            // BaseImageInfo in matrix-sdk 0.18 has no `size` field —
+            // the SDK populates the message's `info.size` from
+            // `data.len()` automatically during `send_attachment`.
+            ..Default::default()
+        }),
+        "video" => AttachmentInfo::Video(BaseVideoInfo {
+            ..Default::default()
+        }),
+        "audio" => AttachmentInfo::Audio(BaseAudioInfo {
+            ..Default::default()
+        }),
+        _ => AttachmentInfo::File(BaseFileInfo {
+            size: size_uint,
+            ..Default::default()
+        }),
     };
     let config = AttachmentConfig::new().info(attachment_info);
 
@@ -150,12 +174,12 @@ pub async fn download_media(
     let qptr = crate::MatrixClient::singleton_ptr();
     let p = path.to_string_lossy().to_string();
     let rid = room_id.clone();
-    let mxc_url = media_source_json.clone();
+    let media_source_json = media_source_json.clone();
     let cb = qmetaobject::queued_callback(move |_: ()| {
         if let Some(this) = qptr.as_pinned() {
             this.borrow_mut().emit_file_downloaded(
                 QString::from(rid.as_str()),
-                QString::from(mxc_url.as_str()),
+                QString::from(media_source_json.as_str()),
                 QString::from(p.as_str()),
             );
         }
@@ -185,7 +209,7 @@ pub async fn set_avatar(
 /// Set the user's profile banner.
 ///
 /// Matrix has no standard "profile banner" field, so we store the banner
-/// locally in the app cache directory (`<cache_dir>/matrix-client/banner.<ext>`).
+/// locally in the app cache directory (`<cache_dir>/Rustrix/banner.<ext>`).
 /// The path is exposed to QML as a `file://` URL through `ProfileManager`.
 ///
 /// The previous banner file (if any) is removed first so we don't accumulate

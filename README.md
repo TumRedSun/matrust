@@ -1,4 +1,4 @@
-# matrix-client
+# Rustrix
 
 A **Matrix client for Linux** built with **Rust + Qt 6 / QML**, focused on
 maximum visual customization and the everyday chat feature set.
@@ -7,7 +7,7 @@ maximum visual customization and the everyday chat feature set.
 
 ### Protocol & connectivity
 - **Token-based auto-login**: the last session's access token is stored on
-  disk under `~/.local/share/matrix-client/session.json` and reused on the
+  disk under `~/.local/share/Rustrix/session.json` and reused on the
   next launch — no password is ever stored.
 - **Manual login** with username + password (against the homeserver's
   `/login` endpoint).
@@ -19,16 +19,24 @@ maximum visual customization and the everyday chat feature set.
   networks and for testing dual-stack homeservers.
 - **End-to-end encryption** via `matrix-sdk-crypto` (Olm/Megolm). Keys are
   persisted in a SQLite store under
-  `~/.local/share/matrix-client/sqlite/`.
+  `~/.local/share/Rustrix/sqlite/`.
+- **Automatic migration** of the old `matrix-client/` data directory to
+  `Rustrix/` on first launch of the new version (session, crypto store,
+  avatars, theme — all preserved).
 
 ### Chat
 - Send and receive **text messages** (Markdown supported via the SDK).
 - Receive **formatted messages** (HTML).
-- Send and receive **images** — inline thumbnails in the bubble.
-- Send and receive **videos** — filename + size + download button.
-- Send and receive **audio** and **arbitrary files**.
+- Send and receive **images** — inline preview in the bubble, click to open
+  full-size.
+- Send and receive **videos** — inline player with controls.
+- Send and receive **audio** and **arbitrary files** — tiles with name,
+  size, mime, and Download button.
+- **Multi-file attachments** — queue multiple files + text, send them all
+  together on Enter (Discord-style).
+- **Hidden files** (dotfiles) are visible in the file picker.
 - **Download any attachment** with a single click — files land in
-  `~/Downloads/matrix-client/` with collision-safe naming.
+  `~/Downloads/Rustrix/` with collision-safe naming.
 - Live unread badges & highlight counts on the room list.
 - Per-room last-event preview.
 
@@ -45,7 +53,7 @@ maximum visual customization and the everyday chat feature set.
 
 ### Maximum appearance customization
 The dedicated **Appearance** page exposes ~60 knobs, all saved to
-`~/.config/matrix-client/theme.json` and restored on the next launch:
+`~/.config/Rustrix/theme.json` and restored on the next launch:
 
 | Group | Knobs |
 |-------|-------|
@@ -68,7 +76,7 @@ updates live, no restart required.
 ## Project layout
 
 ```
-matrix-client/
+Rustrix/
 ├── Cargo.toml            # dependencies & build profile
 ├── build.rs              # Qt discovery helper
 ├── src/
@@ -151,7 +159,7 @@ nix-shell -p rustc cargo qt6.full pkg-config openssl sqlite
 ```bash
 # From the project root:
 cargo run                          # debug build + run
-cargo build --release              # optimized binary at target/release/matrix-client
+cargo build --release              # optimized binary at target/release/rustrix
 ```
 
 If `qmake` is not on `PATH`, point the build at it explicitly:
@@ -179,16 +187,20 @@ The `scripts/build.sh` and `scripts/run.sh` helpers wrap these for convenience.
 
 | Path | Contents |
 |------|----------|
-| `~/.local/share/matrix-client/session.json` | Homeserver URL, user ID, device ID, access token |
-| `~/.local/share/matrix-client/sqlite/` | Matrix SDK state (E2E keys, room state) |
-| `~/.local/share/matrix-client/avatars/` | Downloaded avatar thumbnails |
-| `~/.local/share/matrix-client/theme.json` | Custom appearance settings |
-| `~/Downloads/matrix-client/` | All downloads from chats |
+| `~/.local/share/Rustrix/session.json` | Homeserver URL, user ID, device ID, access token |
+| `~/.local/share/Rustrix/sqlite/` | Matrix SDK state (E2E keys, room state) |
+| `~/.local/share/Rustrix/avatars/` | Downloaded avatar thumbnails |
+| `~/.config/Rustrix/theme.json` | Custom appearance settings |
+| `~/Downloads/Rustrix/` | All downloads from chats |
+
+(If you previously used `matrix-client`, the old `~/.local/share/matrix-client/`
+directory is automatically renamed to `~/.local/share/Rustrix/` on the first
+launch — your session, E2E keys, and theme are preserved.)
 
 ## Removing the saved session / logout
 
 Either click **Logout** in the Settings page, or simply delete
-`~/.local/share/matrix-client/session.json`. The SQLite store remains, so
+`~/.local/share/Rustrix/session.json`. The SQLite store remains, so
 E2E keys survive a re-login.
 
 ---
@@ -226,8 +238,16 @@ behave identically.
 
 The `Theme` singleton is a `#[derive(QObject)]` Rust struct whose state is
 mirrored to a `ThemeState` (serde). Every setter writes through to
-`~/.config/matrix-client/theme.json`. QML reads properties via the
+`~/.config/Rustrix/theme.json`. QML reads properties via the
 standard property binding, so changes propagate instantly.
+
+### Inline media
+
+The `image://matrix/<media_source_json>` QML image provider fetches media
+bytes through the Matrix SDK (which transparently decrypts E2EE files),
+caches them under `<cache_dir>/Rustrix/media/`, and serves them to QML
+`Image` components. Videos are played inline with `MediaPlayer` +
+`VideoOutput`.
 
 ---
 
@@ -235,9 +255,6 @@ standard property binding, so changes propagate instantly.
 
 - Sliding Sync is not wired up; we use plain `/sync`. For large accounts,
   switching to `matrix_sdk_ui::sync_service` is recommended.
-- Image rendering of `mxc://` URIs uses an `image://matrix/` QML image
-  provider that is not yet implemented — currently image messages fall back
-  to a download button. A future commit will add the provider.
 - No voice / video calls (MSC3401).
 - No reply / edit / reactions UI (events are rendered as-is; SDK supports
   them, the QML side just needs the controls).

@@ -1,6 +1,6 @@
 #![recursion_limit = "256"]
 
-//! matrix-client — entry point.
+//! Rustrix — entry point.
 //!
 //! Boots the Tokio runtime, registers all QML singletons and types,
 //! and starts the Qt UI event loop.
@@ -36,6 +36,7 @@ mod avatar_cache;
 mod member_model;
 mod errors;
 mod pending;
+mod media_provider;
 
 use crate::matrix_client::MatrixClient;
 use crate::theme::Theme;
@@ -59,6 +60,7 @@ qrc! {
         "AppearancePage.qml",
         "SettingsOverlay.qml",
         "MemberListPanel.qml",
+        "FileBrowserDialog.qml",
     },
     "assets" as "/assets" {
         "logo.svg",
@@ -109,6 +111,11 @@ fn main() {
     qml_resources();
 
     let mut engine = QmlEngine::new();
+
+    // The window title is set in main.qml ("Rustrix — <user_id>" / "Rustrix").
+    // The binary is also named `rustrix`, so the WM_CLASS / Wayland app_id
+    // (which is what taskbars like waybar display) defaults to "rustrix".
+    // Together, these make the app show up as "Rustrix" everywhere.
 
     // Register singletons. qmetaobject 0.2 uses qml_register_singleton_type
     // with cstr!() and no &mut engine parameter.

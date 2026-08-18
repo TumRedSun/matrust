@@ -21,19 +21,15 @@
 // Regular messages render with avatar + bubble, mirrored for own
 // messages via layoutDirection.
 //
-// Media bubbles (image/video/audio/file):
-//   We do NOT try to inline-render the media — that would require a
-//   QML image provider (not registered in this build) and decryption
-//   for E2EE media. Instead we show a tile with the file name, size,
-//   mime type, and a Download button. Clicking the button calls
-//   MatrixClient.downloadMedia(roomId, mediaSourceJson, fileName),
-//   which uses the SDK to fetch + (if needed) decrypt the bytes and
-//   save them to the user's Downloads directory. The download
-//   completes via the `fileDownloaded` signal.
+// Media bubbles:
+//   - Images  → inline preview via MatrixClient.requestMedia / mediaReady
+//   - Videos  → inline player (MediaPlayer + VideoOutput)
+//   - Audio / arbitrary files → tile with name, size, mime, Download button
 
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtMultimedia
 import MatrixClient
 
 Item {
@@ -60,6 +56,10 @@ Item {
     // Whether this message renders in the "centered single-line" style
     // (system notices and undecryptable encrypted messages).
     readonly property bool isCentered: root.kind === "system" || root.kind === "encrypted"
+
+    // Local file path for inline media (set when mediaReady fires).
+    // Empty string = not yet fetched.
+    property string mediaLocalPath: ""
 
     // ── Delegate height ──
     // ListView uses the delegate's `implicitHeight` (when no explicit
@@ -119,9 +119,6 @@ Item {
         Rectangle {
             id: bubble
             Layout.alignment: Qt.AlignTop
-            // Do NOT use Layout.fillWidth — it would stretch to fill the
-            // remaining space, pushing the bubble all the way across.
-            // Instead, let the bubble size to its content and cap it.
             Layout.maximumWidth: root.maxBubbleWidth
             Layout.preferredWidth: Math.min(bubbleContent.implicitWidth + Theme.bubblePaddingH * 2,
                                             root.maxBubbleWidth)
@@ -165,9 +162,6 @@ Item {
                             case "video": return videoComp
                             case "audio": return audioComp
                             case "file":  return fileComp
-                            // "system" and "encrypted" never reach here
-                            // because they take the centered layout
-                            // path above. Keep them as a safety net.
                             case "system": return systemInlineComp
                             default: return textComp
                         }
@@ -177,13 +171,35 @@ Item {
         }
 
         // ── Spacer: fills remaining space so bubble doesn't stretch ──
-        // For own messages (RightToLeft), this spacer is on the LEFT,
-        // pushing the bubble to the right edge.
-        // For other messages (LeftToRight), this spacer is on the RIGHT,
-        // keeping the bubble at the left edge.
         Item {
             Layout.fillWidth: true
             Layout.minimumWidth: 0
+        }
+    }
+
+    // ── Inline media fetching ──
+    // When this delegate becomes visible and has a mediaSourceJson, ask
+    // the backend to fetch + cache the media. The backend emits
+    // mediaReady(sourceJson, localPath) — we match on sourceJson.
+    Component.onCompleted: {
+        if (root.mediaSourceJson.length > 0) {
+            // Check cache synchronously first — fast path.
+            MatrixClient.requestMedia(root.mediaSourceJson, root.mimeType)
+        }
+    }
+
+    // Listen for mediaReady signals matching our sourceJson.
+    Connections {
+        target: MatrixClient
+        function onMediaReady(sourceJson, localPath) {
+            if (sourceJson === root.mediaSourceJson) {
+                root.mediaLocalPath = localPath
+            }
+        }
+        function onMediaError(sourceJson, error) {
+            if (sourceJson === root.mediaSourceJson) {
+                console.log("MessageBubble: media fetch failed for " + sourceJson + ": " + error)
+            }
         }
     }
 
@@ -215,10 +231,10 @@ Item {
     }
 
     // ── Image message ──
-    // We don't try to render the image inline (would need a QML image
-    // provider + E2EE decryption). Instead we show a tile with the
-    // file name, size, and a Download button. The body (caption) is
-    // shown above the tile if present.
+    // Inline preview with click-to-fullscreen. The image is fetched
+    // asynchronously via MatrixClient.requestMedia / mediaReady. If the
+    // fetch hasn't completed yet, we show a placeholder with the file
+    // name + size.
     Component {
         id: imageComp
         ColumnLayout {
@@ -232,84 +248,190 @@ Item {
                 font.pixelSize: Theme.fontSizeMd
                 wrapMode: Text.Wrap
             }
-            // Image tile: icon + file info + Download button
-            RowLayout {
+            // Image preview (or placeholder while loading)
+            Item {
                 Layout.fillWidth: true
-                spacing: Theme.spacingSm
-                Label {
-                    text: "\uD83D\uDDBC"  // 🖼
-                    font.pixelSize: Theme.fontSizeLg
+                Layout.preferredHeight: root.mediaLocalPath.length > 0 ? img.status === Image.Ready ? img.implicitHeight : 240 : 80
+
+                Image {
+                    id: img
+                    anchors.fill: parent
+                    fillMode: Image.PreserveAspectFit
+                    source: root.mediaLocalPath.length > 0
+                            ? "file://" + root.mediaLocalPath
+                            : ""
+                    asynchronous: true
+                    visible: root.mediaLocalPath.length > 0
+
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onDoubleClicked: {
+                            // Open with system default app.
+                            if (root.mediaLocalPath.length > 0) {
+                                Qt.openUrlExternally("file://" + root.mediaLocalPath)
+                            }
+                        }
+                    }
                 }
+
+                // Loading / error placeholder
                 ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: 0
+                    anchors.centerIn: parent
+                    visible: root.mediaLocalPath.length === 0
+                    spacing: 4
                     Label {
-                        text: root.fileName.length > 0 ? root.fileName : qsTr("Image")
-                        color: root.isOwn ? Theme.bubbleFgMe : Theme.bubbleFgThem
-                        font.pixelSize: Theme.fontSizeSm
-                        elide: Text.ElideRight
-                        Layout.fillWidth: true
+                        text: "\uD83D\uDDBC"  // 🖼
+                        font.pixelSize: Theme.fontSizeLg
+                        Layout.alignment: Qt.AlignHCenter
                     }
                     Label {
-                        text: formatBytes(root.fileSize)
-                              + (root.mimeType.length > 0 ? " \u00B7 " + root.mimeType : "")
+                        text: qsTr("Loading image\u2026")
                         color: Theme.muted
                         font.pixelSize: Theme.fontSizeXs
+                        Layout.alignment: Qt.AlignHCenter
+                    }
+                    Label {
+                        text: root.fileName + " \u00B7 " + formatBytes(root.fileSize)
+                        color: Theme.muted
+                        font.pixelSize: Theme.fontSizeXs
+                        Layout.alignment: Qt.AlignHCenter
+                        elide: Text.ElideRight
+                        Layout.maximumWidth: 240
                     }
                 }
+            }
+            // Download button + timestamp row
+            RowLayout {
+                Layout.fillWidth: true
+                Label {
+                    visible: Theme.showTimestamps && root.ts > 0
+                    text: formatTime(root.ts)
+                    color: root.isOwn ? Theme.bubbleFgMe : Theme.muted
+                    font.pixelSize: Theme.fontSizeXs
+                }
+                Item { Layout.fillWidth: true }
                 Button {
-                    text: qsTr("\u2193")  // ↓
+                    text: qsTr("\u2193 Save")
                     enabled: root.mediaSourceJson.length > 0
                     onClicked: MatrixClient.downloadMedia(root.roomId, root.mediaSourceJson, root.fileName)
                 }
-            }
-            Label {
-                visible: Theme.showTimestamps && root.ts > 0
-                text: formatTime(root.ts)
-                color: root.isOwn ? Theme.bubbleFgMe : Theme.muted
-                font.pixelSize: Theme.fontSizeXs
-                Layout.alignment: Qt.AlignRight
             }
         }
     }
 
+    // ── Video message ──
+    // Inline player with controls. The video is fetched asynchronously
+    // via MatrixClient.requestMedia / mediaReady. While loading, we
+    // show a placeholder with the file name + size.
     Component {
         id: videoComp
         ColumnLayout {
             spacing: 4
-            RowLayout {
+            // Caption
+            Label {
                 Layout.fillWidth: true
-                spacing: Theme.spacingSm
-                Label { text: "\uD83C\uDFAC"; font.pixelSize: Theme.fontSizeLg }  // 🎬
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: 0
-                    Label {
-                        text: root.fileName.length > 0 ? root.fileName : qsTr("Video")
-                        color: root.isOwn ? Theme.bubbleFgMe : Theme.bubbleFgThem
-                        font.pixelSize: Theme.fontSizeSm
-                        elide: Text.ElideRight
+                visible: root.body.length > 0 && root.body !== root.fileName
+                text: root.body
+                color: root.isOwn ? Theme.bubbleFgMe : Theme.bubbleFgThem
+                font.pixelSize: Theme.fontSizeMd
+                wrapMode: Text.Wrap
+            }
+            // Video player (or placeholder while loading)
+            Item {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 240
+
+                // VideoOutput + MediaPlayer (Qt 5/6 multimedia)
+                VideoOutput {
+                    id: videoOut
+                    anchors.fill: parent
+                    visible: root.mediaLocalPath.length > 0
+                    fillMode: VideoOutput.PreserveAspectFit
+                }
+                MediaPlayer {
+                    id: mediaPlayer
+                    source: root.mediaLocalPath.length > 0
+                            ? "file://" + root.mediaLocalPath
+                            : ""
+                    videoOutput: videoOut
+                    // Don't auto-play — wait for user to click play.
+                    autoPlay: false
+                }
+
+                // Controls overlay (play/pause + position slider)
+                RowLayout {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.bottom: parent.bottom
+                    anchors.margins: 4
+                    visible: root.mediaLocalPath.length > 0
+                    spacing: 4
+
+                    Button {
+                        text: mediaPlayer.playing ? qsTr("\u23F8") : qsTr("\u25B6")  // ⏸ / ▶
+                        onClicked: {
+                            if (mediaPlayer.playing) {
+                                mediaPlayer.pause()
+                            } else {
+                                mediaPlayer.play()
+                            }
+                        }
+                    }
+                    Slider {
                         Layout.fillWidth: true
+                        from: 0
+                        to: mediaPlayer.duration > 0 ? mediaPlayer.duration : 1
+                        value: mediaPlayer.position
+                        onMoved: mediaPlayer.position = value
                     }
                     Label {
-                        text: formatBytes(root.fileSize)
-                              + (root.mimeType.length > 0 ? " \u00B7 " + root.mimeType : "")
-                        color: Theme.muted
+                        text: formatTimeShort(mediaPlayer.position) + " / " + formatTimeShort(mediaPlayer.duration)
+                        color: Theme.sidebarFg
                         font.pixelSize: Theme.fontSizeXs
                     }
                 }
+
+                // Loading / error placeholder
+                ColumnLayout {
+                    anchors.centerIn: parent
+                    visible: root.mediaLocalPath.length === 0
+                    spacing: 4
+                    Label {
+                        text: "\uD83C\uDFAC"  // 🎬
+                        font.pixelSize: Theme.fontSizeLg
+                        Layout.alignment: Qt.AlignHCenter
+                    }
+                    Label {
+                        text: qsTr("Loading video\u2026")
+                        color: Theme.muted
+                        font.pixelSize: Theme.fontSizeXs
+                        Layout.alignment: Qt.AlignHCenter
+                    }
+                    Label {
+                        text: root.fileName + " \u00B7 " + formatBytes(root.fileSize)
+                        color: Theme.muted
+                        font.pixelSize: Theme.fontSizeXs
+                        Layout.alignment: Qt.AlignHCenter
+                        elide: Text.ElideRight
+                        Layout.maximumWidth: 240
+                    }
+                }
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                Label {
+                    visible: Theme.showTimestamps && root.ts > 0
+                    text: formatTime(root.ts)
+                    color: root.isOwn ? Theme.bubbleFgMe : Theme.muted
+                    font.pixelSize: Theme.fontSizeXs
+                }
+                Item { Layout.fillWidth: true }
                 Button {
-                    text: qsTr("\u2193")
+                    text: qsTr("\u2193 Save")
                     enabled: root.mediaSourceJson.length > 0
                     onClicked: MatrixClient.downloadMedia(root.roomId, root.mediaSourceJson, root.fileName)
                 }
-            }
-            Label {
-                visible: Theme.showTimestamps && root.ts > 0
-                text: formatTime(root.ts)
-                color: root.isOwn ? Theme.bubbleFgMe : Theme.muted
-                font.pixelSize: Theme.fontSizeXs
-                Layout.alignment: Qt.AlignRight
             }
         }
     }
@@ -419,6 +541,13 @@ Item {
         var hh = ("0" + d.getHours()).slice(-2)
         var mm = ("0" + d.getMinutes()).slice(-2)
         return hh + ":" + mm
+    }
+    function formatTimeShort(ms) {
+        if (ms <= 0 || isNaN(ms)) return "0:00"
+        var s = Math.floor(ms / 1000)
+        var m = Math.floor(s / 60)
+        s = s % 60
+        return m + ":" + ("0" + s).slice(-2)
     }
     function formatBytes(b) {
         if (b < 1024) return b + " B"

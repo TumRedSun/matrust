@@ -18,6 +18,12 @@ Rectangle {
     // This is updated reactively when RoomModel changes (see Connections below).
     property string roomDisplayName: ""
 
+    // Pending attachments — JS array of objects: {path, name, size, mime, kind}
+    // where kind is "image" | "video" | "audio" | "file" (inferred from mime).
+    // When the user presses Enter (or clicks Send), all attachments are
+    // uploaded + sent, followed by the text (if any) as a separate message.
+    property var pendingAttachments: []
+
     // Helper to look up room name from RoomModel.
     // Role numbers: USER_ROLE=256, so room_id=256, name=257.
     function lookupRoomName() {
@@ -37,6 +43,74 @@ Rectangle {
         }
         console.log("ChatPage: room not found in RoomModel, roomId=" + roomId + " count=" + RoomModel.count)
         roomDisplayName = roomId
+    }
+
+    // Infer the "kind" of a file from its MIME type or extension.
+    // Used to choose between image / video / audio / file AttachmentInfo.
+    function inferKind(path, mime) {
+        var p = path.toLowerCase()
+        var m = mime.toLowerCase()
+        if (m.indexOf("image/") === 0 || /\.(png|jpe?g|gif|webp|svg|bmp|heic|heif|tiff?|avif)$/.test(p)) {
+            return "image"
+        }
+        if (m.indexOf("video/") === 0 || /\.(mp4|webm|mkv|mov|avi|mpg|mpeg|m4v|flv|wmv|3gp)$/.test(p)) {
+            return "video"
+        }
+        if (m.indexOf("audio/") === 0 || /\.(mp3|wav|ogg|flac|aac|m4a|opus|wma|aiff?)$/.test(p)) {
+            return "audio"
+        }
+        return "file"
+    }
+
+    // Add a file path to the pending attachments list.
+    function addAttachment(path) {
+        // Strip file:// prefix if present
+        if (path.startsWith("file://")) path = path.substring(7)
+        // Decode percent-encoded path (fileDialog URLs sometimes are)
+        try { path = decodeURIComponent(path) } catch (e) {}
+        // Derive display name from path
+        var name = path
+        var slash = path.lastIndexOf("/")
+        if (slash >= 0) name = path.substring(slash + 1)
+        // Get file size via listDirectory parent + name lookup — too expensive.
+        // Instead, just store the path and infer mime from extension.
+        var mime = ""  // empty → send_attachment will infer via mime_guess
+        var kind = inferKind(path, mime)
+        var copy = pendingAttachments.slice()
+        copy.push({path: path, name: name, mime: mime, kind: kind})
+        pendingAttachments = copy
+    }
+
+    // Remove an attachment by index.
+    function removeAttachment(index) {
+        var copy = pendingAttachments.slice()
+        copy.splice(index, 1)
+        pendingAttachments = copy
+    }
+
+    // Send all pending attachments + the current text, then clear.
+    function sendAll() {
+        if (MatrixClient.offline) return
+        if (roomId.length === 0) return
+        var hasText = composer.text.trim().length > 0
+        var hasAttachments = pendingAttachments.length > 0
+        if (!hasText && !hasAttachments) return
+
+        // Send attachments first (each as its own message event — Matrix
+        // doesn't support multi-file events, so each file becomes a
+        // separate m.image / m.video / m.file message).
+        for (var i = 0; i < pendingAttachments.length; i++) {
+            var a = pendingAttachments[i]
+            MatrixClient.sendFile(roomId, a.path, a.mime, a.kind)
+        }
+        // Then send the text (if any) as a separate m.message event.
+        // Doing text last so the attachments appear above the caption in
+        // the timeline (which is the natural reading order).
+        if (hasText) {
+            MatrixClient.sendText(roomId, composer.text)
+        }
+        composer.text = ""
+        pendingAttachments = []
     }
 
     ColumnLayout {
@@ -136,6 +210,73 @@ Rectangle {
             }
         }
 
+        // ── Pending attachments strip (Discord-style) ──
+        // Visible only when there are pending attachments.
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.preferredHeight: pendingAttachments.length > 0 ? 72 : 0
+            color: Theme.sidebarBg
+            visible: pendingAttachments.length > 0
+
+            ScrollView {
+                anchors.fill: parent
+                anchors.margins: 4
+                clip: true
+
+                ListView {
+                    id: attachmentsList
+                    model: chatPageRoot.pendingAttachments
+                    orientation: ListView.Horizontal
+                    spacing: 4
+
+                    delegate: Rectangle {
+                        width: 200
+                        height: attachmentsList.height - 8
+                        anchors.verticalCenter: undefined
+                        color: Theme.bubbleBgMe
+                        radius: Theme.radiusSm
+
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.margins: 6
+                            spacing: 6
+
+                            Label {
+                                text: modelData.kind === "image" ? "\uD83D\uDDBC"
+                                      : modelData.kind === "video" ? "\uD83C\uDFAC"
+                                      : modelData.kind === "audio" ? "\uD83C\uDFB5"
+                                      : "\uD83D\uDCC4"
+                                font.pixelSize: Theme.fontSizeLg
+                            }
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 0
+                                Label {
+                                    text: modelData.name
+                                    color: Theme.bubbleFgMe
+                                    font.pixelSize: Theme.fontSizeXs
+                                    elide: Text.ElideRight
+                                    Layout.fillWidth: true
+                                }
+                                Label {
+                                    text: modelData.kind
+                                    color: Theme.muted
+                                    font.pixelSize: Theme.fontSizeXs
+                                    textFormat: Text.PlainText
+                                }
+                            }
+                            Button {
+                                text: "\u2715"  // ✕
+                                background: Rectangle { color: "transparent" }
+                                font.pixelSize: Theme.fontSizeSm
+                                onClicked: chatPageRoot.removeAttachment(index)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // ── Composer ──
         Rectangle {
             Layout.fillWidth: true
@@ -149,26 +290,17 @@ Rectangle {
                 anchors.rightMargin: Theme.paddingSm
                 spacing: Theme.spacingSm
 
+                // Single universal attach button (replaces 3 buttons).
+                // Clicking it opens the custom FileBrowserDialog which
+                // supports multi-file selection + hidden files.
                 Button {
-                    text: qsTr("\uD83D\uDCCE")
+                    text: qsTr("\uD83D\uDCC1")  // 📁
                     background: Rectangle { color: "transparent"; radius: Theme.radiusSm }
                     font.pixelSize: Theme.fontSizeLg
-                    onClicked: fileDialog.open()
+                    onClicked: fileBrowser.open()
                     enabled: roomId.length > 0 && !MatrixClient.offline
-                }
-                Button {
-                    text: qsTr("\uD83D\uDDBC")
-                    background: Rectangle { color: "transparent"; radius: Theme.radiusSm }
-                    font.pixelSize: Theme.fontSizeLg
-                    onClicked: imageDialog.open()
-                    enabled: roomId.length > 0 && !MatrixClient.offline
-                }
-                Button {
-                    text: qsTr("\uD83C\uDFAC")
-                    background: Rectangle { color: "transparent"; radius: Theme.radiusSm }
-                    font.pixelSize: Theme.fontSizeLg
-                    onClicked: videoDialog.open()
-                    enabled: roomId.length > 0 && !MatrixClient.offline
+                    ToolTip.text: qsTr("Attach files (multiple selection supported)")
+                    ToolTip.visible: hovered
                 }
 
                 ScrollView {
@@ -178,7 +310,9 @@ Rectangle {
                         id: composer
                         placeholderText: MatrixClient.offline
                                                ? qsTr("Offline \u2014 messages cannot be sent")
-                                               : qsTr("Type a message\u2026")
+                                               : (pendingAttachments.length > 0
+                                                  ? qsTr("Add a caption (optional) and press Enter to send\u2026")
+                                                  : qsTr("Type a message\u2026"))
                         placeholderTextColor: MatrixClient.offline ? Theme.accent : Theme.muted
                         color: MatrixClient.offline ? Theme.muted : Theme.sidebarFg
                         wrapMode: TextArea.Wrap
@@ -190,10 +324,7 @@ Rectangle {
                                 composer.append("\n")
                             } else {
                                 event.accepted = true
-                                if (composer.text.trim().length > 0 && roomId.length > 0) {
-                                    MatrixClient.sendText(roomId, composer.text)
-                                    composer.text = ""
-                                }
+                                chatPageRoot.sendAll()
                             }
                         }
                     }
@@ -201,46 +332,26 @@ Rectangle {
 
                 Button {
                     text: qsTr("Send")
-                    enabled: roomId.length > 0 && composer.text.trim().length > 0 && !MatrixClient.offline
+                    enabled: roomId.length > 0
+                             && (composer.text.trim().length > 0 || pendingAttachments.length > 0)
+                             && !MatrixClient.offline
                     background: Rectangle { color: parent.enabled ? Theme.accent : Theme.muted; radius: Theme.radiusSm }
                     contentItem: Label { text: parent.text; color: Theme.accentFg }
-                    onClicked: {
-                        if (MatrixClient.offline) return
-                        MatrixClient.sendText(roomId, composer.text)
-                        composer.text = ""
-                    }
+                    onClicked: chatPageRoot.sendAll()
                 }
             }
         }
     }
 
-    FileDialog {
-        id: fileDialog
-        title: qsTr("Choose a file to send")
-        onAccepted: {
-            var path = fileDialog.currentFile.toString()
-            if (path.startsWith("file://")) path = path.substring(7)
-            MatrixClient.sendFile(roomId, path, "", "file")
-        }
-    }
-    FileDialog {
-        id: imageDialog
-        title: qsTr("Choose an image")
-        nameFilters: ["Images (*.png *.jpg *.jpeg *.gif *.webp *.svg)"]
-        onAccepted: {
-            var path = imageDialog.currentFile.toString()
-            if (path.startsWith("file://")) path = path.substring(7)
-            MatrixClient.sendFile(roomId, path, "image/*", "image")
-        }
-    }
-    FileDialog {
-        id: videoDialog
-        title: qsTr("Choose a video")
-        nameFilters: ["Videos (*.mp4 *.webm *.mkv *.mov)"]
-        onAccepted: {
-            var path = videoDialog.currentFile.toString()
-            if (path.startsWith("file://")) path = path.substring(7)
-            MatrixClient.sendFile(roomId, path, "video/*", "video")
+    // Custom file browser (multi-select + hidden files support).
+    // The stock QtQuick.Dialogs FileDialog doesn't expose a show-hidden
+    // toggle, and on most Linux desktops the native dialog hides dotfiles.
+    FileBrowserDialog {
+        id: fileBrowser
+        onFilesSelected: function(paths) {
+            for (var i = 0; i < paths.length; i++) {
+                chatPageRoot.addAttachment(paths[i])
+            }
         }
     }
 

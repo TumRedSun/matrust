@@ -42,9 +42,10 @@ use std::time::Duration;
 /// Mirrors `MatrixClient::session_file_path` so session.json and the
 /// crypto DB live side-by-side under the same project data dir.
 fn store_dir() -> PathBuf {
-    let base = directories::ProjectDirs::from("dev", "matrixclient", "matrix-client")
+    let base = directories::ProjectDirs::from("dev", "rustrix", "Rustrix")
         .map(|d| d.data_dir().to_path_buf())
-        .unwrap_or_else(|| std::env::temp_dir().join("matrix-client"));
+        .unwrap_or_else(|| std::env::temp_dir().join("Rustrix"));
+    crate::avatar_cache::migrate_old_data_dir(&base);
     std::fs::create_dir_all(&base).ok();
     base
 }
@@ -60,7 +61,7 @@ pub async fn build_client(homeserver: &str, force_ipv6: bool) -> Result<Client> 
 
     let mut builder = Client::builder()
         .homeserver_url(hs)
-        .user_agent("matrix-client-rust-qt/0.1")
+        .user_agent("Rustrix/0.1 (rust+qt)")
         .sqlite_store(store_path, None)
         .request_config(
             matrix_sdk::config::RequestConfig::default()
@@ -80,7 +81,7 @@ fn _build_default_http() -> Result<reqwest::Client> {
     Ok(reqwest::ClientBuilder::new()
         .timeout(Duration::from_secs(30))
         .pool_idle_timeout(Duration::from_secs(90))
-        .user_agent("matrix-client-rust-qt/0.1")
+        .user_agent("Rustrix/0.1 (rust+qt)")
         .build()?)
 }
 
@@ -96,7 +97,7 @@ fn build_ipv6_only_http() -> Result<reqwest::Client> {
     Ok(reqwest::ClientBuilder::new()
         .timeout(Duration::from_secs(45))
         .pool_idle_timeout(Duration::from_secs(120))
-        .user_agent("matrix-client-rust-qt/0.1 (ipv6-only)")
+        .user_agent("Rustrix/0.1 (rust+qt, ipv6-only)")
         .dns_resolver(Arc::new(Ipv6OnlyResolver { resolver }))
         .build()?)
 }

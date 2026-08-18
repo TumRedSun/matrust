@@ -2420,43 +2420,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "matrix-client"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "bytes",
- "chrono",
- "cstr",
- "directories",
- "env_logger",
- "futures",
- "hickory-proto",
- "hickory-resolver",
- "indexmap",
- "keyring",
- "log",
- "matrix-sdk",
- "matrix-sdk-ui",
- "mime",
- "mime_guess",
- "parking_lot",
- "paste",
- "percent-encoding",
- "qmetaobject",
- "qttypes",
- "reqwest",
- "ruma",
- "serde",
- "serde_json",
- "sha2 0.11.0",
- "thiserror 2.0.20",
- "tokio",
- "url",
- "uuid",
-]
-
-[[package]]
 name = "matrix-pickle"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3957,6 +3920,43 @@ dependencies = [
  "ring",
  "rustls-pki-types",
  "untrusted",
+]
+
+[[package]]
+name = "rustrix"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "bytes",
+ "chrono",
+ "cstr",
+ "directories",
+ "env_logger",
+ "futures",
+ "hickory-proto",
+ "hickory-resolver",
+ "indexmap",
+ "keyring",
+ "log",
+ "matrix-sdk",
+ "matrix-sdk-ui",
+ "mime",
+ "mime_guess",
+ "parking_lot",
+ "paste",
+ "percent-encoding",
+ "qmetaobject",
+ "qttypes",
+ "reqwest",
+ "ruma",
+ "serde",
+ "serde_json",
+ "sha2 0.11.0",
+ "thiserror 2.0.20",
+ "tokio",
+ "url",
+ "uuid",
 ]
 
 [[package]]

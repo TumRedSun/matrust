@@ -17,4 +17,4 @@ fi
 echo "Using QMAKE=$QMAKE"
 cargo build --release "$@"
 echo
-echo "Release binary: target/release/matrix-client"
+echo "Release binary: target/release/rustrix"
