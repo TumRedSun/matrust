@@ -719,7 +719,6 @@ impl MatrixClient {
     pub fn saveTextToFile(&self, text: QString, suggested_name: QString) {
         let text_bytes = text.to_string().into_bytes();
         let name = suggested_name.to_string();
-        let qptr = Self::singleton_ptr();
         self.spawn(async move {
             let dir = crate::avatar_cache::downloads_dir();
             std::fs::create_dir_all(&dir)?;
@@ -736,6 +735,15 @@ impl MatrixClient {
             let path = dir.join(final_name);
             std::fs::write(&path, &text_bytes)?;
             let p = path.to_string_lossy().to_string();
+            // Build the QPointer INSIDE the async block — QPointer holds a
+            // raw `*const MatrixClient`, which is not `Send`. Capturing it
+            // across the spawn boundary (declared before `self.spawn`) would
+            // make the future `!Send` and fail the compile-time check in
+            // `MatrixClient::spawn`. Creating it here on the worker thread
+            // and immediately using it via `queued_callback` (which schedules
+            // the actual emit on the Qt main thread) is the same pattern
+            // `requestMedia` uses.
+            let qptr = Self::singleton_ptr();
             let cb = qmetaobject::queued_callback(move |_: ()| {
                 if let Some(this) = qptr.as_pinned() {
                     this.borrow_mut().emit_file_downloaded(

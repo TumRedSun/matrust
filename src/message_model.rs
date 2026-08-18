@@ -50,7 +50,7 @@ pub struct MessageModel {
     /// visual, doesn't touch the server. The event reappears on the next
     /// full reload (sync / room switch) because we don't persist the
     /// hidden state.
-    hideEvent: qt_method!(fn(&self, event_id: QString)),
+    hideEvent: qt_method!(fn(&mut self, event_id: QString)),
 }
 
 /// Helper to extract a URL string from a MediaSource enum.
@@ -631,7 +631,7 @@ impl MessageModel {
     /// visual, doesn't touch the server. The event reappears on the next
     /// full reload (sync / room switch) because we don't persist the
     /// hidden state.
-    pub fn hideEvent(&self, event_id: QString) {
+    pub fn hideEvent(&mut self, event_id: QString) {
         let target = event_id.to_string();
         let mut entries = self.entries.borrow_mut();
         let before = entries.len();
