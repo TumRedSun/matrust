@@ -1433,6 +1433,10 @@ impl MatrixClient {
         rt.spawn(async move {
             let mut sync_token: Option<String> = None;
             let mut sync_cycle: u32 = 0;
+            // Count of consecutive sync_once failures. Reset to 0 on any
+            // success. Used to suppress transient offline flicker — see
+            // the error branch below.
+            let mut consecutive_sync_failures: u32 = 0;
 
             // ── Initial sync with retry ──
             let max_initial_retries: u32 = 5;
@@ -1501,6 +1505,10 @@ impl MatrixClient {
                 match result {
                     Ok(response) => {
                         sync_token = Some(response.next_batch);
+                        // Reset the consecutive-failure counter — the
+                        // server is alive, so any prior offline flag
+                        // should be cleared (pushed below).
+                        consecutive_sync_failures = 0;
                         ::log::info!(
                             "sync_once: cycle #{} OK in {:.1}s, next_batch token present={}",
                             sync_cycle, elapsed.as_secs_f64(), sync_token.is_some()
@@ -1527,9 +1535,37 @@ impl MatrixClient {
                         crate::pending::push(crate::pending::PendingEvent::SetOffline(false));
                     }
                     Err(e) => {
-                        crate::pending::push(crate::pending::PendingEvent::SetOffline(true));
+                        // ── Less aggressive offline detection ──
+                        // The matrix-sdk long-poll sync uses a 30s server
+                        // timeout. When the network blips or the server
+                        // takes slightly longer, sync_once returns an
+                        // error — but that's NOT actually "offline": the
+                        // next sync cycle will succeed. We were flipping
+                        // the offline flag on every transient error,
+                        // which made the chat composer flash "Offline"
+                        // even though the server was alive.
+                        //
+                        // Now we only mark offline after 3 CONSECUTIVE
+                        // failures (≈15s of dead network), and we never
+                        // mark offline for timeout-class errors at all
+                        // (they're expected behaviour of long-poll).
+                        let err_str = format!("{e}").to_lowercase();
+                        let is_timeout = err_str.contains("timeout")
+                            || err_str.contains("timed out")
+                            || err_str.contains("operation timed")
+                            || err_str.contains("request timed");
+                        consecutive_sync_failures = consecutive_sync_failures.saturating_add(1);
+                        if !is_timeout && consecutive_sync_failures >= 3 {
+                            crate::pending::push(crate::pending::PendingEvent::SetOffline(true));
+                        } else if is_timeout {
+                            // Timeouts are expected; don't toggle offline
+                            // at all — log only.
+                            ::log::info!("sync_once: timeout on cycle #{} ({}s) — ignoring, server likely alive", sync_cycle, elapsed.as_secs());
+                        }
                         let backoff_secs = std::cmp::min(5 * 2u64.pow(std::cmp::min(sync_cycle, 4)), 60);
-                        ::log::warn!("sync_once: cycle #{} error after {:.1}s: {e} — retry in {}s", sync_cycle, elapsed.as_secs_f64(), backoff_secs);
+                        ::log::warn!("sync_once: cycle #{} error after {:.1}s: {e} — retry in {}s (consecutive failures: {}{})",
+                            sync_cycle, elapsed.as_secs_f64(), backoff_secs, consecutive_sync_failures,
+                            if is_timeout { " [timeout — not marking offline]" } else { "" });
                         tokio::time::sleep(std::time::Duration::from_secs(backoff_secs)).await;
                     }
                 }

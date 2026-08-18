@@ -153,6 +153,56 @@ Rectangle {
         replyToBody = ""
     }
 
+    // Look up a replied-to message by event_id in the current
+    // MessageModel. If found, store its body + sender so the
+    // MessageBubble can render a reply quote above the reply body.
+    //
+    // Used by MessageBubble.Component.onCompleted when its `replyTo`
+    // property is set (from model.reply_to). We scan MessageModel
+    // role-by-role because QAbstractListModel doesn't expose a
+    // "find by id" API — the visible window is ~50 items so this is
+    // cheap.
+    //
+    // Sets two properties on the passed `bubble` object: replyToBody
+    // and replyToSender. Returns nothing — caller passes the bubble
+    // instance and we mutate it directly.
+    function lookupReplyTarget(targetEventId) {
+        if (targetEventId.length === 0) return
+        // Role numbers — see MessageEntry.names() in src/message_model.rs:
+        //   event_id        = USER_ROLE + 0  = 256
+        //   sender          = USER_ROLE + 1  = 257
+        //   sender_display  = USER_ROLE + 2  = 258
+        //   body            = USER_ROLE + 4  = 260
+        //   kind            = USER_ROLE + 8  = 264
+        //   file_name       = USER_ROLE + 11 = 267
+        var n = MessageModel.count
+        for (var i = 0; i < n; i++) {
+            var ix = MessageModel.index(i, 0)
+            var eid = MessageModel.data(ix, 256).toString()
+            if (eid === targetEventId) {
+                var body = MessageModel.data(ix, 260).toString()
+                var sender = MessageModel.data(ix, 258).toString()
+                if (sender.length === 0) {
+                    sender = MessageModel.data(ix, 257).toString()
+                }
+                var kind = MessageModel.data(ix, 264).toString()
+                var fname = MessageModel.data(ix, 267).toString()
+                // For media messages, the body is usually the file name
+                // (which is not useful as a quote). Substitute a kind
+                // label so the quote shows "📷 Photo" instead of
+                // "Screenshot_2025-08-19.png".
+                if (kind === "image") body = qsTr("\uD83D\uDDBC Photo")
+                else if (kind === "video") body = qsTr("\uD83C\uDFAC Video")
+                else if (kind === "audio") body = qsTr("\uD83C\uDFB5 Audio")
+                else if (kind === "file") body = qsTr("\uD83D\uDCC4 File: ") + fname
+                return { body: body, sender: sender }
+            }
+        }
+        // Not found — original may be outside the loaded 50-item window.
+        // Return empty values; the QML will show "(original message)".
+        return { body: "", sender: "" }
+    }
+
     // Send all pending attachments + the current text, then clear.
     function sendAll() {
         if (MatrixClient.offline) return
@@ -280,7 +330,28 @@ Rectangle {
                         fileName: model.file_name
                         fileSize: model.file_size
                         mimeType: model.mime_type
+                        replyTo: model.reply_to
+                        // Initialize localReactions from server-side data.
+                        // QML appends to this when the user clicks React.
+                        localReactions: model.reactions || ""
                         roomId: chatPageRoot.roomId
+
+                        // ── Reply quote lookup ──
+                        // When the message has `reply_to` set, look up
+                        // the original message in MessageModel so we can
+                        // show a preview of the replied-to body + sender.
+                        // Done in Component.onCompleted (one-shot, when
+                        // the delegate is created) — cheap O(n) scan
+                        // over the visible window of ~50 messages.
+                        Component.onCompleted: {
+                            if (replyTo.length > 0) {
+                                var r = chatPageRoot.lookupReplyTarget(replyTo)
+                                if (r) {
+                                    replyToBody = r.body
+                                    replyToSender = r.sender
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -663,14 +734,35 @@ Rectangle {
     // After each sync cycle, reload messages for the currently open
     // room so new incoming messages appear in real time.
     //
-    // We save the current scroll position (contentY) before the reload
-    // and restore it afterwards, so a user who has scrolled up to read
-    // history is NOT yanked back to the bottom. If the user is already
-    // at the bottom (atYBeginning), we explicitly re-pin to the bottom
-    // so the newly arrived message is visible.
+    // ── Sync-triggered reload with debounce ──
+    // The Rust sync loop fires `syncDone` after every poll cycle (every
+    // ~30s normally, but more often when messages arrive). Each fires
+    // `loadRoomMessages` which triggers `beginResetModel` on the Qt
+    // side — that's what caused the visible flicker ("messages disappear
+    // for a frame then reappear").
+    //
+    // We debounce: collapse a burst of syncDone signals into a single
+    // reload that fires 400ms after the last one. This means a single
+    // arriving message produces one smooth reload instead of a stutter.
+    //
+    // We also save scroll state at debounce time (not at signal time)
+    // so the saved Y reflects the latest user position.
     Connections {
         target: MatrixClient
         function onSyncDone(payload) {
+            if (chatPageRoot.roomId.length === 0) return
+            // Coalesce: restart the debounce timer. If a reload is
+            // already pending, it gets pushed back another 400ms —
+            // so a burst of 3 syncs in 1s produces only 1 reload.
+            syncReloadTimer.start()
+        }
+    }
+
+    Timer {
+        id: syncReloadTimer
+        interval: 400
+        repeat: false
+        onTriggered: {
             if (chatPageRoot.roomId.length === 0) return
             // Save scroll state. For BottomToTop layout:
             //   atYBeginning == true  → user is at the bottom (newest)

@@ -24,6 +24,11 @@ pub struct MessageEntry {
     pub file_size: i64,
     pub mime_type: QString,
     pub reply_to: QString,
+    /// Comma-separated list of emoji that have been reacted to this message
+    /// by anyone in the room (deduplicated by key, includes both our own
+    /// and others' reactions). QML splits this on "," and renders a chip
+    /// per emoji under the bubble.
+    pub reactions: QString,
     pub edited: bool,
     pub pending: bool,
     pub failed: bool,
@@ -196,6 +201,47 @@ impl MessageModel {
                     match &msg_like.kind {
                         MsgLikeKind::Message(msg) => {
                             use matrix_sdk::ruma::events::room::message::MessageType;
+                            // ── Extract reply target ──
+                            // `in_reply_to()` returns Option<&OwnedEventId>.
+                            // We store the EventId string in entry.reply_to
+                            // so the QML side can look up the original
+                            // message in MessageModel and render a reply
+                            // quote above the reply body. Without this the
+                            // reply is shown as a plain text message and
+                            // users can't tell it's a reply.
+                            if let Some(replied_to) = msg.in_reply_to() {
+                                entry.reply_to = QString::from(replied_to.to_string().as_str());
+                            }
+                            // ── Extract reactions ──
+                            // `reactions()` returns &ReactionsByKeyBySender
+                            // — a map of emoji-key → {sender → status}. We
+                            // collect just the keys (emoji strings) into a
+                            // comma-separated list, since that's all QML
+                            // needs to render the reaction chips. Status
+                            // filtering (only show "sent" reactions, not
+                            // pending/failed ones) is skipped for simplicity
+                            // — the SDK usually only exposes successful ones
+                            // here anyway.
+                            //
+                            // `ReactionsByKeyBySender` implements IntoIterator,
+                            // so iterating over a reference yields (&key, &group)
+                            // pairs. The key is the emoji string.
+                            {
+                                let reactions = msg.reactions();
+                                if !reactions.is_empty() {
+                                    let mut keys: Vec<String> = Vec::new();
+                                    for (key, _group) in reactions.iter() {
+                                        keys.push(key.to_string());
+                                    }
+                                    if !keys.is_empty() {
+                                        entry.reactions = QString::from(keys.join(",").as_str());
+                                        ::log::debug!(
+                                            "fetch_messages: event {} has {} reactions: {}",
+                                            event_id_str, keys.len(), keys.join(",")
+                                        );
+                                    }
+                                }
+                            }
                             match msg.msgtype() {
                                 MessageType::Text(t) => {
                                     entry.kind = QString::from("text");
