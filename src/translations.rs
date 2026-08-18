@@ -62,12 +62,12 @@ const RU_SOURCES: &[(&str, &str)] = &[
     ("Rename this file (does not modify the original)", "Переименовать этот файл (оригинал не изменяется)"),
     ("Remove this attachment", "Удалить это вложение"),
     ("Attach files (multiple selection supported)", "Прикрепить файлы (можно выбрать несколько)"),
-    ("Add a caption (optional) and press Enter to send\u2026", "Добавьте подпись (необязательно) и нажмите Enter для отправки\u2026"),
-    ("Type a message\u2026", "Введите сообщение\u2026"),
-    ("Offline \u2014 messages cannot be sent", "Не в сети — сообщения не могут быть отправлены"),
+    ("Add a caption (optional) and press Enter to send…", "Добавьте подпись (необязательно) и нажмите Enter для отправки…"),
+    ("Type a message…", "Введите сообщение…"),
+    ("Offline — messages cannot be sent", "Не в сети — сообщения не могут быть отправлены"),
     ("Offline", "Не в сети"),
     ("Ready", "Готово"),
-    ("Syncing\u2026", "Синхронизация\u2026"),
+    ("Syncing…", "Синхронизация…"),
     ("Select a conversation", "Выберите беседу"),
     ("No room selected", "Беседа не выбрана"),
     ("Replying to:", "Ответ для:"),
@@ -75,7 +75,7 @@ const RU_SOURCES: &[(&str, &str)] = &[
     ("Downloaded to %1", "Сохранено в %1"),
     ("Refresh", "Обновить"),
     ("Refresh rooms & spaces", "Обновить комнаты и пространства"),
-    ("Search\u2026", "Поиск\u2026"),
+    ("Search…", "Поиск…"),
 
     // ── Emoji picker ──
     ("React with emoji", "Реакция эмодзи"),
@@ -95,11 +95,11 @@ const RU_SOURCES: &[(&str, &str)] = &[
     ("(empty)", "(пусто)"),
     ("Encrypted message — decryption pending", "Зашифрованное сообщение — ожидание расшифровки"),
     ("(event)", "(событие)"),
-    ("Loading image\u2026", "Загрузка изображения\u2026"),
-    ("Loading video\u2026", "Загрузка видео\u2026"),
+    ("Loading image…", "Загрузка изображения…"),
+    ("Loading video…", "Загрузка видео…"),
     ("Audio", "Аудио"),
     ("File", "Файл"),
-    ("\uD83C\uDFAC Video", "\uD83C\uDFAC Видео"),
+    ("🎬 Video", "🎬 Видео"),
 
     // ── Main window / sidebar ──
     ("Rustrix", "Rustrix"),
@@ -232,16 +232,16 @@ const RU_SOURCES: &[(&str, &str)] = &[
     ("Homeserver", "Хоумсервер"),
     ("Username", "Имя пользователя"),
     ("Password", "Пароль"),
-    ("Logging in\u2026", "Вход\u2026"),
+    ("Logging in…", "Вход…"),
     ("Auto-login on next launch", "Автоматический вход при следующем запуске"),
     ("Login with SSO", "Войти через SSO"),
     ("Invalid credentials", "Неверные учётные данные"),
     ("Connection failed", "Не удалось подключиться"),
 
     // ── Loading screen ──
-    ("Loading\u2026", "Загрузка\u2026"),
-    ("Synchronizing\u2026", "Синхронизация\u2026"),
-    ("Almost there\u2026", "Почти готово\u2026"),
+    ("Loading…", "Загрузка…"),
+    ("Synchronizing…", "Синхронизация…"),
+    ("Almost there…", "Почти готово…"),
 ];
 
 #[derive(QObject, Default)]
