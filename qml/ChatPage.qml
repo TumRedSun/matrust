@@ -191,10 +191,10 @@ Rectangle {
                 // (which is not useful as a quote). Substitute a kind
                 // label so the quote shows "📷 Photo" instead of
                 // "Screenshot_2025-08-19.png".
-                if (kind === "image") body = qsTr("\uD83D\uDDBC Photo")
-                else if (kind === "video") body = qsTr("\uD83C\uDFAC Video")
-                else if (kind === "audio") body = qsTr("\uD83C\uDFB5 Audio")
-                else if (kind === "file") body = qsTr("\uD83D\uDCC4 File: ") + fname
+                if (kind === "image") body = Tr.tr(Theme.language, "\uD83D\uDDBC Photo")
+                else if (kind === "video") body = Tr.tr(Theme.language, "\uD83C\uDFAC Video")
+                else if (kind === "audio") body = Tr.tr(Theme.language, "\uD83C\uDFB5 Audio")
+                else if (kind === "file") body = Tr.tr(Theme.language, "\uD83D\uDCC4 File: ") + fname
                 return { body: body, sender: sender }
             }
         }
@@ -269,7 +269,7 @@ Rectangle {
                     Layout.fillWidth: true
                     text: roomId.length > 0
                           ? roomDisplayName
-                          : qsTr("No room selected")
+                          : Tr.tr(Theme.language, "No room selected")
                     color: Theme.sidebarFg
                     font.pixelSize: Theme.fontSizeMd
                     font.bold: true
@@ -277,8 +277,8 @@ Rectangle {
                 }
                 Label {
                     text: MatrixClient.offline
-                          ? qsTr("Offline")
-                          : (MatrixClient.busy ? qsTr("Syncing\u2026") : qsTr("Ready"))
+                          ? Tr.tr(Theme.language, "Offline")
+                          : (MatrixClient.busy ? Tr.tr(Theme.language, "Syncing\u2026") : Tr.tr(Theme.language, "Ready"))
                     color: MatrixClient.offline ? Theme.accent : Theme.muted
                     font.pixelSize: Theme.fontSizeSm
                 }
@@ -296,7 +296,7 @@ Rectangle {
             Label {
                 anchors.centerIn: parent
                 visible: chatPageRoot.roomId.length === 0
-                text: qsTr("Select a conversation")
+                text: Tr.tr(Theme.language, "Select a conversation")
                 color: Theme.muted
                 font.pixelSize: Theme.fontSizeLg
             }
@@ -331,9 +331,11 @@ Rectangle {
                         fileSize: model.file_size
                         mimeType: model.mime_type
                         replyTo: model.reply_to
-                        // Initialize localReactions from server-side data.
-                        // QML appends to this when the user clicks React.
-                        localReactions: model.reactions || ""
+                        // Pass through the JSON reactions string from the
+                        // backend. MessageBubble parses it into a model
+                        // and renders chips with count + LMB toggle +
+                        // RMB popup behavior.
+                        reactions: model.reactions || ""
                         roomId: chatPageRoot.roomId
 
                         // ── Reply quote lookup ──
@@ -364,6 +366,17 @@ Rectangle {
                             emojiPicker.eventId = eventId
                             emojiPicker.open()
                         }
+
+                        // ── Reaction-senders handler ──
+                        // When the user right-clicks a reaction chip,
+                        // the bubble emits reactionSendersRequested with
+                        // the emoji + senders array. We point the shared
+                        // ReactionSendersPopup at this and open it.
+                        onReactionSendersRequested: function(emoji, senders) {
+                            reactionSendersPopup.emoji = emoji
+                            reactionSendersPopup.senders = senders
+                            reactionSendersPopup.open()
+                        }
                     }
                 }
             }
@@ -390,7 +403,7 @@ Rectangle {
                     color: Theme.accent
                 }
                 Label {
-                    text: qsTr("Replying to:")
+                    text: Tr.tr(Theme.language, "Replying to:")
                     color: Theme.muted
                     font.pixelSize: Theme.fontSizeXs
                 }
@@ -398,7 +411,7 @@ Rectangle {
                     Layout.fillWidth: true
                     text: chatPageRoot.replyToBody.length > 0
                           ? chatPageRoot.replyToBody
-                          : qsTr("(original message)")
+                          : Tr.tr(Theme.language, "(original message)")
                     color: Theme.sidebarFg
                     font.pixelSize: Theme.fontSizeXs
                     font.italic: true
@@ -537,7 +550,7 @@ Rectangle {
                                         horizontalAlignment: Text.AlignHCenter
                                         verticalAlignment: Text.AlignVCenter
                                     }
-                                    ToolTip.text: qsTr("Rename this file (does not modify the original)")
+                                    ToolTip.text: Tr.tr(Theme.language, "Rename this file (does not modify the original)")
                                     ToolTip.visible: hovered
                                     onClicked: {
                                         renameDialog.attachmentIndex = index
@@ -558,7 +571,7 @@ Rectangle {
                                         horizontalAlignment: Text.AlignHCenter
                                         verticalAlignment: Text.AlignVCenter
                                     }
-                                    ToolTip.text: qsTr("Remove this attachment")
+                                    ToolTip.text: Tr.tr(Theme.language, "Remove this attachment")
                                     ToolTip.visible: hovered
                                     onClicked: chatPageRoot.removeAttachment(index)
                                 }
@@ -576,6 +589,55 @@ Rectangle {
             color: Theme.sidebarBg
             visible: chatPageRoot.roomId.length > 0
 
+            // ── Drag & Drop file upload ──
+            // Whole composer area accepts dropped files. Each dropped URL
+            // is added to pendingAttachments via addAttachment(), so the
+            // user sees the same preview strip as if they'd clicked the
+            // 📁 button — then sends the batch with Enter / Send.
+            //
+            // We accept "text/uri-list" (the standard MIME for file drags
+            // from file managers) and reject everything else (so the user
+            // doesn't accidentally drop text selections, etc).
+            //
+            // A subtle highlight border appears while a drag is hovering
+            // to give visual feedback that the drop will be accepted.
+            Rectangle {
+                id: dropHighlight
+                anchors.fill: parent
+                color: "transparent"
+                border.color: Theme.accent
+                border.width: 2
+                radius: Theme.radiusSm
+                visible: dropArea.containsDrag
+                z: 5
+            }
+            DropArea {
+                id: dropArea
+                anchors.fill: parent
+                keys: ["text/uri-list"]
+                onDropped: function(drop) {
+                    // `drop.urls` is a list of QUrl — toString() gives
+                    // "file:///path/to/file". We strip the "file://" prefix.
+                    var added = 0
+                    for (var i = 0; i < drop.urls.length; i++) {
+                        var url = drop.urls[i].toString()
+                        if (url.indexOf("file://") === 0) {
+                            // Qt encodes the path — decode it back to a
+                            // filesystem path before passing to Rust.
+                            var path = decodeURIComponent(url.substring(7))
+                            // On Linux the path is absolute and starts
+                            // with "/". On Windows it'd be "C:/..." but
+                            // this client is Linux-only for now.
+                            chatPageRoot.addAttachment(path)
+                            added++
+                        }
+                    }
+                    if (added > 0) {
+                        drop.acceptProposedAction()
+                    }
+                }
+            }
+
             RowLayout {
                 anchors.fill: parent
                 anchors.leftMargin: Theme.paddingSm
@@ -586,12 +648,12 @@ Rectangle {
                 // Clicking it opens the custom FileBrowserDialog which
                 // supports multi-file selection + hidden files.
                 Button {
-                    text: qsTr("\uD83D\uDCC1")  // 📁
+                    text: Tr.tr(Theme.language, "\uD83D\uDCC1")  // 📁
                     background: Rectangle { color: "transparent"; radius: Theme.radiusSm }
                     font.pixelSize: Theme.fontSizeLg
                     onClicked: fileBrowser.open()
                     enabled: roomId.length > 0 && !MatrixClient.offline
-                    ToolTip.text: qsTr("Attach files (multiple selection supported)")
+                    ToolTip.text: Tr.tr(Theme.language, "Attach files (multiple selection supported)")
                     ToolTip.visible: hovered
                 }
 
@@ -601,10 +663,10 @@ Rectangle {
                     TextArea {
                         id: composer
                         placeholderText: MatrixClient.offline
-                                               ? qsTr("Offline \u2014 messages cannot be sent")
+                                               ? Tr.tr(Theme.language, "Offline \u2014 messages cannot be sent")
                                                : (pendingAttachments.length > 0
-                                                  ? qsTr("Add a caption (optional) and press Enter to send\u2026")
-                                                  : qsTr("Type a message\u2026"))
+                                                  ? Tr.tr(Theme.language, "Add a caption (optional) and press Enter to send\u2026")
+                                                  : Tr.tr(Theme.language, "Type a message\u2026"))
                         placeholderTextColor: MatrixClient.offline ? Theme.accent : Theme.muted
                         color: MatrixClient.offline ? Theme.muted : Theme.sidebarFg
                         wrapMode: TextArea.Wrap
@@ -623,7 +685,7 @@ Rectangle {
                 }
 
                 Button {
-                    text: qsTr("Send")
+                    text: Tr.tr(Theme.language, "Send")
                     enabled: roomId.length > 0
                              && (composer.text.trim().length > 0 || pendingAttachments.length > 0)
                              && !MatrixClient.offline
@@ -654,7 +716,7 @@ Rectangle {
     Dialog {
         id: renameDialog
         modal: true
-        title: qsTr("Rename attachment")
+        title: Tr.tr(Theme.language, "Rename attachment")
         width: 400
         standardButtons: Dialog.Ok | Dialog.Cancel
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
@@ -682,7 +744,7 @@ Rectangle {
         contentItem: ColumnLayout {
             spacing: 8
             Label {
-                text: qsTr("New name (the original file is not modified):")
+                text: Tr.tr(Theme.language, "New name (the original file is not modified):")
                 color: Theme.windowFg
                 font.pixelSize: Theme.fontSizeSm
                 Layout.fillWidth: true
@@ -833,12 +895,23 @@ Rectangle {
     // Kept here (not inside MessageBubble) so we don't instantiate
     // N popups for N visible messages — that would leak focus and
     // memory. Dialog manages its own overlay/parent, so we don't set
-    // `parent` here — `anchors.centerIn: parent` inside the picker
-    // resolves to the window's content item.
+    // `parent` here — `parent: Overlay.overlay` inside the picker
+    // resolves to the window's overlay layer.
     EmojiPicker {
         id: emojiPicker
         roomId: chatPageRoot.roomId
         // eventId is set by the onReactRequested handler above
         // before calling open().
+    }
+
+    // ── Shared reaction-senders popup ──
+    // One instance per ChatPage. MessageBubble delegates emit
+    // `reactionSendersRequested(emoji, senders)` when the user right-
+    // clicks a reaction chip; the handler above sets the popup's emoji
+    // + senders and opens it.
+    //
+    // Same rationale as emojiPicker: shared, not per-bubble.
+    ReactionSendersPopup {
+        id: reactionSendersPopup
     }
 }

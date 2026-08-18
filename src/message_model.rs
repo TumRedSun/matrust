@@ -24,10 +24,19 @@ pub struct MessageEntry {
     pub file_size: i64,
     pub mime_type: QString,
     pub reply_to: QString,
-    /// Comma-separated list of emoji that have been reacted to this message
-    /// by anyone in the room (deduplicated by key, includes both our own
-    /// and others' reactions). QML splits this on "," and renders a chip
-    /// per emoji under the bubble.
+    /// Reactions for this message, encoded as a JSON array string.
+    ///
+    /// Format:
+    ///   [{"key":"👍","count":2,"includes_me":true,
+    ///     "senders":[{"user_id":"@a:b","display_name":"Alice"},
+    ///                 {"user_id":"@b:b","display_name":"Bob"}]},
+    ///    ...]
+    ///
+    /// QML parses this with JSON.parse() and renders a chip per entry
+    /// showing emoji + count. LMB on a chip toggles our own reaction;
+    /// RMB opens a popup listing senders.
+    ///
+    /// Empty string means "no reactions".
     pub reactions: QString,
     pub edited: bool,
     pub pending: bool,
@@ -222,22 +231,55 @@ impl MessageModel {
                             // `msg_like.reactions` is `ReactionsByKeyBySender`,
                             // which derefs to `IndexMap<String,
                             // IndexMap<OwnedUserId, ReactionInfo>>`. We
-                            // collect just the keys (emoji strings) into a
-                            // comma-separated list — QML splits on "," and
-                            // renders a chip per emoji under the bubble.
+                            // build a JSON array of objects, one per
+                            // reaction key, each containing:
+                            //   - key: the emoji string
+                            //   - count: number of senders
+                            //   - includes_me: whether the current user reacted
+                            //   - senders: array of {user_id, display_name}
+                            //
+                            // Display names come from member_map (populated
+                            // at the top of fetch_messages). The QML side
+                            // parses this JSON and renders chips with
+                            // count + LMB-toggle + RMB-popup behavior.
                             {
                                 let reactions = &msg_like.reactions;
                                 if !reactions.is_empty() {
-                                    let mut keys: Vec<String> = Vec::new();
-                                    for (key, _group) in reactions.iter() {
-                                        keys.push(key.to_string());
+                                    let me_id_str = me.to_string();
+                                    let mut json_items: Vec<String> = Vec::new();
+                                    for (key, senders) in reactions.iter() {
+                                        let mut sender_list: Vec<String> = Vec::new();
+                                        let mut includes_me = false;
+                                        for (uid, _info) in senders.iter() {
+                                            let uid_str = uid.to_string();
+                                            if uid_str == me_id_str {
+                                                includes_me = true;
+                                            }
+                                            let display = member_map
+                                                .get(&uid_str)
+                                                .map(|(dn, _)| dn.clone())
+                                                .filter(|dn| !dn.is_empty())
+                                                .unwrap_or_else(|| uid_str.clone());
+                                            sender_list.push(format!(
+                                                "{{\"user_id\":{},\"display_name\":{}}}",
+                                                serde_json::to_string(&uid_str).unwrap_or_else(|_| "\"\"".into()),
+                                                serde_json::to_string(&display).unwrap_or_else(|_| "\"\"".into())
+                                            ));
+                                        }
+                                        json_items.push(format!(
+                                            "{{\"key\":{},\"count\":{},\"includes_me\":{},\"senders\":[{}]}}",
+                                            serde_json::to_string(key).unwrap_or_else(|_| "\"\"".into()),
+                                            sender_list.len(),
+                                            if includes_me { "true" } else { "false" },
+                                            sender_list.join(",")
+                                        ));
                                     }
-                                    if !keys.is_empty() {
-                                        entry.reactions =
-                                            QString::from(keys.join(",").as_str());
+                                    if !json_items.is_empty() {
+                                        let json = format!("[{}]", json_items.join(","));
+                                        entry.reactions = QString::from(json.as_str());
                                         ::log::debug!(
-                                            "fetch_messages: event {} has {} reactions: {}",
-                                            event_id_str, keys.len(), keys.join(",")
+                                            "fetch_messages: event {} has {} reaction keys: {}",
+                                            event_id_str, json_items.len(), json
                                         );
                                     }
                                 }

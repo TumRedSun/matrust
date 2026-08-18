@@ -30,7 +30,7 @@ Rectangle {
                     Layout.rightMargin: Theme.paddingMd
                     Layout.topMargin: Theme.paddingMd
                     Layout.bottomMargin: Theme.paddingSm
-                    text: qsTr("Spaces & Rooms")
+                    text: Tr.tr(Theme.language, "Spaces & Rooms")
                     color: Theme.sidebarFg
                     font.pixelSize: Theme.fontSizeLg
                     font.bold: true
@@ -92,14 +92,14 @@ Rectangle {
                                         font.bold: model.kind === "space"
                                     }
                                     Label {
-                                        text: model.kind === "space" ? qsTr("space")
-                                              : (model.is_direct ? qsTr("direct") : qsTr("room"))
+                                        text: model.kind === "space" ? Tr.tr(Theme.language, "space")
+                                              : (model.is_direct ? Tr.tr(Theme.language, "direct") : Tr.tr(Theme.language, "room"))
                                         color: Theme.muted
                                         font.pixelSize: Theme.fontSizeXs
                                         visible: model.unread === 0
                                     }
                                     Label {
-                                        text: qsTr("%1 unread").arg(model.unread)
+                                        text: Tr.tr(Theme.language, "%1 unread").arg(model.unread)
                                         color: model.highlight > 0 ? Theme.danger : Theme.accent
                                         font.pixelSize: Theme.fontSizeXs
                                         visible: model.unread > 0
@@ -134,13 +134,13 @@ Rectangle {
 
                 Label {
                     Layout.alignment: Qt.AlignHCenter
-                    text: qsTr("Pick a room from the left to start chatting")
+                    text: Tr.tr(Theme.language, "Pick a room from the left to start chatting")
                     color: Theme.muted
                     font.pixelSize: Theme.fontSizeLg
                 }
                 Button {
                     Layout.alignment: Qt.AlignHCenter
-                    text: qsTr("Refresh")
+                    text: Tr.tr(Theme.language, "Refresh")
                     onClicked: MatrixClient.refreshRooms()
                 }
             }

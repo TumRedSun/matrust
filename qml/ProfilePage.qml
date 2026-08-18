@@ -14,7 +14,7 @@ Rectangle {
         spacing: Theme.spacingMd
 
         Label {
-            text: qsTr("Your profile")
+            text: Tr.tr(Theme.language, "Your profile")
             color: Theme.windowFg
             font.pixelSize: Theme.fontSizeXl
             font.bold: true
@@ -30,7 +30,7 @@ Rectangle {
 
             Label {
                 anchors.centerIn: parent
-                text: qsTr("Click to set profile banner")
+                text: Tr.tr(Theme.language, "Click to set profile banner")
                 color: Theme.sidebarFg
                 font.pixelSize: Theme.fontSizeSm
             }
@@ -44,7 +44,7 @@ Rectangle {
 
         FileDialog {
             id: bannerDialog
-            title: qsTr("Choose a banner image")
+            title: Tr.tr(Theme.language, "Choose a banner image")
             nameFilters: ["Images (*.png *.jpg *.jpeg *.webp *.svg)"]
             onAccepted: {
                 // Banner upload via m.account_data — placeholder for future
@@ -77,7 +77,7 @@ Rectangle {
 
         FileDialog {
             id: avatarDialog
-            title: qsTr("Choose a new avatar")
+            title: Tr.tr(Theme.language, "Choose a new avatar")
             nameFilters: ["Images (*.png *.jpg *.jpeg *.webp *.svg)"]
             onAccepted: {
                 var p = avatarDialog.currentFile.toString()
@@ -97,7 +97,7 @@ Rectangle {
         RowLayout {
             Layout.fillWidth: true
             spacing: Theme.spacingSm
-            Label { text: qsTr("Name"); color: Theme.windowFg; Layout.preferredWidth: 60 }
+            Label { text: Tr.tr(Theme.language, "Name"); color: Theme.windowFg; Layout.preferredWidth: 60 }
             TextField {
                 id: dnField
                 Layout.fillWidth: true
@@ -106,7 +106,7 @@ Rectangle {
                 background: Rectangle { color: Theme.sidebarBg; radius: Theme.radiusSm; border.color: Theme.border; border.width: 1 }
             }
             Button {
-                text: qsTr("Save")
+                text: Tr.tr(Theme.language, "Save")
                 background: Rectangle { color: Theme.accent; radius: Theme.radiusSm }
                 contentItem: Label { text: parent.text; color: Theme.accentFg }
                 onClicked: MatrixClient.setDisplayName(dnField.text)
@@ -114,7 +114,7 @@ Rectangle {
         }
 
         // Presence
-        Label { text: qsTr("Presence"); color: Theme.windowFg; font.bold: true }
+        Label { text: Tr.tr(Theme.language, "Presence"); color: Theme.windowFg; font.bold: true }
         RowLayout {
             Layout.fillWidth: true
             spacing: Theme.spacingSm
@@ -126,12 +126,12 @@ Rectangle {
             TextField {
                 id: statusField
                 Layout.fillWidth: true
-                placeholderText: qsTr("Status (optional)")
+                placeholderText: Tr.tr(Theme.language, "Status (optional)")
                 color: Theme.windowFg
                 background: Rectangle { color: Theme.sidebarBg; radius: Theme.radiusSm; border.color: Theme.border; border.width: 1 }
             }
             Button {
-                text: qsTr("Set")
+                text: Tr.tr(Theme.language, "Set")
                 background: Rectangle { color: Theme.accent; radius: Theme.radiusSm }
                 contentItem: Label { text: parent.text; color: Theme.accentFg }
                 onClicked: ProfileManager.setPresence(presenceBox.currentText, statusField.text)

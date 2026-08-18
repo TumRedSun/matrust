@@ -37,7 +37,7 @@ Rectangle {
                     elide: Text.ElideRight
                 }
                 Label {
-                    text: qsTr("%1 members").arg(MemberModel.count)
+                    text: Tr.tr(Theme.language, "%1 members").arg(MemberModel.count)
                     color: Theme.muted
                     font.pixelSize: Theme.fontSizeXs
                 }
@@ -59,7 +59,7 @@ Rectangle {
             Layout.rightMargin: Theme.paddingSm
             Layout.topMargin: Theme.spacingSm
             Layout.bottomMargin: Theme.spacingSm
-            placeholderText: qsTr("Search members\u2026")
+            placeholderText: Tr.tr(Theme.language, "Search members\u2026")
             color: Theme.sidebarFg
             font.pixelSize: Theme.fontSizeSm
             background: Rectangle {
@@ -158,7 +158,7 @@ Rectangle {
                                     Label {
                                         id: adminLbl
                                         anchors.centerIn: parent
-                                        text: qsTr("Admin")
+                                        text: Tr.tr(Theme.language, "Admin")
                                         color: Theme.accentFg
                                         font.pixelSize: Theme.fontSizeXs - 1
                                     }
@@ -173,7 +173,7 @@ Rectangle {
                                     Label {
                                         id: modLbl
                                         anchors.centerIn: parent
-                                        text: qsTr("Mod")
+                                        text: Tr.tr(Theme.language, "Mod")
                                         color: Theme.accentFg
                                         font.pixelSize: Theme.fontSizeXs - 1
                                     }

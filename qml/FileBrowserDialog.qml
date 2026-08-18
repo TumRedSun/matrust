@@ -32,7 +32,7 @@ import MatrixClient
 Dialog {
     id: dialog
     modal: true
-    title: qsTr("Choose files to send")
+    title: Tr.tr(Theme.language, "Choose files to send")
     width: 720
     height: 480
     standardButtons: Dialog.Open | Dialog.Cancel
@@ -187,21 +187,21 @@ Dialog {
             spacing: 4
 
             ThemedButton {
-                text: qsTr("\u2191")  // ↑
+                text: Tr.tr(Theme.language, "\u2191")  // ↑
                 onClicked: goUp()
-                ToolTip.text: qsTr("Go to parent directory")
+                ToolTip.text: Tr.tr(Theme.language, "Go to parent directory")
                 ToolTip.visible: hovered
             }
             ThemedButton {
-                text: qsTr("/")
+                text: Tr.tr(Theme.language, "/")
                 onClicked: loadDir("/")
-                ToolTip.text: qsTr("Go to filesystem root")
+                ToolTip.text: Tr.tr(Theme.language, "Go to filesystem root")
                 ToolTip.visible: hovered
             }
             ThemedButton {
-                text: qsTr("\uD83C\uDFE0")  // 🏠
+                text: Tr.tr(Theme.language, "\uD83C\uDFE0")  // 🏠
                 onClicked: loadDir(MatrixClient.homeDir())
-                ToolTip.text: qsTr("Go to home directory")
+                ToolTip.text: Tr.tr(Theme.language, "Go to home directory")
                 ToolTip.visible: hovered
             }
 
@@ -220,13 +220,13 @@ Dialog {
 
             // Show hidden files toggle
             ThemedCheckBox {
-                text: qsTr("Hidden")
+                text: Tr.tr(Theme.language, "Hidden")
                 checked: dialog.showHidden
                 onToggled: {
                     dialog.showHidden = checked
                     loadDir(dialog.currentPath)
                 }
-                ToolTip.text: qsTr("Show files and directories starting with '.'")
+                ToolTip.text: Tr.tr(Theme.language, "Show files and directories starting with '.'")
                 ToolTip.visible: hovered
             }
         }
@@ -320,8 +320,8 @@ Dialog {
             Label {
                 anchors.centerIn: parent
                 text: dialog.selectedPaths.length === 0
-                      ? qsTr("No files selected")
-                      : qsTr("%n file(s) selected", "", dialog.selectedPaths.length)
+                      ? Tr.tr(Theme.language, "No files selected")
+                      : Tr.tr(Theme.language, "%n file(s) selected", "", dialog.selectedPaths.length)
                 color: Theme.muted
                 font.pixelSize: Theme.fontSizeSm
             }

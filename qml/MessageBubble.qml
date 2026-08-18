@@ -59,11 +59,25 @@ Item {
     // sent and received sides.
     property string replyToBody: ""
     property string replyToSender: ""
-    // Local reactions: a comma-separated list of emoji that the user
-    // has sent via this client in this session (so the user sees
-    // immediate feedback without waiting for the next sync). Server-
-    // side reactions are rendered once they come back through sync.
-    property string localReactions: ""
+    // Reactions for this message — JSON array string produced by the
+    // Rust backend. Parsed into `reactionsModel` below. Empty string
+    // means "no reactions".
+    //
+    // Format (see src/message_model.rs):
+    //   [{"key":"👍","count":2,"includes_me":true,
+    //     "senders":[{"user_id":"@a:b","display_name":"Alice"},
+    //                 {"user_id":"@b:b","display_name":"Bob"}]},
+    //    ...]
+    property string reactions: ""
+
+    // Parsed reactions array. Re-evaluated whenever `reactions` changes.
+    // We catch JSON parse errors and fall back to [] so a corrupt string
+    // never breaks the bubble.
+    readonly property var reactionsModel: {
+        var s = root.reactions
+        if (!s || s.length === 0) return []
+        try { return JSON.parse(s) } catch (e) { return [] }
+    }
 
     // ── React-request signal ──
     // Fired when the user picks "React…" in the context menu.
@@ -73,6 +87,14 @@ Item {
     // Dialog in every delegate would create N popups for N visible
     // messages, leaking focus and memory.
     signal reactRequested(string roomId, string eventId)
+
+    // ── Reaction-senders-popup signal ──
+    // Fired when the user right-clicks a reaction chip. ChatPage
+    // listens and opens the shared ReactionSendersPopup with the
+    // given emoji + senders array. We don't open the popup here for
+    // the same reason as reactRequested — one shared popup per
+    // ChatPage, not N popups for N bubbles.
+    signal reactionSendersRequested(string emoji, var senders)
 
     // ── Max image / video display height ──
     // Caps the inline preview height so a 4K screenshot doesn't take
@@ -107,9 +129,9 @@ Item {
         width: parent.width - Theme.paddingMd * 2
         text: {
             if (root.kind === "encrypted") {
-                return qsTr("Encrypted message — decryption pending")
+                return Tr.tr(Theme.language, "Encrypted message — decryption pending")
             }
-            return root.body.length > 0 ? root.body : qsTr("(event)")
+            return root.body.length > 0 ? root.body : Tr.tr(Theme.language, "(event)")
         }
         color: Theme.muted
         font.pixelSize: Theme.fontSizeSm
@@ -209,7 +231,7 @@ Item {
                             Layout.fillWidth: true
                             text: root.replyToBody.length > 0
                                   ? root.replyToBody
-                                  : qsTr("(original message)")
+                                  : Tr.tr(Theme.language, "(original message)")
                             color: root.isOwn ? Theme.bubbleFgMe : Theme.muted
                             font.pixelSize: Theme.fontSizeXs
                             font.italic: true
@@ -269,40 +291,118 @@ Item {
                 }
 
                 // ── Reactions strip (shown below message body) ──
-                // Renders local reactions the user has just sent (instant
-                // feedback before sync) as small pill-shaped chips. Once
-                // the next sync arrives, reactions will be re-rendered
-                // from server-side data (TODO: parse from timeline).
+                // Renders one pill-shaped chip per reaction key. Each chip
+                // shows the emoji + count of senders. Chips the current
+                // user has reacted with get an accent border (Discord-style
+                // highlight).
                 //
-                // `localReactions` is a comma-separated string of emoji
-                // (e.g. "👍,❤️,🎉"). Splitting on "," is safe because
-                // emoji don't contain ASCII commas.
+                // Interaction (Discord-like):
+                //   - LMB on chip: toggle our own reaction
+                //     (if we've reacted → redact; if not → send).
+                //   - RMB on chip: open ReactionSendersPopup showing the
+                //     list of who reacted (delegated to ChatPage via the
+                //     `reactionSendersRequested` signal — ChatPage owns the
+                //     shared popup so we don't instantiate N popups for N
+                //     bubbles).
+                //
+                // The chip list binds to `reactionsModel`, which is itself
+                // a binding over `reactions` (the JSON string from the
+                // backend). When the backend reloads after a toggle, the
+                // new state propagates here automatically.
                 Flow {
                     Layout.fillWidth: true
                     Layout.leftMargin: Theme.bubblePaddingH
                     Layout.rightMargin: Theme.bubblePaddingH
                     Layout.bottomMargin: Theme.bubblePaddingV
                     spacing: 4
-                    visible: root.localReactions.length > 0
+                    visible: root.reactionsModel.length > 0
                     Repeater {
-                        model: root.localReactions.length > 0
-                                ? root.localReactions.split(",")
-                                : []
-                        Rectangle {
-                            width: reactLbl.implicitWidth + 12
-                            height: 22
-                            radius: 11
-                            color: root.isOwn ? Qt.lighter(Theme.bubbleBgMe, 1.3)
-                                              : Qt.darker(Theme.bubbleBgThem, 1.3)
-                            border.color: Theme.accent
-                            border.width: 1
-                            Label {
-                                id: reactLbl
+                        model: root.reactionsModel
+                        delegate: Rectangle {
+                            width: chipRow.implicitWidth + 14
+                            height: 24
+                            radius: 12
+                            // Highlight chips I've reacted to with an
+                            // accent border + slightly tinted bg.
+                            color: modelData.includes_me
+                                   ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18)
+                                   : (root.isOwn
+                                      ? Qt.lighter(Theme.bubbleBgMe, 1.3)
+                                      : Qt.darker(Theme.bubbleBgThem, 1.3))
+                            border.color: modelData.includes_me ? Theme.accent : Theme.border
+                            border.width: modelData.includes_me ? 1.5 : 1
+
+                            RowLayout {
+                                id: chipRow
                                 anchors.centerIn: parent
-                                text: modelData
-                                font.pixelSize: Theme.fontSizeSm
-                                color: root.isOwn ? Theme.bubbleFgMe : Theme.bubbleFgThem
+                                spacing: 4
+
+                                Text {
+                                    text: modelData.key
+                                    font.pixelSize: Theme.fontSizeSm
+                                    renderType: Text.NativeRendering
+                                }
+                                Label {
+                                    text: modelData.count
+                                    color: modelData.includes_me
+                                           ? Theme.accent
+                                           : (root.isOwn ? Theme.bubbleFgMe : Theme.bubbleFgThem)
+                                    font.pixelSize: Theme.fontSizeXs
+                                    font.bold: true
+                                }
                             }
+
+                            MouseArea {
+                                id: chipMouse
+                                anchors.fill: parent
+                                acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: function(mouse) {
+                                    if (mouse.button === Qt.LeftButton) {
+                                        // Toggle our reaction (Discord-style):
+                                        //   - LMB on a chip we've reacted with → redact it
+                                        //   - LMB on a chip others reacted with → add ours
+                                        // Both cases are handled by the Rust
+                                        // `toggleReaction` method which looks up
+                                        // the current state and acts accordingly.
+                                        MatrixClient.toggleReaction(
+                                            root.roomId,
+                                            root.eventId,
+                                            modelData.key
+                                        )
+                                    } else if (mouse.button === Qt.RightButton) {
+                                        // Open the "who reacted" popup.
+                                        root.reactionSendersRequested(
+                                            modelData.key,
+                                            modelData.senders || []
+                                        )
+                                    }
+                                }
+                                onPressAndHold: function(mouse) {
+                                    // Long-press on touch devices = same as
+                                    // right-click (opens senders popup).
+                                    if (mouse.button === Qt.LeftButton) {
+                                        root.reactionSendersRequested(
+                                            modelData.key,
+                                            modelData.senders || []
+                                        )
+                                    }
+                                }
+                            }
+
+                            // Hover tooltip: list of sender display names.
+                            // Falls back to user_id when display_name is empty.
+                            ToolTip.text: {
+                                var senders = modelData.senders || []
+                                if (senders.length === 0) return ""
+                                return senders.map(function(s) {
+                                    return s.display_name && s.display_name.length > 0
+                                           ? s.display_name : s.user_id
+                                }).join(", ")
+                            }
+                            ToolTip.visible: chipMouse.containsMouse
+                            ToolTip.delay: 400
                         }
                     }
                 }
@@ -331,7 +431,7 @@ Item {
         // ── Reply ──
         // Always available for any non-system, non-encrypted message.
         MenuItem {
-            text: qsTr("Reply")
+            text: Tr.tr(Theme.language, "Reply")
             onTriggered: {
                 MatrixClient.replyStarted(root.roomId, root.eventId, root.body)
             }
@@ -345,7 +445,7 @@ Item {
         // shared EmojiPicker popup (search + rofi-style grid) pointed
         // at this message. One picker per ChatPage, not per bubble.
         MenuItem {
-            text: qsTr("React…")
+            text: Tr.tr(Theme.language, "React…")
             enabled: root.kind !== "system" && root.kind !== "encrypted"
             onTriggered: {
                 root.reactRequested(root.roomId, root.eventId)
@@ -359,7 +459,7 @@ Item {
         // Visible only for media messages. Triggers a fresh download via
         // MatrixClient.downloadMedia (which uses the E2EE-aware path).
         MenuItem {
-            text: qsTr("Save")
+            text: Tr.tr(Theme.language, "Save")
             visible: root.kind === "image" || root.kind === "video"
                      || root.kind === "audio" || root.kind === "file"
             onTriggered: {
@@ -374,7 +474,7 @@ Item {
         // which emits textCopied(text) — main.qml handles the actual
         // clipboard write via a hidden TextEdit.
         MenuItem {
-            text: qsTr("Copy")
+            text: Tr.tr(Theme.language, "Copy")
             visible: root.kind === "text"
             onTriggered: MatrixClient.copyText(root.body)
         }
@@ -385,7 +485,7 @@ Item {
         // don't grant. So for non-own messages we show "Hide" and simply
         // remove the row from the local MessageModel (visual-only).
         MenuItem {
-            text: root.isOwn ? qsTr("Delete") : qsTr("Hide for me")
+            text: root.isOwn ? Tr.tr(Theme.language, "Delete") : Tr.tr(Theme.language, "Hide for me")
             onTriggered: {
                 if (root.isOwn) {
                     MatrixClient.redactEvent(root.roomId, root.eventId, "")
@@ -448,7 +548,7 @@ Item {
                 Layout.fillWidth: true
                 textFormat: root.bodyHtml.length > 0 ? Text.RichText : Text.PlainText
                 text: root.bodyHtml.length > 0 ? root.bodyHtml
-                      : (root.body.length > 0 ? root.body : qsTr("(empty)"))
+                      : (root.body.length > 0 ? root.body : Tr.tr(Theme.language, "(empty)"))
                 wrapMode: Text.Wrap
                 readOnly: true
                 selectByMouse: true
@@ -542,7 +642,7 @@ Item {
                         Layout.alignment: Qt.AlignHCenter
                     }
                     Label {
-                        text: qsTr("Loading image\u2026")
+                        text: Tr.tr(Theme.language, "Loading image\u2026")
                         color: Theme.muted
                         font.pixelSize: Theme.fontSizeXs
                         Layout.alignment: Qt.AlignHCenter
@@ -631,7 +731,7 @@ Item {
                     spacing: 4
 
                     Button {
-                        text: mediaPlayer.playing ? qsTr("\u23F8") : qsTr("\u25B6")  // ⏸ / ▶
+                        text: mediaPlayer.playing ? Tr.tr(Theme.language, "\u23F8") : Tr.tr(Theme.language, "\u25B6")  // ⏸ / ▶
                         onClicked: {
                             if (mediaPlayer.playing) {
                                 mediaPlayer.pause()
@@ -665,7 +765,7 @@ Item {
                         Layout.alignment: Qt.AlignHCenter
                     }
                     Label {
-                        text: qsTr("Loading video\u2026")
+                        text: Tr.tr(Theme.language, "Loading video\u2026")
                         color: Theme.muted
                         font.pixelSize: Theme.fontSizeXs
                         Layout.alignment: Qt.AlignHCenter
@@ -713,7 +813,7 @@ Item {
                     Layout.fillWidth: true
                     spacing: 0
                     Label {
-                        text: root.fileName.length > 0 ? root.fileName : qsTr("Audio")
+                        text: root.fileName.length > 0 ? root.fileName : Tr.tr(Theme.language, "Audio")
                         color: root.isOwn ? Theme.bubbleFgMe : Theme.bubbleFgThem
                         font.pixelSize: Theme.fontSizeSm
                         elide: Text.ElideRight
@@ -749,7 +849,7 @@ Item {
                     Layout.fillWidth: true
                     spacing: 0
                     Label {
-                        text: root.fileName.length > 0 ? root.fileName : qsTr("File")
+                        text: root.fileName.length > 0 ? root.fileName : Tr.tr(Theme.language, "File")
                         color: root.isOwn ? Theme.bubbleFgMe : Theme.bubbleFgThem
                         font.pixelSize: Theme.fontSizeSm
                         elide: Text.ElideRight

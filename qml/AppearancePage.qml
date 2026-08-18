@@ -22,7 +22,7 @@ Rectangle {
             // ── Header & preset picker ──
             Label {
                 Layout.topMargin: Theme.paddingMd
-                text: qsTr("Appearance")
+                text: Tr.tr(Theme.language, "Appearance")
                 color: Theme.windowFg
                 font.pixelSize: Theme.fontSizeXl
                 font.bold: true
@@ -32,7 +32,7 @@ Rectangle {
                 Layout.fillWidth: true
                 spacing: Theme.spacingSm
 
-                Label { text: qsTr("Preset"); color: Theme.windowFg; Layout.preferredWidth: 70 }
+                Label { text: Tr.tr(Theme.language, "Preset"); color: Theme.windowFg; Layout.preferredWidth: 70 }
                 ComboBox {
                     id: presetCombo
                     model: JSON.parse(Theme.availablePresets())
@@ -41,25 +41,25 @@ Rectangle {
                 }
                 Item { Layout.fillWidth: true }
                 Button {
-                    text: qsTr("Export")
+                    text: Tr.tr(Theme.language, "Export")
                     onClicked: {
                         exportDialog.text = Theme.exportJson()
                         exportDialog.open()
                     }
                 }
                 Button {
-                    text: qsTr("Import")
+                    text: Tr.tr(Theme.language, "Import")
                     onClicked: importDialog.open()
                 }
                 Button {
-                    text: qsTr("Reset")
+                    text: Tr.tr(Theme.language, "Reset")
                     onClicked: Theme.reset()
                 }
             }
 
             // ── Colors ──
             GroupBox {
-                title: qsTr("Colors")
+                title: Tr.tr(Theme.language, "Colors")
                 Layout.fillWidth: true
                 font.pixelSize: Theme.fontSizeMd
 
@@ -69,27 +69,27 @@ Rectangle {
                     rowSpacing: Theme.spacingSm
                     columnSpacing: Theme.spacingMd
 
-                    ColorRow { label: qsTr("Window bg");    bind: "windowBg" }
-                    ColorRow { label: qsTr("Window fg");    bind: "windowFg" }
-                    ColorRow { label: qsTr("Sidebar bg");   bind: "sidebarBg" }
-                    ColorRow { label: qsTr("Sidebar fg");   bind: "sidebarFg" }
-                    ColorRow { label: qsTr("Accent");       bind: "accent" }
-                    ColorRow { label: qsTr("Accent fg");    bind: "accentFg" }
-                    ColorRow { label: qsTr("Danger");       bind: "danger" }
-                    ColorRow { label: qsTr("Success");      bind: "success" }
-                    ColorRow { label: qsTr("Warning");      bind: "warning" }
-                    ColorRow { label: qsTr("Muted");        bind: "muted" }
-                    ColorRow { label: qsTr("Border");       bind: "border" }
-                    ColorRow { label: qsTr("Bubble own bg");  bind: "bubbleBgMe" }
-                    ColorRow { label: qsTr("Bubble own fg");  bind: "bubbleFgMe" }
-                    ColorRow { label: qsTr("Bubble other bg"); bind: "bubbleBgThem" }
-                    ColorRow { label: qsTr("Bubble other fg"); bind: "bubbleFgThem" }
+                    ColorRow { label: Tr.tr(Theme.language, "Window bg");    bind: "windowBg" }
+                    ColorRow { label: Tr.tr(Theme.language, "Window fg");    bind: "windowFg" }
+                    ColorRow { label: Tr.tr(Theme.language, "Sidebar bg");   bind: "sidebarBg" }
+                    ColorRow { label: Tr.tr(Theme.language, "Sidebar fg");   bind: "sidebarFg" }
+                    ColorRow { label: Tr.tr(Theme.language, "Accent");       bind: "accent" }
+                    ColorRow { label: Tr.tr(Theme.language, "Accent fg");    bind: "accentFg" }
+                    ColorRow { label: Tr.tr(Theme.language, "Danger");       bind: "danger" }
+                    ColorRow { label: Tr.tr(Theme.language, "Success");      bind: "success" }
+                    ColorRow { label: Tr.tr(Theme.language, "Warning");      bind: "warning" }
+                    ColorRow { label: Tr.tr(Theme.language, "Muted");        bind: "muted" }
+                    ColorRow { label: Tr.tr(Theme.language, "Border");       bind: "border" }
+                    ColorRow { label: Tr.tr(Theme.language, "Bubble own bg");  bind: "bubbleBgMe" }
+                    ColorRow { label: Tr.tr(Theme.language, "Bubble own fg");  bind: "bubbleFgMe" }
+                    ColorRow { label: Tr.tr(Theme.language, "Bubble other bg"); bind: "bubbleBgThem" }
+                    ColorRow { label: Tr.tr(Theme.language, "Bubble other fg"); bind: "bubbleFgThem" }
                 }
             }
 
             // ── Typography ──
             GroupBox {
-                title: qsTr("Typography")
+                title: Tr.tr(Theme.language, "Typography")
                 Layout.fillWidth: true
                 font.pixelSize: Theme.fontSizeMd
 
@@ -99,19 +99,19 @@ Rectangle {
                     rowSpacing: Theme.spacingSm
                     columnSpacing: Theme.spacingMd
 
-                    StringRow { label: qsTr("Font family"); bind: "fontFamily" }
-                    StringRow { label: qsTr("Mono family");  bind: "fontFamilyMono" }
-                    IntRow { label: qsTr("Size XS"); bind: "fontSizeXs"; minValue: 6; maxValue: 32 }
-                    IntRow { label: qsTr("Size SM"); bind: "fontSizeSm"; minValue: 6; maxValue: 32 }
-                    IntRow { label: qsTr("Size MD"); bind: "fontSizeMd"; minValue: 6; maxValue: 32 }
-                    IntRow { label: qsTr("Size LG"); bind: "fontSizeLg"; minValue: 6; maxValue: 32 }
-                    IntRow { label: qsTr("Size XL"); bind: "fontSizeXl"; minValue: 6; maxValue: 64 }
+                    StringRow { label: Tr.tr(Theme.language, "Font family"); bind: "fontFamily" }
+                    StringRow { label: Tr.tr(Theme.language, "Mono family");  bind: "fontFamilyMono" }
+                    IntRow { label: Tr.tr(Theme.language, "Size XS"); bind: "fontSizeXs"; minValue: 6; maxValue: 32 }
+                    IntRow { label: Tr.tr(Theme.language, "Size SM"); bind: "fontSizeSm"; minValue: 6; maxValue: 32 }
+                    IntRow { label: Tr.tr(Theme.language, "Size MD"); bind: "fontSizeMd"; minValue: 6; maxValue: 32 }
+                    IntRow { label: Tr.tr(Theme.language, "Size LG"); bind: "fontSizeLg"; minValue: 6; maxValue: 32 }
+                    IntRow { label: Tr.tr(Theme.language, "Size XL"); bind: "fontSizeXl"; minValue: 6; maxValue: 64 }
                 }
             }
 
             // ── Geometry ──
             GroupBox {
-                title: qsTr("Geometry")
+                title: Tr.tr(Theme.language, "Geometry")
                 Layout.fillWidth: true
                 font.pixelSize: Theme.fontSizeMd
 
@@ -121,23 +121,23 @@ Rectangle {
                     rowSpacing: Theme.spacingSm
                     columnSpacing: Theme.spacingMd
 
-                    IntRow { label: qsTr("Radius SM"); bind: "radiusSm"; minValue: 0; maxValue: 64 }
-                    IntRow { label: qsTr("Radius MD"); bind: "radiusMd"; minValue: 0; maxValue: 64 }
-                    IntRow { label: qsTr("Radius LG"); bind: "radiusLg"; minValue: 0; maxValue: 64 }
-                    IntRow { label: qsTr("Pad XS"); bind: "paddingXs"; minValue: 0; maxValue: 64 }
-                    IntRow { label: qsTr("Pad SM"); bind: "paddingSm"; minValue: 0; maxValue: 64 }
-                    IntRow { label: qsTr("Pad MD"); bind: "paddingMd"; minValue: 0; maxValue: 64 }
-                    IntRow { label: qsTr("Pad LG"); bind: "paddingLg"; minValue: 0; maxValue: 64 }
-                    IntRow { label: qsTr("Space XS"); bind: "spacingXs"; minValue: 0; maxValue: 64 }
-                    IntRow { label: qsTr("Space SM"); bind: "spacingSm"; minValue: 0; maxValue: 64 }
-                    IntRow { label: qsTr("Space MD"); bind: "spacingMd"; minValue: 0; maxValue: 64 }
-                    IntRow { label: qsTr("Space LG"); bind: "spacingLg"; minValue: 0; maxValue: 64 }
+                    IntRow { label: Tr.tr(Theme.language, "Radius SM"); bind: "radiusSm"; minValue: 0; maxValue: 64 }
+                    IntRow { label: Tr.tr(Theme.language, "Radius MD"); bind: "radiusMd"; minValue: 0; maxValue: 64 }
+                    IntRow { label: Tr.tr(Theme.language, "Radius LG"); bind: "radiusLg"; minValue: 0; maxValue: 64 }
+                    IntRow { label: Tr.tr(Theme.language, "Pad XS"); bind: "paddingXs"; minValue: 0; maxValue: 64 }
+                    IntRow { label: Tr.tr(Theme.language, "Pad SM"); bind: "paddingSm"; minValue: 0; maxValue: 64 }
+                    IntRow { label: Tr.tr(Theme.language, "Pad MD"); bind: "paddingMd"; minValue: 0; maxValue: 64 }
+                    IntRow { label: Tr.tr(Theme.language, "Pad LG"); bind: "paddingLg"; minValue: 0; maxValue: 64 }
+                    IntRow { label: Tr.tr(Theme.language, "Space XS"); bind: "spacingXs"; minValue: 0; maxValue: 64 }
+                    IntRow { label: Tr.tr(Theme.language, "Space SM"); bind: "spacingSm"; minValue: 0; maxValue: 64 }
+                    IntRow { label: Tr.tr(Theme.language, "Space MD"); bind: "spacingMd"; minValue: 0; maxValue: 64 }
+                    IntRow { label: Tr.tr(Theme.language, "Space LG"); bind: "spacingLg"; minValue: 0; maxValue: 64 }
                 }
             }
 
             // ── Message bubbles ──
             GroupBox {
-                title: qsTr("Message bubbles")
+                title: Tr.tr(Theme.language, "Message bubbles")
                 Layout.fillWidth: true
                 font.pixelSize: Theme.fontSizeMd
 
@@ -147,17 +147,17 @@ Rectangle {
                     rowSpacing: Theme.spacingSm
                     columnSpacing: Theme.spacingMd
 
-                    IntRow { label: qsTr("Bubble radius");    bind: "bubbleRadius";    minValue: 0; maxValue: 64 }
-                    IntRow { label: qsTr("Padding H");        bind: "bubblePaddingH";  minValue: 0; maxValue: 64 }
-                    IntRow { label: qsTr("Padding V");        bind: "bubblePaddingV";  minValue: 0; maxValue: 64 }
-                    IntRow { label: qsTr("Max width %");      bind: "bubbleMaxWidthPct"; minValue: 30; maxValue: 100 }
+                    IntRow { label: Tr.tr(Theme.language, "Bubble radius");    bind: "bubbleRadius";    minValue: 0; maxValue: 64 }
+                    IntRow { label: Tr.tr(Theme.language, "Padding H");        bind: "bubblePaddingH";  minValue: 0; maxValue: 64 }
+                    IntRow { label: Tr.tr(Theme.language, "Padding V");        bind: "bubblePaddingV";  minValue: 0; maxValue: 64 }
+                    IntRow { label: Tr.tr(Theme.language, "Max width %");      bind: "bubbleMaxWidthPct"; minValue: 30; maxValue: 100 }
 
                     RowLayout {
                         Layout.columnSpan: 2
                         Layout.fillWidth: true
                         Switch {
                             id: tailSwitch
-                            text: qsTr("Bubble tail")
+                            text: Tr.tr(Theme.language, "Bubble tail")
                             checked: Theme.bubbleTail
                             onToggled: Theme.bubbleTail = checked
                         }
@@ -167,7 +167,7 @@ Rectangle {
 
             // ── Avatars ──
             GroupBox {
-                title: qsTr("Avatars")
+                title: Tr.tr(Theme.language, "Avatars")
                 Layout.fillWidth: true
                 font.pixelSize: Theme.fontSizeMd
 
@@ -177,15 +177,15 @@ Rectangle {
                     rowSpacing: Theme.spacingSm
                     columnSpacing: Theme.spacingMd
 
-                    IntRow { label: qsTr("Size SM");  bind: "avatarSizeSm"; minValue: 16; maxValue: 96 }
-                    IntRow { label: qsTr("Size MD");  bind: "avatarSizeMd"; minValue: 16; maxValue: 128 }
-                    IntRow { label: qsTr("Size LG");  bind: "avatarSizeLg"; minValue: 16; maxValue: 256 }
-                    IntRow { label: qsTr("Corner r"); bind: "avatarRadius";  minValue: 0; maxValue: 128 }
+                    IntRow { label: Tr.tr(Theme.language, "Size SM");  bind: "avatarSizeSm"; minValue: 16; maxValue: 96 }
+                    IntRow { label: Tr.tr(Theme.language, "Size MD");  bind: "avatarSizeMd"; minValue: 16; maxValue: 128 }
+                    IntRow { label: Tr.tr(Theme.language, "Size LG");  bind: "avatarSizeLg"; minValue: 16; maxValue: 256 }
+                    IntRow { label: Tr.tr(Theme.language, "Corner r"); bind: "avatarRadius";  minValue: 0; maxValue: 128 }
 
                     RowLayout {
                         Layout.columnSpan: 2
                         Layout.fillWidth: true
-                        Label { text: qsTr("Shape"); color: Theme.windowFg; Layout.preferredWidth: 80 }
+                        Label { text: Tr.tr(Theme.language, "Shape"); color: Theme.windowFg; Layout.preferredWidth: 80 }
                         ComboBox {
                             id: shapeCombo
                             model: ["circle", "rounded", "square"]
@@ -198,7 +198,7 @@ Rectangle {
 
             // ── Behavior ──
             GroupBox {
-                title: qsTr("Behavior")
+                title: Tr.tr(Theme.language, "Behavior")
                 Layout.fillWidth: true
                 font.pixelSize: Theme.fontSizeMd
 
@@ -206,17 +206,17 @@ Rectangle {
                     anchors.fill: parent
                     spacing: Theme.spacingSm
 
-                    Switch { id: compactSwitch; text: qsTr("Compact mode"); checked: Theme.compactMode; onToggled: Theme.compactMode = checked }
-                    Switch { id: tsSwitch; text: qsTr("Show timestamps"); checked: Theme.showTimestamps; onToggled: Theme.showTimestamps = checked }
-                    Switch { id: avSwitch; text: qsTr("Show avatars"); checked: Theme.showAvatars; onToggled: Theme.showAvatars = checked }
-                    Switch { id: animSwitch; text: qsTr("Animate bubbles"); checked: Theme.animateBubbles; onToggled: Theme.animateBubbles = checked }
-                    IntRow { label: qsTr("Anim ms"); bind: "animationDurationMs"; minValue: 0; maxValue: 1000 }
+                    Switch { id: compactSwitch; text: Tr.tr(Theme.language, "Compact mode"); checked: Theme.compactMode; onToggled: Theme.compactMode = checked }
+                    Switch { id: tsSwitch; text: Tr.tr(Theme.language, "Show timestamps"); checked: Theme.showTimestamps; onToggled: Theme.showTimestamps = checked }
+                    Switch { id: avSwitch; text: Tr.tr(Theme.language, "Show avatars"); checked: Theme.showAvatars; onToggled: Theme.showAvatars = checked }
+                    Switch { id: animSwitch; text: Tr.tr(Theme.language, "Animate bubbles"); checked: Theme.animateBubbles; onToggled: Theme.animateBubbles = checked }
+                    IntRow { label: Tr.tr(Theme.language, "Anim ms"); bind: "animationDurationMs"; minValue: 0; maxValue: 1000 }
                 }
             }
 
             // ── Scrollbars ──
             GroupBox {
-                title: qsTr("Scrollbars")
+                title: Tr.tr(Theme.language, "Scrollbars")
                 Layout.fillWidth: true
                 font.pixelSize: Theme.fontSizeMd
 
@@ -225,8 +225,8 @@ Rectangle {
                     columns: 2
                     rowSpacing: Theme.spacingSm
                     columnSpacing: Theme.spacingMd
-                    IntRow { label: qsTr("Width");  bind: "scrollbarSize";   minValue: 2; maxValue: 32 }
-                    IntRow { label: qsTr("Radius"); bind: "scrollbarRadius"; minValue: 0; maxValue: 16 }
+                    IntRow { label: Tr.tr(Theme.language, "Width");  bind: "scrollbarSize";   minValue: 2; maxValue: 32 }
+                    IntRow { label: Tr.tr(Theme.language, "Radius"); bind: "scrollbarRadius"; minValue: 0; maxValue: 16 }
                 }
             }
 
@@ -272,7 +272,7 @@ Rectangle {
         }
 
         Button {
-            text: qsTr("🎨")
+            text: Tr.tr(Theme.language, "🎨")
             font.pixelSize: Theme.fontSizeSm
             onClicked: {
                 picker.targetBind = bind
@@ -351,7 +351,7 @@ Rectangle {
 
     Dialog {
         id: exportDialog
-        title: qsTr("Theme JSON")
+        title: Tr.tr(Theme.language, "Theme JSON")
         modal: true
         anchors.centerIn: parent
         width: 500
@@ -370,7 +370,7 @@ Rectangle {
 
     Dialog {
         id: importDialog
-        title: qsTr("Paste theme JSON")
+        title: Tr.tr(Theme.language, "Paste theme JSON")
         modal: true
         anchors.centerIn: parent
         width: 500
@@ -383,7 +383,7 @@ Rectangle {
         standardButtons: Dialog.Ok | Dialog.Cancel
         onAccepted: {
             if (!Theme.importJson(importField.text)) {
-                ApplicationWindow.window.showToast(qsTr("Invalid JSON"))
+                ApplicationWindow.window.showToast(Tr.tr(Theme.language, "Invalid JSON"))
             }
             importField.text = ""
         }

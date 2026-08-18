@@ -8,7 +8,7 @@ Rectangle {
     id: loadingRoot
     color: Theme.windowBg
 
-    property string stageText: qsTr("Connecting\u2026")
+    property string stageText: Tr.tr(Theme.language, "Connecting\u2026")
 
     ColumnLayout {
         anchors.centerIn: parent
@@ -17,7 +17,7 @@ Rectangle {
         // App title
         Label {
             Layout.alignment: Qt.AlignHCenter
-            text: qsTr("Rustrix")
+            text: Tr.tr(Theme.language, "Rustrix")
             color: Theme.sidebarFg
             font.pixelSize: Theme.fontSizeXl * 1.5
             font.bold: true
@@ -71,16 +71,16 @@ Rectangle {
         target: MatrixClient
         function onBusyChanged() {
             if (MatrixClient.busy) {
-                loadingRoot.stageText = qsTr("Synchronizing\u2026")
+                loadingRoot.stageText = Tr.tr(Theme.language, "Synchronizing\u2026")
             }
         }
         function onReadyChanged() {
             if (MatrixClient.ready) {
-                loadingRoot.stageText = qsTr("Ready!")
+                loadingRoot.stageText = Tr.tr(Theme.language, "Ready!")
             }
         }
         function onSyncDone(payload) {
-            loadingRoot.stageText = qsTr("Ready!")
+            loadingRoot.stageText = Tr.tr(Theme.language, "Ready!")
         }
     }
 }

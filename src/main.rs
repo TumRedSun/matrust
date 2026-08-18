@@ -37,6 +37,7 @@ mod member_model;
 mod errors;
 mod pending;
 mod media_provider;
+mod translations;
 
 use crate::matrix_client::MatrixClient;
 use crate::theme::Theme;
@@ -62,6 +63,7 @@ qrc! {
         "MemberListPanel.qml",
         "FileBrowserDialog.qml",
         "EmojiPicker.qml",
+        "ReactionSendersPopup.qml",
     },
     "assets" as "/assets" {
         "logo.svg",
@@ -133,6 +135,13 @@ fn main() {
     qmetaobject::qml_register_singleton_type::<spaces::SpaceModel>(cstr!("MatrixClient"), 1, 0, cstr!("SpaceModel"));
     qmetaobject::qml_register_singleton_type::<profile::ProfileManager>(cstr!("MatrixClient"), 1, 0, cstr!("ProfileManager"));
     qmetaobject::qml_register_singleton_type::<member_model::MemberModel>(cstr!("MatrixClient"), 1, 0, cstr!("MemberModel"));
+
+    // Translations singleton — exposes Tr.tr(language, source) for
+    // dynamic, restart-free language switching. QML calls it as
+    // `Tr.tr(Theme.language, "Reply")` so the binding depends on
+    // Theme.language (NOTIFY languageChanged) and re-evaluates when
+    // the user picks a new language in Settings.
+    qmetaobject::qml_register_singleton_type::<translations::Translations>(cstr!("MatrixClient"), 1, 0, cstr!("Tr"));
 
     engine.load_file("qrc:/qml/main.qml".into());
     engine.exec();

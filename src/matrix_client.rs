@@ -151,6 +151,11 @@ pub struct MatrixClient {
     /// (e.g. "👍"). Idempotent — sending the same emoji twice from the same
     /// user is a no-op per the Matrix spec.
     sendReaction: qt_method!(fn(&self, room_id: QString, event_id: QString, emoji: QString)),
+    /// Toggle the current user's reaction to an event. If we have already
+    /// reacted with `emoji`, that reaction is redacted (removed). If we
+    /// haven't, a new reaction is sent. This is the Discord-style LMB
+    /// behavior on a reaction chip.
+    toggleReaction: qt_method!(fn(&self, room_id: QString, event_id: QString, emoji: QString)),
     /// Redact (delete) an event. For own messages this fully removes the
     /// content; for other users' messages Matrix only lets us redact our
     /// own — we emulate "hide for me" on the QML side via the model filter.
@@ -652,6 +657,146 @@ impl MatrixClient {
             use matrix_sdk::ruma::events::relation::Annotation;
             let reaction = ReactionEventContent::new(Annotation::new(evt_id, emoji));
             room.send(reaction).await?;
+            AppResult::Ok(())
+        });
+    }
+
+    /// Toggle the current user's reaction to an event.
+    ///
+    /// Implementation:
+    ///   1. Build a fresh Timeline for the room.
+    ///   2. Walk the timeline items to find the EventTimelineItem whose
+    ///      event_id matches `event_id`.
+    ///   3. Read its `msg_like.reactions` (a `ReactionsByKeyBySender`).
+    ///   4. Look up the entry for `emoji`. If it exists and contains the
+    ///      current user, extract the reaction's event_id from
+    ///      `ReactionStatus::RemoteToRemote(OwnedEventId)` and `room.redact()`
+    ///      that reaction event.
+    ///   5. Otherwise, send a new `m.reaction` event.
+    ///   6. After either branch, reload messages so the chip updates.
+    ///
+    /// Local-echo reactions (`LocalToRemote`, `LocalToLocal`) don't have a
+    /// remote event_id we can redact — for those we just send another
+    /// reaction and let the server deduplicate. In practice this only
+    /// matters for the ~100ms window between clicking react and the
+    /// server acknowledging it.
+    pub fn toggleReaction(&self, room_id: QString, event_id: QString, emoji: QString) {
+        let room_id = room_id.to_string();
+        let event_id = event_id.to_string();
+        let emoji = emoji.to_string();
+        let client_arc = match self.inner.borrow().clone() {
+            Some(c) => c,
+            None => return,
+        };
+        let reload_room_id = room_id.clone();
+        let reload_room_id_for_cb = reload_room_id.clone();
+        let model = MessageModel::get();
+        let reload_cb = qmetaobject::queued_callback(move |entries: Vec<MessageEntry>| {
+            if let Some(m) = model.as_pinned() {
+                m.borrow_mut().apply_entries(entries, &reload_room_id_for_cb);
+            }
+        });
+        self.spawn(async move {
+            let c = client_arc.lock().await;
+            let rid: ruma::OwnedRoomId = room_id.parse()
+                .map_err(|e: ruma::IdParseError| crate::errors::AppError::Other(e.to_string()))?;
+            let room = c
+                .get_room(&rid)
+                .ok_or_else(|| crate::errors::AppError::RoomNotFound(room_id.clone()))?;
+            let target_evt_id: ruma::OwnedEventId = event_id.parse()
+                .map_err(|e: ruma::IdParseError| crate::errors::AppError::Other(e.to_string()))?;
+            let me_uid = c
+                .user_id()
+                .map(|u| u.to_owned())
+                .ok_or(crate::errors::AppError::NotLoggedIn)?;
+
+            // Build a timeline to read the current reaction state for the
+            // target event. We don't paginate (we only care about items
+            // already in the timeline — typically the last 50 messages
+            // are sufficient; reactions on older messages are rare and
+            // toggling them just sends a new reaction, which is harmless).
+            use matrix_sdk_ui::timeline::{TimelineBuilder, TimelineItemKind, TimelineItemContent};
+            let timeline = match TimelineBuilder::new(&room).build().await {
+                Ok(t) => t,
+                Err(e) => {
+                    ::log::warn!("toggleReaction: Timeline build failed: {e} — sending reaction anyway");
+                    // Fallback: just send a new reaction (no toggle).
+                    use matrix_sdk::ruma::events::reaction::ReactionEventContent;
+                    use matrix_sdk::ruma::events::relation::Annotation;
+                    let reaction = ReactionEventContent::new(Annotation::new(target_evt_id.clone(), emoji));
+                    room.send(reaction).await?;
+                    drop(c);
+                    let client: matrix_sdk::Client = {
+                        let c2 = client_arc.lock().await;
+                        c2.clone()
+                    };
+                    match MessageModel::fetch_messages(client, reload_room_id).await {
+                        Ok(entries) => reload_cb(entries),
+                        Err(e) => ::log::warn!("toggleReaction: reload failed: {e}"),
+                    }
+                    return AppResult::Ok(());
+                }
+            };
+
+            // Walk items to find the target event.
+            let items = timeline.items().await;
+            let mut found_reaction_evt_id: Option<ruma::OwnedEventId> = None;
+            for item in items.iter() {
+                let event_item = match item.kind() {
+                    TimelineItemKind::Event(ev) => ev,
+                    TimelineItemKind::Virtual(_) => continue,
+                };
+                let Some(this_evt_id) = event_item.event_id() else { continue };
+                if this_evt_id != &target_evt_id { continue; }
+                // Found the target — inspect its reactions.
+                let TimelineItemContent::MsgLike(msg_like) = event_item.content() else { break };
+                let reactions = &msg_like.reactions;
+                if let Some(senders) = reactions.get(&emoji) {
+                    if let Some(info) = senders.get(&me_uid) {
+                        // We have reacted — extract the reaction event id.
+                        use matrix_sdk_ui::timeline::ReactionStatus;
+                        match &info.status {
+                            ReactionStatus::RemoteToRemote(rid) => {
+                                found_reaction_evt_id = Some(rid.clone());
+                            }
+                            _ => {
+                                ::log::debug!(
+                                    "toggleReaction: our reaction to {} with {} is local-echo (status: {:?}); sending fresh reaction",
+                                    event_id, emoji, info.status
+                                );
+                            }
+                        }
+                    }
+                }
+                break;
+            }
+
+            if let Some(reaction_evt_id) = found_reaction_evt_id {
+                ::log::info!(
+                    "toggleReaction: redacting our reaction event {} for target {}",
+                    reaction_evt_id, event_id
+                );
+                room.redact(&reaction_evt_id, None, None).await?;
+            } else {
+                ::log::info!(
+                    "toggleReaction: sending new reaction {} to {}",
+                    emoji, event_id
+                );
+                use matrix_sdk::ruma::events::reaction::ReactionEventContent;
+                use matrix_sdk::ruma::events::relation::Annotation;
+                let reaction = ReactionEventContent::new(Annotation::new(target_evt_id.clone(), emoji));
+                room.send(reaction).await?;
+            }
+
+            drop(c);
+            let client: matrix_sdk::Client = {
+                let c2 = client_arc.lock().await;
+                c2.clone()
+            };
+            match MessageModel::fetch_messages(client, reload_room_id).await {
+                Ok(entries) => reload_cb(entries),
+                Err(e) => ::log::warn!("toggleReaction: reload failed: {e}"),
+            }
             AppResult::Ok(())
         });
     }

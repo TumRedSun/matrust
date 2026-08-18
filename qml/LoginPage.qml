@@ -20,7 +20,7 @@ Rectangle {
 
         Label {
             Layout.alignment: Qt.AlignHCenter
-            text: qsTr("Sign in to Matrix")
+            text: Tr.tr(Theme.language, "Sign in to Matrix")
             font.pixelSize: Theme.fontSizeXl
             color: Theme.windowFg
         }
@@ -33,7 +33,7 @@ Rectangle {
             TextField {
                 id: homeserverField
                 Layout.fillWidth: true
-                placeholderText: qsTr("Homeserver (https://matrix.org)")
+                placeholderText: Tr.tr(Theme.language, "Homeserver (https://matrix.org)")
                 text: "https://matrix.org"
                 color: Theme.windowFg
                 background: Rectangle {
@@ -46,7 +46,7 @@ Rectangle {
             TextField {
                 id: usernameField
                 Layout.fillWidth: true
-                placeholderText: qsTr("Username")
+                placeholderText: Tr.tr(Theme.language, "Username")
                 color: Theme.windowFg
                 background: Rectangle {
                     color: Theme.sidebarBg; radius: Theme.radiusSm
@@ -56,7 +56,7 @@ Rectangle {
             TextField {
                 id: passwordField
                 Layout.fillWidth: true
-                placeholderText: qsTr("Password")
+                placeholderText: Tr.tr(Theme.language, "Password")
                 echoMode: TextInput.Password
                 color: Theme.windowFg
                 background: Rectangle {
@@ -68,7 +68,7 @@ Rectangle {
                 Layout.fillWidth: true
                 CheckBox {
                     id: ipv6Box
-                    text: qsTr("Force IPv6 (only AAAA records)")
+                    text: Tr.tr(Theme.language, "Force IPv6 (only AAAA records)")
                     checked: false
                     contentItem: Label {
                         text: ipv6Box.text
@@ -78,7 +78,7 @@ Rectangle {
                 }
                 Item { Layout.fillWidth: true }
                 Button {
-                    text: qsTr("Sign in")
+                    text: Tr.tr(Theme.language, "Sign in")
                     enabled: !MatrixClient.busy
                     background: Rectangle {
                         color: parent.enabled ? Theme.accent : Theme.muted
@@ -97,7 +97,7 @@ Rectangle {
 
         Label {
             Layout.alignment: Qt.AlignHCenter
-            text: qsTr("Your session will be saved for automatic login on next start.")
+            text: Tr.tr(Theme.language, "Your session will be saved for automatic login on next start.")
             color: Theme.muted
             font.pixelSize: Theme.fontSizeXs
             wrapMode: Text.Wrap

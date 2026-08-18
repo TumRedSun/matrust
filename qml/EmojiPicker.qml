@@ -27,6 +27,12 @@ import MatrixClient
 Dialog {
     id: root
     modal: true
+    // Parent to the window's overlay layer so the dialog centers on the
+    // whole application window, NOT just the ChatPage / dialog it was
+    // declared in. Without this, `anchors.centerIn: parent` resolves to
+    // the ChatPage item, which is narrower than the window (it doesn't
+    // include the space/sidebar columns).
+    parent: Overlay.overlay
     anchors.centerIn: parent
     width: Math.min(560, parent.width - 80)
     height: Math.min(520, parent.height - 80)
@@ -123,7 +129,7 @@ Dialog {
             Layout.fillWidth: true
             spacing: Theme.spacingSm
             Label {
-                text: qsTr("React with emoji")
+                text: Tr.tr(Theme.language, "React with emoji")
                 font.pixelSize: Theme.fontSizeLg
                 font.bold: true
                 color: Theme.windowFg
@@ -131,7 +137,7 @@ Dialog {
             Item { Layout.fillWidth: true }
             Label {
                 // Hint text — keyboard shortcuts.
-                text: qsTr("Type to search  ·  ↑↓ to move  ·  Enter to react  ·  Esc to close")
+                text: Tr.tr(Theme.language, "Type to search  ·  ↑↓ to move  ·  Enter to react  ·  Esc to close")
                 color: Theme.muted
                 font.pixelSize: Theme.fontSizeXs
             }
@@ -146,7 +152,7 @@ Dialog {
         TextField {
             id: searchField
             Layout.fillWidth: true
-            placeholderText: qsTr("Search emoji (e.g. heart, fire, thumbs up)…")
+            placeholderText: Tr.tr(Theme.language, "Search emoji (e.g. heart, fire, thumbs up)…")
             color: Theme.windowFg
             font.pixelSize: Theme.fontSizeSm
             selectByMouse: true
@@ -222,8 +228,8 @@ Dialog {
         Label {
             Layout.fillWidth: true
             text: filteredModel.count === 0
-                  ? qsTr("No emoji match your search.")
-                  : qsTr("%1 emoji").arg(filteredModel.count)
+                  ? Tr.tr(Theme.language, "No emoji match your search.")
+                  : Tr.tr(Theme.language, "%1 emoji").arg(filteredModel.count)
             color: Theme.muted
             font.pixelSize: Theme.fontSizeXs
             visible: searchField.text.length > 0

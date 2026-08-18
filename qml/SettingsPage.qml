@@ -20,7 +20,7 @@ Rectangle {
             Label {
                 Layout.leftMargin: Theme.paddingLg
                 Layout.topMargin: Theme.paddingLg
-                text: qsTr("Connection & Behavior")
+                text: Tr.tr(Theme.language, "Connection & Behavior")
                 color: Theme.windowFg
                 font.pixelSize: Theme.fontSizeXl
                 font.bold: true
@@ -39,9 +39,9 @@ Rectangle {
                     anchors.fill: parent
                     anchors.margins: Theme.paddingMd
                     spacing: 4
-                    Label { text: qsTr("Account"); color: Theme.accent; font.pixelSize: Theme.fontSizeMd; font.bold: true }
-                    Label { text: qsTr("User ID: %1").arg(MatrixClient.userId); color: Theme.windowFg }
-                    Label { text: qsTr("Status: %1").arg(MatrixClient.ready ? qsTr("Ready") : qsTr("Not connected")); color: Theme.windowFg }
+                    Label { text: Tr.tr(Theme.language, "Account"); color: Theme.accent; font.pixelSize: Theme.fontSizeMd; font.bold: true }
+                    Label { text: Tr.tr(Theme.language, "User ID: %1").arg(MatrixClient.userId); color: Theme.windowFg }
+                    Label { text: Tr.tr(Theme.language, "Status: %1").arg(MatrixClient.ready ? Tr.tr(Theme.language, "Ready") : Tr.tr(Theme.language, "Not connected")); color: Theme.windowFg }
                 }
             }
 
@@ -58,12 +58,12 @@ Rectangle {
                     anchors.fill: parent
                     anchors.margins: Theme.paddingMd
                     spacing: Theme.spacingSm
-                    Label { text: qsTr("Network"); color: Theme.accent; font.pixelSize: Theme.fontSizeMd; font.bold: true }
+                    Label { text: Tr.tr(Theme.language, "Network"); color: Theme.accent; font.pixelSize: Theme.fontSizeMd; font.bold: true }
                     RowLayout {
                         Layout.fillWidth: true
                         Switch {
                             id: ipv6Switch
-                            text: qsTr("Force IPv6-only transport")
+                            text: Tr.tr(Theme.language, "Force IPv6-only transport")
                             checked: false
                             contentItem: Label {
                                 text: ipv6Switch.text
@@ -73,7 +73,7 @@ Rectangle {
                             onToggled: MatrixClient.setForceIpv6(checked)
                         }
                         Label {
-                            text: qsTr("(only AAAA records are resolved; IPv4 endpoints are refused)")
+                            text: Tr.tr(Theme.language, "(only AAAA records are resolved; IPv4 endpoints are refused)")
                             color: Theme.muted
                             font.pixelSize: Theme.fontSizeXs
                             Layout.fillWidth: true
@@ -96,19 +96,19 @@ Rectangle {
                     anchors.fill: parent
                     anchors.margins: Theme.paddingMd
                     spacing: Theme.spacingSm
-                    Label { text: qsTr("Diagnostics"); color: Theme.accent; font.pixelSize: Theme.fontSizeMd; font.bold: true }
+                    Label { text: Tr.tr(Theme.language, "Diagnostics"); color: Theme.accent; font.pixelSize: Theme.fontSizeMd; font.bold: true }
                     Label {
-                        text: qsTr("Last error: %1").arg(MatrixClient.lastError.length === 0 ? "\u2014" : MatrixClient.lastError)
+                        text: Tr.tr(Theme.language, "Last error: %1").arg(MatrixClient.lastError.length === 0 ? "\u2014" : MatrixClient.lastError)
                         color: MatrixClient.lastError.length === 0 ? Theme.windowFg : Theme.danger
                         wrapMode: Text.Wrap
                         Layout.fillWidth: true
                     }
                     RowLayout {
                         Layout.fillWidth: true
-                        Button { text: qsTr("Refresh rooms & spaces"); onClicked: MatrixClient.refreshRooms() }
+                        Button { text: Tr.tr(Theme.language, "Refresh rooms & spaces"); onClicked: MatrixClient.refreshRooms() }
                         Item { Layout.fillWidth: true }
                         Button {
-                            text: qsTr("Logout")
+                            text: Tr.tr(Theme.language, "Logout")
                             background: Rectangle { color: Theme.danger; radius: Theme.radiusSm }
                             contentItem: Label { text: parent.text; color: Theme.accentFg }
                             onClicked: MatrixClient.logout()

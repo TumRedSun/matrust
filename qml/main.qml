@@ -13,8 +13,8 @@ ApplicationWindow {
     minimumWidth: 720
     minimumHeight: 480
     title: MatrixClient.userId.length > 0
-           ? qsTr("Rustrix — %1").arg(MatrixClient.userId)
-           : qsTr("Rustrix")
+           ? Tr.tr(Theme.language, "Rustrix — %1").arg(MatrixClient.userId)
+           : Tr.tr(Theme.language, "Rustrix")
     color: Theme.windowBg
 
     font.family: Theme.fontFamily
@@ -243,8 +243,8 @@ ApplicationWindow {
                                 Label {
                                     Layout.fillWidth: true
                                     text: mainViewRoot.sidebarMode === "home"
-                                          ? qsTr("Direct Messages")
-                                          : qsTr("Rooms")
+                                          ? Tr.tr(Theme.language, "Direct Messages")
+                                          : Tr.tr(Theme.language, "Rooms")
                                     color: Theme.sidebarFg
                                     font.pixelSize: Theme.fontSizeMd
                                     font.bold: true
@@ -278,7 +278,7 @@ ApplicationWindow {
                             Layout.leftMargin: Theme.paddingSm
                             Layout.rightMargin: Theme.paddingSm
                             Layout.bottomMargin: Theme.spacingSm
-                            placeholderText: qsTr("Search\u2026")
+                            placeholderText: Tr.tr(Theme.language, "Search\u2026")
                             color: Theme.sidebarFg
                             font.pixelSize: Theme.fontSizeSm
                             background: Rectangle {
@@ -583,7 +583,7 @@ ApplicationWindow {
                 Layout.fillWidth: true
                 spacing: Theme.spacingSm
                 Label {
-                    text: qsTr("Find user")
+                    text: Tr.tr(Theme.language, "Find user")
                     font.pixelSize: Theme.fontSizeLg
                     font.bold: true
                     color: Theme.windowFg
@@ -601,7 +601,7 @@ ApplicationWindow {
             TextField {
                 id: userSearchField
                 Layout.fillWidth: true
-                placeholderText: qsTr("Type a username (e.g. @alice:matrix.org)…")
+                placeholderText: Tr.tr(Theme.language, "Type a username (e.g. @alice:matrix.org)…")
                 color: Theme.windowFg
                 font.pixelSize: Theme.fontSizeSm
                 onTextChanged: userSearchTimer.restart()
@@ -667,7 +667,7 @@ ApplicationWindow {
                                 spacing: 0
                                 Label {
                                     Layout.fillWidth: true
-                                    text: model.display_name.length > 0 ? model.display_name : qsTr("(no display name)")
+                                    text: model.display_name.length > 0 ? model.display_name : Tr.tr(Theme.language, "(no display name)")
                                     color: Theme.windowFg
                                     font.pixelSize: Theme.fontSizeSm
                                     font.bold: true
@@ -706,7 +706,7 @@ ApplicationWindow {
             Label {
                 Layout.fillWidth: true
                 visible: userSearchResults.count === 0 && userSearchField.text.length > 0
-                text: qsTr("No users found. Try the full Matrix ID (e.g. @alice:matrix.org).")
+                text: Tr.tr(Theme.language, "No users found. Try the full Matrix ID (e.g. @alice:matrix.org).")
                 color: Theme.muted
                 font.pixelSize: Theme.fontSizeXs
                 wrapMode: Text.Wrap
@@ -753,7 +753,7 @@ ApplicationWindow {
             anchors.margins: Theme.paddingMd
             spacing: Theme.spacingSm
             Label {
-                text: qsTr("Close conversation?")
+                text: Tr.tr(Theme.language, "Close conversation?")
                 font.pixelSize: Theme.fontSizeLg
                 font.bold: true
                 color: Theme.windowFg
@@ -761,8 +761,8 @@ ApplicationWindow {
             Label {
                 Layout.fillWidth: true
                 text: leaveRoomDialog.roomName.length > 0
-                      ? qsTr("This will leave \"%1\". Your and the other participant's messages will no longer be visible to you in this client (the history remains on the server).").arg(leaveRoomDialog.roomName)
-                      : qsTr("This will leave the room. Your and the other participant's messages will no longer be visible to you in this client.")
+                      ? Tr.tr(Theme.language, "This will leave \"%1\". Your and the other participant's messages will no longer be visible to you in this client (the history remains on the server).").arg(leaveRoomDialog.roomName)
+                      : Tr.tr(Theme.language, "This will leave the room. Your and the other participant's messages will no longer be visible to you in this client.")
                 color: Theme.windowFg
                 wrapMode: Text.Wrap
                 font.pixelSize: Theme.fontSizeSm
@@ -771,11 +771,11 @@ ApplicationWindow {
                 Layout.fillWidth: true
                 Item { Layout.fillWidth: true }
                 Button {
-                    text: qsTr("Cancel")
+                    text: Tr.tr(Theme.language, "Cancel")
                     onClicked: leaveRoomDialog.close()
                 }
                 Button {
-                    text: qsTr("Close")
+                    text: Tr.tr(Theme.language, "Close")
                     background: Rectangle { color: Theme.danger; radius: Theme.radiusSm }
                     contentItem: Label { text: parent.text; color: Theme.accentFg }
                     onClicked: {
@@ -833,7 +833,7 @@ ApplicationWindow {
             settingsOverlay.visible = false;
         }
         function onFileDownloaded(roomId, mxc, localPath) {
-            root.showToast(qsTr("Downloaded to %1").arg(localPath));
+            root.showToast(Tr.tr(Theme.language, "Downloaded to %1").arg(localPath));
         }
         // Search results arrived — parse JSON into userSearchResults.
         function onUsersSearchDone(resultsJson) {
@@ -860,7 +860,7 @@ ApplicationWindow {
             if (mainViewRoot.activeRoomId === roomId) {
                 mainViewRoot.activeRoomId = ""
             }
-            root.showToast(qsTr("Conversation closed"))
+            root.showToast(Tr.tr(Theme.language, "Conversation closed"))
         }
     }
 

@@ -18,7 +18,7 @@ Rectangle {
             Layout.leftMargin: Theme.paddingMd
             Layout.topMargin: Theme.paddingMd
             Layout.bottomMargin: Theme.paddingSm
-            text: qsTr("Direct messages & Rooms")
+            text: Tr.tr(Theme.language, "Direct messages & Rooms")
             color: Theme.sidebarFg
             font.pixelSize: Theme.fontSizeLg
             font.bold: true
