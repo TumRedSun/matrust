@@ -59,26 +59,12 @@ Rectangle {
                     anchors.margins: Theme.paddingMd
                     spacing: Theme.spacingSm
                     Label { text: Tr.tr(Theme.language, "Network"); color: Theme.accent; font.pixelSize: Theme.fontSizeMd; font.bold: true }
-                    RowLayout {
+                    Label {
+                        text: Tr.tr(Theme.language, "Homeserver accepts domain, IPv4, or [IPv6] (port optional). Both A and AAAA records are tried.")
+                        color: Theme.muted
+                        font.pixelSize: Theme.fontSizeXs
                         Layout.fillWidth: true
-                        Switch {
-                            id: ipv6Switch
-                            text: Tr.tr(Theme.language, "Force IPv6-only transport")
-                            checked: false
-                            contentItem: Label {
-                                text: ipv6Switch.text
-                                color: Theme.windowFg
-                                leftPadding: ipv6Switch.indicator.width + ipv6Switch.spacing
-                            }
-                            onToggled: MatrixClient.setForceIpv6(checked)
-                        }
-                        Label {
-                            text: Tr.tr(Theme.language, "(only AAAA records are resolved; IPv4 endpoints are refused)")
-                            color: Theme.muted
-                            font.pixelSize: Theme.fontSizeXs
-                            Layout.fillWidth: true
-                            wrapMode: Text.Wrap
-                        }
+                        wrapMode: Text.Wrap
                     }
                 }
             }

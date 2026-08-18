@@ -1,16 +1,23 @@
 // EmojiPicker.qml
 // Rofi-style emoji picker popup.
 //
-// Usage:
-//   EmojiPicker { id: emojiPicker; roomId: "!abc:matrix.org"; eventId: "$xyz:matrix.org" }
+// Usage (reaction mode — default):
+//   EmojiPicker { id: emojiPicker; mode: "reaction"; roomId: "!abc:matrix.org"; eventId: "$xyz:matrix.org" }
 //   emojiPicker.open()
+//   → picking an emoji calls MatrixClient.sendReaction(roomId, eventId, emoji)
+//
+// Usage (insert mode):
+//   EmojiPicker { id: emojiInserter; mode: "insert" }
+//   emojiInserter.open()
+//   onEmojiPicked: function(emoji) { composer.insert(composer.cursorPosition, emoji) }
 //
 // - Centered modal dialog.
 // - Top: search field. Type to filter (matches emoji name/keywords).
 // - Below: scrollable square grid of emoji (8 columns). Wheel-scroll or
 //   Up/Down arrows move the highlight (rofi-style keyboard navigation).
-// - Enter / click sends MatrixClient.sendReaction(roomId, eventId, emoji)
-//   and closes the dialog. Escape closes without sending.
+// - Enter / click: in "reaction" mode sends a reaction; in "insert" mode
+//   emits `emojiPicked(emoji)` so the caller can insert it as text.
+// - Escape closes without action.
 //
 // The emoji list is a static ListModel defined inline at the bottom. It is
 // intentionally NOT the full Unicode dataset (~3000 emoji) — that would
@@ -41,10 +48,18 @@ Dialog {
     // (default for modal Dialogs).
 
     // ── Public API ──
+    // mode: "reaction" (default) — picking sends a reaction to (roomId, eventId).
+    //       "insert" — picking emits `emojiPicked(emoji)` for the caller to
+    //                  handle (e.g. insert into the message composer as text).
+    property string mode: "reaction"
     // roomId + eventId are set by the caller before calling open().
-    // The chosen emoji is sent as a reaction to that event.
+    // Only used in "reaction" mode.
     property string roomId: ""
     property string eventId: ""
+
+    // Emitted in "insert" mode when the user picks an emoji. The caller
+    // is responsible for inserting it into the target text field.
+    signal emojiPicked(string emoji)
 
     // ── Internal state ──
     // currentIndex: index into `filteredModel` of the highlighted cell.
@@ -88,12 +103,19 @@ Dialog {
     function sendCurrent() {
         if (gridView.currentIndex < 0 || gridView.currentIndex >= filteredModel.count) return
         var row = filteredModel.get(gridView.currentIndex)
-        MatrixClient.sendReaction(root.roomId, root.eventId, row.emoji)
-        // Optimistic local update so the chip appears immediately:
-        // we cannot reach into MessageBubble from here without coupling,
-        // so we rely on the next sync to surface the reaction (typically
-        // < 1 s). This matches the existing behaviour of the inline
-        // "React" submenu.
+        if (root.mode === "insert") {
+            // Insert mode: emit the emoji and let the caller insert it
+            // into whatever target text field owns the cursor.
+            root.emojiPicked(row.emoji)
+        } else {
+            // Reaction mode (default): send as a reaction to (roomId, eventId).
+            // Optimistic local update so the chip appears immediately:
+            // we cannot reach into MessageBubble from here without coupling,
+            // so we rely on the next sync to surface the reaction (typically
+            // < 1 s). This matches the existing behaviour of the inline
+            // "React" submenu.
+            MatrixClient.sendReaction(root.roomId, root.eventId, row.emoji)
+        }
         root.close()
     }
 
@@ -129,7 +151,9 @@ Dialog {
             Layout.fillWidth: true
             spacing: Theme.spacingSm
             Label {
-                text: Tr.tr(Theme.language, "React with emoji")
+                text: root.mode === "insert"
+                      ? Tr.tr(Theme.language, "Insert emoji")
+                      : Tr.tr(Theme.language, "React with emoji")
                 font.pixelSize: Theme.fontSizeLg
                 font.bold: true
                 color: Theme.windowFg
@@ -137,7 +161,9 @@ Dialog {
             Item { Layout.fillWidth: true }
             Label {
                 // Hint text — keyboard shortcuts.
-                text: Tr.tr(Theme.language, "Type to search  ·  ↑↓ to move  ·  Enter to react  ·  Esc to close")
+                text: root.mode === "insert"
+                      ? Tr.tr(Theme.language, "Type to search  ·  ↑↓ to move  ·  Enter to insert  ·  Esc to close")
+                      : Tr.tr(Theme.language, "Type to search  ·  ↑↓ to move  ·  Enter to react  ·  Esc to close")
                 color: Theme.muted
                 font.pixelSize: Theme.fontSizeXs
             }

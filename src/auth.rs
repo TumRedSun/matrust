@@ -51,7 +51,21 @@ fn store_dir() -> PathBuf {
 }
 
 pub async fn build_client(homeserver: &str, force_ipv6: bool) -> Result<Client> {
-    let hs: url::Url = homeserver.parse()?;
+    // Normalize the homeserver input so users can type any of:
+    //   matrix.org
+    //   https://matrix.org
+    //   192.168.1.10
+    //   https://192.168.1.10:8448
+    //   [::1]
+    //   https://[::1]:8448
+    //
+    // `url::Url::parse` requires a scheme, so we prepend `https://` when
+    // one is missing. We do NOT prepend `http://` because a bare hostname
+    // almost always means "the user expects HTTPS" — and Matrix servers
+    // should be using TLS anyway. Users who really want plaintext HTTP
+    // can type `http://...` explicitly.
+    let normalized = normalize_homeserver(homeserver);
+    let hs: url::Url = normalized.parse()?;
 
     // Persistent SQLite store: holds room state, sync tokens, AND the
     // Olm/Megolm crypto identity (room keys, device keys, etc.).
@@ -74,6 +88,27 @@ pub async fn build_client(homeserver: &str, force_ipv6: bool) -> Result<Client> 
 
     let client = builder.build().await?;
     Ok(client)
+}
+
+/// Normalize a user-typed homeserver string into something `url::Url::parse`
+/// will accept.
+///
+/// Rules:
+///  - If the input already starts with `http://` or `https://`, leave it
+///    alone (the user was explicit).
+///  - Otherwise, prepend `https://`. This lets users type bare domains
+///    (`matrix.org`), bare IPv4 (`192.168.1.10`), and bare bracketed IPv6
+///    (`[::1]`) without remembering to add a scheme.
+///  - Whitespace is trimmed.
+///
+/// Port numbers are preserved as-is (e.g. `192.168.1.10:8448` →
+/// `https://192.168.1.10:8448`).
+fn normalize_homeserver(input: &str) -> String {
+    let s = input.trim();
+    if s.starts_with("http://") || s.starts_with("https://") {
+        return s.to_string();
+    }
+    format!("https://{}", s)
 }
 
 /// Build a default reqwest client (no custom DNS resolver).

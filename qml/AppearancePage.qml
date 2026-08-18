@@ -32,7 +32,7 @@ Rectangle {
                 Layout.fillWidth: true
                 spacing: Theme.spacingSm
 
-                Label { text: Tr.tr(Theme.language, "Preset"); color: Theme.windowFg; Layout.preferredWidth: 70 }
+                Label { text: Tr.tr(Theme.language, "Preset"); color: Theme.windowFg }
                 ComboBox {
                     id: presetCombo
                     model: JSON.parse(Theme.availablePresets())
@@ -185,7 +185,7 @@ Rectangle {
                     RowLayout {
                         Layout.columnSpan: 2
                         Layout.fillWidth: true
-                        Label { text: Tr.tr(Theme.language, "Shape"); color: Theme.windowFg; Layout.preferredWidth: 80 }
+                        Label { text: Tr.tr(Theme.language, "Shape"); color: Theme.windowFg }
                         ComboBox {
                             id: shapeCombo
                             model: ["circle", "rounded", "square"]
@@ -243,7 +243,7 @@ Rectangle {
         Layout.fillWidth: true
         spacing: Theme.spacingSm
 
-        Label { text: label; color: Theme.windowFg; Layout.preferredWidth: 100; font.pixelSize: Theme.fontSizeSm }
+        Label { text: label; color: Theme.windowFg; font.pixelSize: Theme.fontSizeSm }
 
         Rectangle {
             Layout.preferredWidth: 24
@@ -256,7 +256,7 @@ Rectangle {
         TextField {
             id: hexField
             Layout.fillWidth: true
-            Layout.preferredWidth: 80
+            Layout.minimumWidth: 80
             text: Theme[bind]
             color: Theme.windowFg
             font.pixelSize: Theme.fontSizeSm
@@ -289,7 +289,7 @@ Rectangle {
         Layout.fillWidth: true
         spacing: Theme.spacingSm
 
-        Label { text: label; color: Theme.windowFg; Layout.preferredWidth: 100; font.pixelSize: Theme.fontSizeSm }
+        Label { text: label; color: Theme.windowFg; font.pixelSize: Theme.fontSizeSm }
         TextField {
             Layout.fillWidth: true
             text: Theme[bind]
@@ -300,42 +300,109 @@ Rectangle {
         }
     }
 
-    // Integer row with − / + / slider / numeric display.
+    // Integer row: label + SpinBox + live preview (no sliders or −/+ buttons).
+    // Mirrors the IntRow in SettingsOverlay.qml — kept in sync so the
+    // standalone AppearancePage and the embedded one look identical.
     component IntRow: RowLayout {
         property string label
         property string bind
         property int minValue: 0
         property int maxValue: 100
         Layout.fillWidth: true
-        spacing: 4
+        spacing: Theme.spacingSm
 
-        Label { text: label; color: Theme.windowFg; Layout.preferredWidth: 100; font.pixelSize: Theme.fontSizeSm }
+        Label { text: label; color: Theme.windowFg; font.pixelSize: Theme.fontSizeSm }
 
-        Button {
-            text: "−"
-            font.pixelSize: Theme.fontSizeSm
-            enabled: Theme[bind] > minValue
-            onClicked: Theme[bind] = Theme[bind] - 1
-        }
-        Label {
-            Layout.preferredWidth: 36
-            text: Theme[bind]
-            color: Theme.windowFg
-            font.pixelSize: Theme.fontSizeSm
-            horizontalAlignment: Qt.AlignHCenter
-        }
-        Button {
-            text: "+"
-            font.pixelSize: Theme.fontSizeSm
-            enabled: Theme[bind] < maxValue
-            onClicked: Theme[bind] = Theme[bind] + 1
-        }
-        Slider {
-            Layout.fillWidth: true
+        SpinBox {
+            id: spin
+            Layout.preferredWidth: 100
             from: minValue
             to: maxValue
             value: Theme[bind]
-            onMoved: Theme[bind] = Math.round(value)
+            onValueModified: Theme[bind] = value
+            editable: true
+            font.pixelSize: Theme.fontSizeSm
+        }
+
+        Rectangle {
+            id: previewBox
+            Layout.fillWidth: true
+            Layout.preferredHeight: 32
+            color: Theme.sidebarBg
+            radius: Theme.radiusSm
+            border.color: Theme.border
+            border.width: 1
+
+            Item {
+                anchors.fill: parent
+                anchors.margins: 4
+
+                Rectangle {
+                    visible: bind.indexOf("adius") >= 0 || bind === "avatarRadius" || bind === "scrollbarRadius"
+                    anchors.centerIn: parent
+                    width: 24
+                    height: 24
+                    radius: Math.min(Theme[bind], 24)
+                    color: Theme.accent
+                }
+
+                Rectangle {
+                    visible: bind.indexOf("adding") >= 0
+                    anchors.fill: parent
+                    color: "transparent"
+                    Rectangle {
+                        anchors.centerIn: parent
+                        width: parent.width - Math.min(Theme[bind], parent.width / 2)
+                        height: parent.height - Math.min(Theme[bind], parent.height / 2)
+                        color: Theme.accent
+                        opacity: 0.5
+                    }
+                }
+
+                Item {
+                    visible: bind.indexOf("pacing") >= 0
+                    anchors.fill: parent
+                    Rectangle {
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.left: parent.left
+                        width: 8; height: 8; radius: 4; color: Theme.accent
+                    }
+                    Rectangle {
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.left: parent.left
+                        anchors.leftMargin: Math.min(8 + Theme[bind], parent.width - 8)
+                        width: 8; height: 8; radius: 4; color: Theme.accent
+                    }
+                }
+
+                Text {
+                    visible: bind.indexOf("ontSize") >= 0 || bind.indexOf("imationDuration") >= 0
+                    anchors.centerIn: parent
+                    text: "Aa"
+                    color: Theme.windowFg
+                    font.pixelSize: Math.min(Theme[bind], 28)
+                }
+
+                Rectangle {
+                    visible: bind.indexOf("avatarSize") >= 0 || bind.indexOf("crollbarSize") >= 0
+                    anchors.centerIn: parent
+                    width: Math.min(Theme[bind], parent.width)
+                    height: bind.indexOf("crollbarSize") >= 0 ? Math.min(Theme[bind], parent.height) : Math.min(Theme[bind], parent.width)
+                    radius: bind === "avatarSizeSm" || bind === "avatarSizeMd" || bind === "avatarSizeLg" ? width / 2 : 2
+                    color: Theme.accent
+                    opacity: 0.6
+                }
+
+                Rectangle {
+                    visible: bind.indexOf("axWidth") >= 0
+                    anchors.left: parent.left
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: parent.width * Theme[bind] / 100
+                    height: 8
+                    color: Theme.accent
+                    radius: 2
+                }
+            }
         }
     }
 

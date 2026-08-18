@@ -79,12 +79,16 @@ const RU_SOURCES: &[(&str, &str)] = &[
 
     // ── Emoji picker ──
     ("React with emoji", "Реакция эмодзи"),
+    ("Insert emoji", "Вставить эмодзи"),
     ("Type to search  ·  ↑↓ to move  ·  Enter to react  ·  Esc to close",
      "Печатайте для поиска  ·  ↑↓ для перемещения  ·  Enter для реакции  ·  Esc для закрытия"),
+    ("Type to search  ·  ↑↓ to move  ·  Enter to insert  ·  Esc to close",
+     "Печатайте для поиска  ·  ↑↓ для перемещения  ·  Enter для вставки  ·  Esc для закрытия"),
     ("Search emoji (e.g. heart, fire, thumbs up)…",
      "Поиск эмодзи (напр. сердце, огонь, палец вверх)…"),
     ("No emoji match your search.", "Эмодзи не найдены."),
     ("%1 emoji", "%1 эмодзи"),
+    ("Insert emoji into message", "Вставить эмодзи в сообщение"),
 
     // ── Reaction senders popup ──
     ("Reactions", "Реакции"),
@@ -146,6 +150,8 @@ const RU_SOURCES: &[(&str, &str)] = &[
     ("Force IPv6-only transport", "Только IPv6-транспорт"),
     ("(only AAAA records are resolved; IPv4 endpoints are refused)",
      "(разрешаются только AAAA-записи; IPv4-конечные точки отклоняются)"),
+    ("Homeserver accepts domain, IPv4, or [IPv6] (port optional). Both A and AAAA records are tried.",
+     "Хоумсервер принимает домен, IPv4 или [IPv6] (порт необязателен). Записи A и AAAA обе используются."),
     ("Warning: Deleting your account is irreversible. All data will be permanently removed from the server.",
      "Внимание: Удаление аккаунта необратимо. Все данные будут навсегда удалены с сервера."),
 
@@ -217,6 +223,7 @@ const RU_SOURCES: &[(&str, &str)] = &[
     ("Import", "Импорт"),
     ("Export", "Экспорт"),
     ("Reset", "Сбросить"),
+    ("Preview", "Предпросмотр"),
 
     // ── SpacesPage ──
     ("Spaces & Rooms", "Пространства и комнаты"),
@@ -230,6 +237,8 @@ const RU_SOURCES: &[(&str, &str)] = &[
     // ── Login page ──
     ("Login", "Вход"),
     ("Homeserver", "Хоумсервер"),
+    ("Homeserver — domain, IPv4, or [IPv6] (port optional)",
+     "Хоумсервер — домен, IPv4 или [IPv6] (порт необязателен)"),
     ("Username", "Имя пользователя"),
     ("Password", "Пароль"),
     ("Logging in…", "Вход…"),

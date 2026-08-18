@@ -243,7 +243,7 @@ Item {
                         RowLayout {
                             Layout.fillWidth: true
                             spacing: Theme.spacingSm
-                            Label { text: Tr.tr(Theme.language, "Name"); color: Theme.windowFg; Layout.preferredWidth: 80 }
+                            Label { text: Tr.tr(Theme.language, "Name"); color: Theme.windowFg }
                             TextField {
                                 id: dnField
                                 Layout.fillWidth: true
@@ -309,7 +309,7 @@ Item {
                             Layout.fillWidth: true
                             spacing: Theme.spacingSm
 
-                            Label { text: Tr.tr(Theme.language, "Preset"); color: Theme.windowFg; Layout.preferredWidth: 70 }
+                            Label { text: Tr.tr(Theme.language, "Preset"); color: Theme.windowFg }
                             ComboBox {
                                 id: presetCombo
                                 model: JSON.parse(Theme.availablePresets())
@@ -462,7 +462,7 @@ Item {
                                 RowLayout {
                                     Layout.columnSpan: 2
                                     Layout.fillWidth: true
-                                    Label { text: Tr.tr(Theme.language, "Shape"); color: Theme.windowFg; Layout.preferredWidth: 80 }
+                                    Label { text: Tr.tr(Theme.language, "Shape"); color: Theme.windowFg }
                                     ComboBox {
                                         id: shapeCombo
                                         model: ["circle", "rounded", "square"]
@@ -547,6 +547,11 @@ Item {
                         }
 
                         // Network
+                        // IPv6-only toggle removed: the client now uses
+                        // the default resolver which tries both A and AAAA
+                        // records (happy-eyeballs). Homeservers can be
+                        // specified by domain, IPv4, or [IPv6] in the
+                        // login form.
                         Rectangle {
                             Layout.fillWidth: true
                             color: Theme.sidebarBg
@@ -560,27 +565,12 @@ Item {
                                 spacing: Theme.spacingSm
 
                                 Label { text: Tr.tr(Theme.language, "Network"); color: Theme.accent; font.pixelSize: Theme.fontSizeMd; font.bold: true }
-
-                                RowLayout {
+                                Label {
+                                    text: Tr.tr(Theme.language, "Homeserver accepts domain, IPv4, or [IPv6] (port optional). Both A and AAAA records are tried.")
+                                    color: Theme.muted
+                                    font.pixelSize: Theme.fontSizeXs
                                     Layout.fillWidth: true
-                                    Switch {
-                                        id: ipv6Switch
-                                        text: Tr.tr(Theme.language, "Force IPv6-only transport")
-                                        checked: false
-                                        contentItem: Label {
-                                            text: ipv6Switch.text
-                                            color: Theme.windowFg
-                                            leftPadding: ipv6Switch.indicator.width + ipv6Switch.spacing
-                                        }
-                                        onToggled: MatrixClient.setForceIpv6(checked)
-                                    }
-                                    Label {
-                                        text: Tr.tr(Theme.language, "(only AAAA records are resolved; IPv4 endpoints are refused)")
-                                        color: Theme.muted
-                                        font.pixelSize: Theme.fontSizeXs
-                                        Layout.fillWidth: true
-                                        wrapMode: Text.Wrap
-                                    }
+                                    wrapMode: Text.Wrap
                                 }
                             }
                         }
@@ -703,7 +693,6 @@ Item {
                                     Label {
                                         text: Tr.tr(Theme.language, "Language")
                                         color: Theme.windowFg
-                                        Layout.preferredWidth: 80
                                     }
 
                                     ComboBox {
@@ -831,7 +820,12 @@ Item {
         Layout.fillWidth: true
         spacing: Theme.spacingSm
 
-        Label { text: label; color: Theme.windowFg; Layout.preferredWidth: 100; font.pixelSize: Theme.fontSizeSm }
+        // Label takes its natural implicit width (no fixed preferredWidth)
+        // so translated labels (which can be much longer than English,
+        // e.g. "Bubble own bg" → "Свой пузырь фон") don't get clipped or
+        // cause the TextField to shrink. The GridLayout column auto-sizes
+        // to the widest label, so labels still align across rows.
+        Label { text: label; color: Theme.windowFg; font.pixelSize: Theme.fontSizeSm }
 
         Rectangle {
             Layout.preferredWidth: 24
@@ -844,7 +838,7 @@ Item {
         TextField {
             id: hexField
             Layout.fillWidth: true
-            Layout.preferredWidth: 80
+            Layout.minimumWidth: 80
             text: Theme[bind]
             color: Theme.windowFg
             font.pixelSize: Theme.fontSizeSm
@@ -860,7 +854,7 @@ Item {
         }
 
         Button {
-            text: Tr.tr(Theme.language, "\uD83C\uDFA8")
+            text: "\uD83C\uDFA8"  // 🎨
             font.pixelSize: Theme.fontSizeSm
             onClicked: {
                 picker.targetBind = bind
@@ -876,9 +870,10 @@ Item {
         Layout.fillWidth: true
         spacing: Theme.spacingSm
 
-        Label { text: label; color: Theme.windowFg; Layout.preferredWidth: 100; font.pixelSize: Theme.fontSizeSm }
+        Label { text: label; color: Theme.windowFg; font.pixelSize: Theme.fontSizeSm }
         TextField {
             Layout.fillWidth: true
+            Layout.minimumWidth: 120
             text: Theme[bind]
             color: Theme.windowFg
             font.pixelSize: Theme.fontSizeSm
@@ -887,41 +882,132 @@ Item {
         }
     }
 
+    // Integer row: label + SpinBox + live preview.
+    //
+    // The preview is a small box that visually demonstrates what the
+    // current value looks like. For radius/padding/size/etc. it shows a
+    // Rectangle styled with that value, so the user can see the effect
+    // without scanning a long slider. No more −/+ buttons or sliders —
+    // just type a number (or use the SpinBox arrows) and watch the
+    // preview update.
     component IntRow: RowLayout {
         property string label
         property string bind
         property int minValue: 0
         property int maxValue: 100
         Layout.fillWidth: true
-        spacing: 4
+        spacing: Theme.spacingSm
 
-        Label { text: label; color: Theme.windowFg; Layout.preferredWidth: 100; font.pixelSize: Theme.fontSizeSm }
+        Label { text: label; color: Theme.windowFg; font.pixelSize: Theme.fontSizeSm }
 
-        Button {
-            text: "\u2212"
-            font.pixelSize: Theme.fontSizeSm
-            enabled: Theme[bind] > minValue
-            onClicked: Theme[bind] = Theme[bind] - 1
-        }
-        Label {
-            Layout.preferredWidth: 36
-            text: Theme[bind]
-            color: Theme.windowFg
-            font.pixelSize: Theme.fontSizeSm
-            horizontalAlignment: Qt.AlignHCenter
-        }
-        Button {
-            text: "+"
-            font.pixelSize: Theme.fontSizeSm
-            enabled: Theme[bind] < maxValue
-            onClicked: Theme[bind] = Theme[bind] + 1
-        }
-        Slider {
-            Layout.fillWidth: true
+        // SpinBox: editable number input with up/down arrows.
+        // `value` is bound to Theme[bind] both ways — editing the value
+        // updates the theme, and external theme changes (e.g. applying a
+        // preset) reflect in the SpinBox.
+        SpinBox {
+            id: spin
+            Layout.preferredWidth: 100
             from: minValue
             to: maxValue
             value: Theme[bind]
-            onMoved: Theme[bind] = Math.round(value)
+            onValueModified: Theme[bind] = value
+            editable: true
+            font.pixelSize: Theme.fontSizeSm
+        }
+
+        // Live preview — adapts to the property being edited.
+        Rectangle {
+            id: previewBox
+            Layout.fillWidth: true
+            Layout.preferredHeight: 32
+            color: Theme.sidebarBg
+            radius: Theme.radiusSm
+            border.color: Theme.border
+            border.width: 1
+
+            // The actual preview element — chosen based on the bind name.
+            // We use simple substring matching on the bind name to pick
+            // the right visualization. This keeps the component generic
+            // instead of needing a separate row type for each property.
+            Item {
+                anchors.fill: parent
+                anchors.margins: 4
+
+                // Radius preview: a rectangle with that corner radius.
+                Rectangle {
+                    visible: bind.indexOf("adius") >= 0 || bind === "avatarRadius" || bind === "scrollbarRadius"
+                    anchors.centerIn: parent
+                    width: 24
+                    height: 24
+                    radius: Math.min(Theme[bind], 24)
+                    color: Theme.accent
+                }
+
+                // Padding preview: inner box inset by half the padding value.
+                Rectangle {
+                    visible: bind.indexOf("adding") >= 0
+                    anchors.fill: parent
+                    color: "transparent"
+                    Rectangle {
+                        anchors.centerIn: parent
+                        width: parent.width - Math.min(Theme[bind], parent.width / 2)
+                        height: parent.height - Math.min(Theme[bind], parent.height / 2)
+                        color: Theme.accent
+                        opacity: 0.5
+                    }
+                }
+
+                // Spacing preview: two dots separated by the spacing value.
+                Item {
+                    visible: bind.indexOf("pacing") >= 0
+                    anchors.fill: parent
+                    Rectangle {
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.left: parent.left
+                        width: 8; height: 8; radius: 4; color: Theme.accent
+                    }
+                    Rectangle {
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.left: parent.left
+                        anchors.leftMargin: Math.min(8 + Theme[bind], parent.width - 8)
+                        width: 8; height: 8; radius: 4; color: Theme.accent
+                    }
+                }
+
+                // Font size preview: shows "Aa" at that font size.
+                Text {
+                    visible: bind.indexOf("ontSize") >= 0 || bind.indexOf("imationDuration") >= 0
+                    anchors.centerIn: parent
+                    text: "Aa"
+                    color: Theme.windowFg
+                    font.pixelSize: Math.min(Theme[bind], 28)
+                }
+
+                // Size preview (avatarSize*): a circle/box of that size
+                // (capped to fit the preview box).
+                Rectangle {
+                    visible: bind.indexOf("avatarSize") >= 0 || bind.indexOf("crollbarSize") >= 0
+                    anchors.centerIn: parent
+                    width: Math.min(Theme[bind], parent.width)
+                    height: bind.indexOf("crollbarSize") >= 0 ? Math.min(Theme[bind], parent.height) : Math.min(Theme[bind], parent.width)
+                    radius: bind === "avatarSizeSm" || bind === "avatarSizeMd" || bind === "avatarSizeLg" ? width / 2 : 2
+                    color: Theme.accent
+                    opacity: 0.6
+                }
+
+                // Bubble max width % preview: a horizontal bar fill.
+                Rectangle {
+                    visible: bind.indexOf("axWidth") >= 0
+                    anchors.left: parent.left
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: parent.width * Theme[bind] / 100
+                    height: 8
+                    color: Theme.accent
+                    radius: 2
+                }
+
+                // Width preview (scrollbarSize): handled above by Size branch.
+            }
         }
     }
 

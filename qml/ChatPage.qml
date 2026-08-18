@@ -275,13 +275,9 @@ Rectangle {
                     font.bold: true
                     elide: Text.ElideRight
                 }
-                Label {
-                    text: MatrixClient.offline
-                          ? Tr.tr(Theme.language, "Offline")
-                          : (MatrixClient.busy ? Tr.tr(Theme.language, "Syncing\u2026") : Tr.tr(Theme.language, "Ready"))
-                    color: MatrixClient.offline ? Theme.accent : Theme.muted
-                    font.pixelSize: Theme.fontSizeSm
-                }
+                // Status indicator removed: the "Ready" label was confusing
+                // and added noise. Offline state is still visible via the
+                // composer's red placeholder text and disabled send button.
             }
         }
 
@@ -657,6 +653,21 @@ Rectangle {
                     ToolTip.visible: hovered
                 }
 
+                // Emoji insert button — opens the emoji picker in
+                // "insert" mode. Picking an emoji inserts it as text at
+                // the composer's cursor position (Discord-style), NOT as
+                // a reaction. Reactions are sent via right-click on a
+                // message bubble.
+                Button {
+                    text: "\uD83D\uDE00"  // 😀
+                    background: Rectangle { color: "transparent"; radius: Theme.radiusSm }
+                    font.pixelSize: Theme.fontSizeLg
+                    onClicked: emojiInserter.open()
+                    enabled: roomId.length > 0 && !MatrixClient.offline
+                    ToolTip.text: Tr.tr(Theme.language, "Insert emoji into message")
+                    ToolTip.visible: hovered
+                }
+
                 ScrollView {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
@@ -684,14 +695,31 @@ Rectangle {
                     }
                 }
 
+                // Send button — up-arrow icon (Discord/Telegram style).
+                // Icon-only to save horizontal space and avoid translation
+                // width issues ("Send" vs "Отправить" had different widths).
                 Button {
-                    text: Tr.tr(Theme.language, "Send")
+                    text: "\u2191"  // ↑
+                    font.pixelSize: Theme.fontSizeLg
+                    font.bold: true
                     enabled: roomId.length > 0
                              && (composer.text.trim().length > 0 || pendingAttachments.length > 0)
                              && !MatrixClient.offline
-                    background: Rectangle { color: parent.enabled ? Theme.accent : Theme.muted; radius: Theme.radiusSm }
-                    contentItem: Label { text: parent.text; color: Theme.accentFg }
+                    background: Rectangle {
+                        color: parent.enabled ? Theme.accent : Theme.muted
+                        radius: Theme.radiusSm
+                    }
+                    contentItem: Label {
+                        text: parent.text
+                        color: Theme.accentFg
+                        font.pixelSize: Theme.fontSizeLg
+                        font.bold: true
+                        horizontalAlignment: Qt.AlignHCenter
+                        verticalAlignment: Qt.AlignVCenter
+                    }
                     onClicked: chatPageRoot.sendAll()
+                    ToolTip.text: Tr.tr(Theme.language, "Send")
+                    ToolTip.visible: hovered
                 }
             }
         }
@@ -899,9 +927,28 @@ Rectangle {
     // resolves to the window's overlay layer.
     EmojiPicker {
         id: emojiPicker
+        mode: "reaction"
         roomId: chatPageRoot.roomId
         // eventId is set by the onReactRequested handler above
         // before calling open().
+    }
+
+    // ── Emoji inserter (insert-as-text mode) ──
+    // Separate instance from `emojiPicker` (which is in reaction mode).
+    // Opens when the user clicks the 😀 button next to the file attach
+    // button in the composer. Picking an emoji inserts it into the
+    // composer at the cursor position (Discord-style).
+    EmojiPicker {
+        id: emojiInserter
+        mode: "insert"
+        onEmojiPicked: function(emoji) {
+            // Insert at cursor position; if the composer doesn't have
+            // focus (e.g. user clicked the 😀 button which then stole
+            // focus to the search field), fall back to appending.
+            composer.forceActiveFocus()
+            var pos = composer.cursorPosition > 0 ? composer.cursorPosition : composer.length
+            composer.insert(pos, emoji)
+        }
     }
 
     // ── Shared reaction-senders popup ──

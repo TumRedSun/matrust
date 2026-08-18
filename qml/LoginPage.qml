@@ -33,7 +33,7 @@ Rectangle {
             TextField {
                 id: homeserverField
                 Layout.fillWidth: true
-                placeholderText: Tr.tr(Theme.language, "Homeserver (https://matrix.org)")
+                placeholderText: Tr.tr(Theme.language, "Homeserver — domain, IPv4, or [IPv6] (port optional)")
                 text: "https://matrix.org"
                 color: Theme.windowFg
                 background: Rectangle {
@@ -66,16 +66,6 @@ Rectangle {
             }
             RowLayout {
                 Layout.fillWidth: true
-                CheckBox {
-                    id: ipv6Box
-                    text: Tr.tr(Theme.language, "Force IPv6 (only AAAA records)")
-                    checked: false
-                    contentItem: Label {
-                        text: ipv6Box.text
-                        color: Theme.windowFg
-                        leftPadding: ipv6Box.indicator.width + ipv6Box.spacing
-                    }
-                }
                 Item { Layout.fillWidth: true }
                 Button {
                     text: Tr.tr(Theme.language, "Sign in")
@@ -90,7 +80,7 @@ Rectangle {
                     }
                     onClicked: MatrixClient.loginWithPassword(
                         homeserverField.text, usernameField.text,
-                        passwordField.text, ipv6Box.checked)
+                        passwordField.text, false)
                 }
             }
         }
