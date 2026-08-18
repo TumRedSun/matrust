@@ -61,6 +61,7 @@ qrc! {
         "SettingsOverlay.qml",
         "MemberListPanel.qml",
         "FileBrowserDialog.qml",
+        "EmojiPicker.qml",
     },
     "assets" as "/assets" {
         "logo.svg",

@@ -352,6 +352,18 @@ Rectangle {
                                 }
                             }
                         }
+
+                        // ── React-request handler ──
+                        // When the user picks "React…" in the bubble's
+                        // context menu, the bubble emits reactRequested.
+                        // We point the shared EmojiPicker at this message
+                        // and open it. The picker calls
+                        // MatrixClient.sendReaction() on the chosen emoji.
+                        onReactRequested: function(roomId, eventId) {
+                            emojiPicker.roomId = roomId
+                            emojiPicker.eventId = eventId
+                            emojiPicker.open()
+                        }
                     }
                 }
             }
@@ -809,5 +821,24 @@ Rectangle {
         if (roomId.length > 0) {
             MatrixClient.loadRoomMessages(roomId)
         }
+    }
+
+    // ── Shared emoji picker popup ──
+    // One instance per ChatPage. MessageBubble delegates emit
+    // `reactRequested(roomId, eventId)` when the user picks "React…"
+    // in their context menu; the handler above sets this picker's
+    // target and opens it. The picker sends the reaction via
+    // MatrixClient.sendReaction() when the user picks an emoji.
+    //
+    // Kept here (not inside MessageBubble) so we don't instantiate
+    // N popups for N visible messages — that would leak focus and
+    // memory. Dialog manages its own overlay/parent, so we don't set
+    // `parent` here — `anchors.centerIn: parent` inside the picker
+    // resolves to the window's content item.
+    EmojiPicker {
+        id: emojiPicker
+        roomId: chatPageRoot.roomId
+        // eventId is set by the onReactRequested handler above
+        // before calling open().
     }
 }

@@ -1437,6 +1437,25 @@ impl MatrixClient {
             // success. Used to suppress transient offline flicker — see
             // the error branch below.
             let mut consecutive_sync_failures: u32 = 0;
+            // ── Rooms/spaces fetch throttle ──
+            // The matrix-sdk sync_once long-poll returns every time the
+            // server has new events (often, when the user is actively
+            // chatting). Re-running fetch_rooms + fetch_spaces after every
+            // cycle made the Tokio worker spin through every joined room
+            // (calling room.display_name().await for each), then push the
+            // full entry list to Qt which calls beginResetModel() on the
+            // RoomModel — that's what held one core at ~20% CPU every time
+            // the user sent a message.
+            //
+            // We now throttle: only fetch_rooms/fetch_spaces if at least
+            // 30 s have passed since the last fetch. Initial sync always
+            // fetches (handled below outside the loop). For active chat
+            // this still means at most one full refresh per 30 s — the
+            // sidebar will catch new-room / new-unread changes with a
+            // small delay, which is fine; per-message updates arrive via
+            // the timeline reload in ChatPage (syncReloadTimer, 400 ms).
+            let mut last_fetch_at: Option<std::time::Instant> = None;
+            let fetch_min_interval = std::time::Duration::from_secs(30);
 
             // ── Initial sync with retry ──
             let max_initial_retries: u32 = 5;
@@ -1468,6 +1487,9 @@ impl MatrixClient {
                             }
                             Err(e) => ::log::warn!("sync: fetch_spaces after initial sync error: {e}"),
                         }
+                        // Stamp the throttle so the main loop doesn't
+                        // immediately re-fetch right after initial sync.
+                        last_fetch_at = Some(std::time::Instant::now());
                         // Emit syncDone so ChatPage can reload messages.
                         crate::pending::push(crate::pending::PendingEvent::EmitSyncDone);
                         // On the very first sync, mark ready + clear busy.
@@ -1513,22 +1535,44 @@ impl MatrixClient {
                             "sync_once: cycle #{} OK in {:.1}s, next_batch token present={}",
                             sync_cycle, elapsed.as_secs_f64(), sync_token.is_some()
                         );
-                        match RoomModel::fetch_rooms(client_clone.clone()).await {
-                            Ok(room_entries) => {
-                                ::log::info!("sync: fetched {} rooms after cycle #{}", room_entries.len(), sync_cycle);
-                                crate::pending::push(
-                                    crate::pending::PendingEvent::ApplyRooms(room_entries)
-                                );
+                        // ── Throttled room/space list refresh ──
+                        // See the comment on `last_fetch_at` above: a full
+                        // fetch_rooms / fetch_spaces pass after every
+                        // sync_once was the #1 cause of 20 % CPU usage
+                        // during active chat. We skip the refresh if less
+                        // than `fetch_min_interval` (30 s) has passed
+                        // since the last refresh. Per-message UI updates
+                        // still arrive via ChatPage's syncReloadTimer
+                        // (which fires on the syncDone signal below).
+                        let should_fetch = match last_fetch_at {
+                            None => true,
+                            Some(t) => t.elapsed() >= fetch_min_interval,
+                        };
+                        if should_fetch {
+                            match RoomModel::fetch_rooms(client_clone.clone()).await {
+                                Ok(room_entries) => {
+                                    ::log::info!("sync: fetched {} rooms after cycle #{}", room_entries.len(), sync_cycle);
+                                    crate::pending::push(
+                                        crate::pending::PendingEvent::ApplyRooms(room_entries)
+                                    );
+                                }
+                                Err(e) => ::log::warn!("sync: fetch_rooms error after cycle #{}: {e}", sync_cycle),
                             }
-                            Err(e) => ::log::warn!("sync: fetch_rooms error after cycle #{}: {e}", sync_cycle),
-                        }
-                        match SpaceModel::fetch_spaces(client_clone.clone()).await {
-                            Ok(space_entries) => {
-                                crate::pending::push(
-                                    crate::pending::PendingEvent::ApplySpaces(space_entries)
-                                );
+                            match SpaceModel::fetch_spaces(client_clone.clone()).await {
+                                Ok(space_entries) => {
+                                    crate::pending::push(
+                                        crate::pending::PendingEvent::ApplySpaces(space_entries)
+                                    );
+                                }
+                                Err(e) => ::log::warn!("sync: fetch_spaces error after cycle #{}: {e}", sync_cycle),
                             }
-                            Err(e) => ::log::warn!("sync: fetch_spaces error after cycle #{}: {e}", sync_cycle),
+                            last_fetch_at = Some(std::time::Instant::now());
+                        } else {
+                            ::log::debug!(
+                                "sync: skipping fetch_rooms/spaces on cycle #{} (throttled, {:?} since last fetch)",
+                                sync_cycle,
+                                last_fetch_at.map(|t| t.elapsed()).unwrap_or_default()
+                            );
                         }
                         crate::pending::push(crate::pending::PendingEvent::EmitSyncDone);
                         crate::pending::push(crate::pending::PendingEvent::RefreshProfile);

@@ -65,6 +65,15 @@ Item {
     // side reactions are rendered once they come back through sync.
     property string localReactions: ""
 
+    // ── React-request signal ──
+    // Fired when the user picks "React…" in the context menu.
+    // ChatPage listens and opens the shared EmojiPicker popup pointed
+    // at this message. We don't open the picker here because there's
+    // one picker per ChatPage (not one per bubble) — instantiating a
+    // Dialog in every delegate would create N popups for N visible
+    // messages, leaking focus and memory.
+    signal reactRequested(string roomId, string eventId)
+
     // ── Max image / video display height ──
     // Caps the inline preview height so a 4K screenshot doesn't take
     // over the whole chat view. Tuned to ~360 px which is roughly the
@@ -329,200 +338,22 @@ Item {
             enabled: root.kind !== "system" && root.kind !== "encrypted"
         }
 
-        // ── React (emoji picker submenu) ──
-        // Quick-pick row of the ~30 most-common emoji as MenuItems.
-        // "More\u2026" opens a separate dialog with a much larger grid
-        // (see EmojiPickerDialog.qml) for less-frequent emoji.
-        Menu {
-            title: qsTr("React")
-            Instantiator {
-                // Curated list of frequently-used reaction emoji.
-                // Covers thumbs, hearts, faces, gestures, celebration,
-                // animals, food, weather — the same palette Discord /
-                // Slack surface in their quick-react trays.
-                model: [
-                    "\uD83D\uDC4D",  // 👍
-                    "\uD83D\uDC4E",  // 👎
-                    "\u2764\uFE0F",  // ❤️
-                    "\uD83D\uDC96",  // 💖
-                    "\uD83E\uDD0D",  // 🤍
-                    "\uD83D\uDC94",  // 💔
-                    "\uD83D\uDE06",  // 😆
-                    "\uD83D\uDE02",  // 😂
-                    "\uD83D\uDE22",  // 😢
-                    "\uD83D\uDE2D",  // 😭
-                    "\uD83D\uDE0E",  // 😎
-                    "\uD83E\uDD14",  // 🤔
-                    "\uD83D\uDE0D",  // 😍
-                    "\uD83D\uDE31",  // 😱
-                    "\uD83D\uDE20",  // 😠
-                    "\uD83E\uDD2C",  // 🤬
-                    "\uD83D\uDE44",  // 🙄
-                    "\uD83D\uDC4F",  // 👏
-                    "\uD83D\uDE4F",  // 🙏
-                    "\uD83D\uDC4B",  // 👋
-                    "\uD83D\uDD90\uFE0F",  // 🙐
-                    "\uD83E\uDD1D",  // 🤝
-                    "\uD83D\uDE4C",  // 🙌
-                    "\uD83C\uDF89",  // 🎉
-                    "\uD83C\uDF7E",  // 🎾 (party)
-                    "\uD83C\uDF81",  // 🎁
-                    "\uD83D\uDE80",  // 🚀
-                    "\u2728",        // ✨
-                    "\uD83D\uDD25",  // 🔥
-                    "\u2714\uFE0F",  // ✔️
-                    "\u274C",        // ❌
-                    "\u2753",        // ❓
-                    "\u2615",        // ☕
-                    "\uD83C\uDF7A",  // 🍺
-                    "\uD83C\uDF7B",  // 🍻
-                    "\uD83C\uDF54",  // 🍔
-                    "\uD83C\uDF5F",  // 🍟
-                    "\uD83C\uDF63",  // 🍣
-                    "\uD83C\uDF6A",  // 🍪
-                    "\uD83C\uDF82",  // 🎂
-                    "\uD83C\uDF36\uFE0F",  // 🎶
-                    "\uD83C\uDFB5",  // 🎵
-                    "\uD83C\uDFA7",  // 🎧
-                    "\uD83C\uDFB8",  // 🎸
-                    "\uD83C\uDF9E\uFE0F",  // 🎮
-                    "\uD83C\uDFAE",  // 🎮 (alt)
-                    "\uD83C\uDFC9",  // 🏉 (no, football)
-                    "\u26BD",        // ⚽
-                    "\uD83C\uDFC0",  // 🏀
-                    "\uD83C\uDFC8",  // 🏈
-                    "\uD83D\uDC15",  // 🐕
-                    "\uD83D\uDC36",  // 🐶
-                    "\uD83D\uDC31",  // 🐱
-                    "\uD83D\uDC22",  // 🐢
-                    "\uD83E\uDD8A",  // 🦊
-                    "\uD83D\uDC3B",  // 🐻
-                    "\uD83E\uDD81",  // 🦁
-                    "\uD83D\uDC3E",  // 🐾
-                    "\uD83D\uDC26",  // 🐦
-                    "\uD83E\uDD85",  // 🦅
-                    "\uD83D\uDC18",  // 🐘
-                    "\uD83D\uDC2D",  // 🐭
-                    "\uD83D\uDC39",  // 🐹
-                    "\uD83D\uDC30",  // 🐰
-                    "\uD83C\uDF40",  // 🍀
-                    "\uD83C\uDF38",  // 🌸
-                    "\uD83C\uDF3B",  // 🌻
-                    "\uD83C\uDF34",  // 🌴
-                    "\uD83C\uDF1E",  // 🌞
-                    "\uD83C\uDF1A",  // 🌚
-                    "\u2600\uFE0F",  // ☀️
-                    "\u2601\uFE0F",  // ☁️
-                    "\u26C8\uFE0F",  // ⛈
-                    "\uD83C\uDF27\uFE0F",  // 🌧
-                    "\u26A1",        // ⚡
-                    "\uD83C\uDF2B\uFE0F",  // 🌫
-                    "\u2744\uFE0F",  // ❄️
-                    "\uD83C\uDF28\uFE0F",  // 🌨
-                    "\uD83C\uDFA9",  // 🎩
-                    "\uD83D\uDC54",  // 👔
-                    "\uD83D\uDC5E",  // 👞
-                    "\uD83C\uDF92",  // 🎒
-                    "\uD83D\uDCBC",  // 💼
-                    "\uD83D\uDCB0",  // 💰
-                    "\uD83D\uDCB2",  // 💲
-                    "\uD83D\uDCAB",  // 💫
-                    "\uD83D\uDCA5",  // 💥
-                    "\uD83D\uDCA9",  // 💩
-                    "\uD83D\uDC80",  // 💀
-                    "\uD83D\uDC7B",  // 👻
-                    "\uD83D\uDC7D",  // 👽
-                    "\uD83E\uDD16",  // 🤖
-                    "\uD83E\uDD84",  // 🦄
-                    "\uD83D\uDC09",  // 🐉
-                    "\uD83E\uDD8E",  // 🦎
-                    "\uD83D\uDC0D",  // 🐍
-                    "\uD83D\uDC32",  // 🐲
-                    "\uD83D\uDC1F",  // 🐟
-                    "\uD83D\uDC20",  // 🐠
-                    "\uD83D\uDC21",  // 🐡
-                    "\uD83D\uDC0B",  // 🐋
-                    "\uD83D\uDC2C",  // 🐬
-                    "\uD83D\uDC33",  // 🐳
-                    "\uD83E\uDD88",  // 🦈
-                    "\uD83E\uDD8B",  // 🦋
-                    "\uD83D\uDC1B",  // 🐛
-                    "\uD83D\uDC1C",  // 🐜
-                    "\uD83D\uDC1E",  // 🐞
-                    "\uD83E\uDD97",  // 🦗
-                    "\uD83D\uDC23",  // 🐣
-                    "\uD83D\uDC24",  // 🐤
-                    "\uD83D\uDC14",  // 🐔
-                    "\uD83D\uDC13",  // 🐓
-                    "\uD83D\uDC16",  // 🐖
-                    "\uD83D\uDC17",  // 🐗
-                    "\uD83D\uDC11",  // 🐑
-                    "\uD83D\uDC10",  // 🐐
-                    "\uD83D\uDC0A",  // 🐊
-                    "\uD83D\uDC1A",  // 🐚
-                    "\uD83C\uDFC1",  // 🏁
-                    "\uD83C\uDFC6",  // 🏆
-                    "\uD83C\uDFC5",  // 🏅
-                    "\uD83C\uDFCA",  // 🏊
-                    "\uD83C\uDFC4\u200D\u2642\uFE0F",  // 🏄‍♂️
-                    "\uD83C\uDFC2",  // 🏂
-                    "\uD83D\uDEB4\u200D\u2642\uFE0F",  // 🚴‍♂️
-                    "\uD83D\uDEB5\u200D\u2642\uFE0F",  // 🚵‍♂️
-                    "\uD83C\uDFA3",  // 🎣
-                    "\uD83C\uDFB6",  // 🎶
-                    "\uD83C\uDFB9",  // 🎹
-                    "\uD83C\uDFBA",  // 🎺
-                    "\uD83C\uDFBB",  // 🎻
-                    "\uD83C\uDFBC",  // 🎼
-                    "\uD83C\uDFA4",  // 🎤
-                    "\uD83C\uDFA5",  // 🎥
-                    "\uD83C\uDFA6",  // 🎦
-                    "\uD83C\uDFA8",  // 🎨
-                    "\uD83C\uDFAC",  // 🎬
-                    "\uD83C\uDFAD",  // 🎭
-                    "\uD83C\uDFB0",  // 🎰
-                    "\uD83C\uDFAF",  // 🎯
-                    "\uD83C\uDFB1",  // 🎱
-                    "\uD83C\uDFB3",  // 🎳
-                    "\uD83C\uDCCF",  // 🃏
-                    "\uD83C\uDCA0",  // 🂠
-                    "\uD83C\uDFB4",  // 🎴
-                    "\uD83C\uDFAE",  // 🎮
-                    "\uD83C\uDFAF",  // 🎯
-                    "\uD83C\uDFB2",  // 🎲
-                    "\uD83C\uDF9E",  // 🎞
-                    "\uD83C\uDF93",  // 🎓
-                    "\uD83C\uDF9A",  // 🎚
-                    "\uD83C\uDF9B",  // 🎛
-                    "\uD83C\uDFC7",  // 🏇
-                    "\uD83D\uDEB6\u200D\u2642\uFE0F"   // 🚶‍♂️
-                ]
-                MenuItem {
-                    text: modelData
-                    onTriggered: {
-                        MatrixClient.sendReaction(root.roomId, root.eventId, modelData)
-                        // Optimistic local update: append the emoji so
-                        // the user sees immediate feedback before the
-                        // next sync confirms it server-side.
-                        if (root.localReactions.length === 0) {
-                            root.localReactions = modelData
-                        } else {
-                            var parts = root.localReactions.split(",")
-                            if (parts.indexOf(modelData) < 0) {
-                                root.localReactions = root.localReactions + "," + modelData
-                            }
-                        }
-                    }
-                }
-                onObjectAdded: function(index, object) {
-                    contextMenuReact.insertItem(index, object)
-                }
-                onObjectRemoved: function(index, object) {
-                    contextMenuReact.removeItem(object)
-                }
+        // ── React (opens emoji picker popup) ──
+        // Previously this was a submenu with ~150 emoji inline. That
+        // made the context menu slow to open and impossible to scan.
+        // Now it just fires `reactRequested` — ChatPage opens a single
+        // shared EmojiPicker popup (search + rofi-style grid) pointed
+        // at this message. One picker per ChatPage, not per bubble.
+        MenuItem {
+            text: qsTr("React…")
+            enabled: root.kind !== "system" && root.kind !== "encrypted"
+            onTriggered: {
+                root.reactRequested(root.roomId, root.eventId)
             }
-            id: contextMenuReact
         }
+
+        // (Legacy inline emoji submenu removed — see EmojiPicker.qml
+        // for the new full-screen picker with search + grid.)
 
         // ── Save (for files / images / videos) ──
         // Visible only for media messages. Triggers a fresh download via
