@@ -261,18 +261,22 @@ Rectangle {
         }
     }
 
-    // After each sync cycle, do NOT reload messages for the current
-    // room. The Timeline API in fetch_messages() already paginates
-    // backwards to load history, and the message model is reset on
-    // every call — reloading on every sync would lose scroll position,
-    // waste bandwidth, and cause UI flicker.
+    // After each sync cycle, reload messages for the currently open
+    // room — but ONLY if the user is already viewing the newest
+    // messages (atYBeginning is true with BottomToTop layout).
+    // This is what makes new incoming messages appear in real time
+    // without the user having to close and reopen the DM.
     //
-    // Incoming messages from the sync loop should be appended
-    // incrementally (a future enhancement). For now, the user can
-    // pull-to-refresh or switch rooms to see new messages.
-    //
-    // If you DO want to reload on sync, gate it behind a manual
-    // refresh button instead of doing it automatically.
+    // If the user has scrolled up to read history, we DON'T reload,
+    // so their scroll position is preserved.
+    Connections {
+        target: MatrixClient
+        function onSyncDone(payload) {
+            if (chatPageRoot.roomId.length > 0 && messagesView.atYBeginning) {
+                MatrixClient.loadRoomMessages(chatPageRoot.roomId)
+            }
+        }
+    }
 
     // Also update when roomId changes
     onRoomIdChanged: {

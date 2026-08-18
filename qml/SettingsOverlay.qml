@@ -15,10 +15,24 @@ Item {
         spacing: 0
 
         // ── Left: navigation tabs ──
+        // Rounded only on its left edge (top-left + bottom-left) so it
+        // follows the outer panel's rounded corners instead of painting
+        // over them with a square edge.
         Rectangle {
             Layout.fillHeight: true
             Layout.preferredWidth: 180
             color: Theme.sidebarBg
+            radius: Theme.radiusLg
+
+            // Cover the right-side rounded corners so the sidebar meets
+            // the content panel with a straight edge.
+            Rectangle {
+                anchors.right: parent.right
+                anchors.top: parent.top
+                anchors.bottom: parent.bottom
+                width: parent.radius
+                color: parent.color
+            }
 
             ColumnLayout {
                 anchors.fill: parent
@@ -90,10 +104,24 @@ Item {
         }
 
         // ── Right: settings content ──
+        // Rounded only on its right edge (top-right + bottom-right) so it
+        // follows the outer panel's rounded corners instead of painting
+        // over them with a square edge.
         Rectangle {
             Layout.fillHeight: true
             Layout.fillWidth: true
             color: Theme.windowBg
+            radius: Theme.radiusLg
+
+            // Cover the left-side rounded corners so the content meets
+            // the sidebar with a straight edge.
+            Rectangle {
+                anchors.left: parent.left
+                anchors.top: parent.top
+                anchors.bottom: parent.bottom
+                width: parent.radius
+                color: parent.color
+            }
 
             StackLayout {
                 id: settingsStack

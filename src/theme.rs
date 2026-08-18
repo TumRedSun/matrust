@@ -694,7 +694,7 @@ fn base_layout() -> ThemeState {
         bubble_radius: 14,
         bubble_padding_h: 12,
         bubble_padding_v: 8,
-        bubble_tail: true,
+        bubble_tail: false,
         bubble_max_width_pct: 75,
         avatar_size_sm: 28,
         avatar_size_md: 36,

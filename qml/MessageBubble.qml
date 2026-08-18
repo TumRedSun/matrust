@@ -119,20 +119,6 @@ Item {
             color: root.isOwn ? Theme.bubbleBgMe : Theme.bubbleBgThem
             radius: Theme.bubbleRadius
 
-            // Tail (subtle asymmetric corner)
-            Rectangle {
-                visible: Theme.bubbleTail
-                anchors.bottom: parent.bottom
-                anchors.left: root.isOwn ? undefined : parent.left
-                anchors.right: root.isOwn ? parent.right : undefined
-                anchors.leftMargin: -4
-                anchors.rightMargin: -4
-                width: 12; height: 12
-                color: parent.color
-                radius: 4
-                z: -1
-            }
-
             ColumnLayout {
                 id: bubbleContent
                 anchors.fill: parent
