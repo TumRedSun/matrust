@@ -202,39 +202,39 @@ impl MessageModel {
                         MsgLikeKind::Message(msg) => {
                             use matrix_sdk::ruma::events::room::message::MessageType;
                             // ── Extract reply target ──
-                            // `in_reply_to()` returns Option<&OwnedEventId>.
-                            // We store the EventId string in entry.reply_to
-                            // so the QML side can look up the original
-                            // message in MessageModel and render a reply
-                            // quote above the reply body. Without this the
-                            // reply is shown as a plain text message and
-                            // users can't tell it's a reply.
-                            if let Some(replied_to) = msg.in_reply_to() {
-                                entry.reply_to = QString::from(replied_to.to_string().as_str());
+                            // The reply info and the reactions live on the
+                            // outer `MsgLikeContent` (the wrapper around
+                            // `MsgLikeKind`), not on `Message` itself — both
+                            // are public fields on `msg_like`. We read them
+                            // here, inside the `Message` arm, so the QML side
+                            // gets a reply quote + reaction chips for normal
+                            // text/image/etc. messages.
+                            //
+                            // `in_reply_to` is `Option<InReplyToDetails>`.
+                            // `InReplyToDetails` does NOT impl `Display`, so
+                            // we read its `event_id: OwnedEventId` field and
+                            // stringify *that* (OwnedEventId impls Display).
+                            if let Some(replied_to) = &msg_like.in_reply_to {
+                                entry.reply_to =
+                                    QString::from(replied_to.event_id.to_string().as_str());
                             }
                             // ── Extract reactions ──
-                            // `reactions()` returns &ReactionsByKeyBySender
-                            // — a map of emoji-key → {sender → status}. We
+                            // `msg_like.reactions` is `ReactionsByKeyBySender`,
+                            // which derefs to `IndexMap<String,
+                            // IndexMap<OwnedUserId, ReactionInfo>>`. We
                             // collect just the keys (emoji strings) into a
-                            // comma-separated list, since that's all QML
-                            // needs to render the reaction chips. Status
-                            // filtering (only show "sent" reactions, not
-                            // pending/failed ones) is skipped for simplicity
-                            // — the SDK usually only exposes successful ones
-                            // here anyway.
-                            //
-                            // `ReactionsByKeyBySender` implements IntoIterator,
-                            // so iterating over a reference yields (&key, &group)
-                            // pairs. The key is the emoji string.
+                            // comma-separated list — QML splits on "," and
+                            // renders a chip per emoji under the bubble.
                             {
-                                let reactions = msg.reactions();
+                                let reactions = &msg_like.reactions;
                                 if !reactions.is_empty() {
                                     let mut keys: Vec<String> = Vec::new();
                                     for (key, _group) in reactions.iter() {
                                         keys.push(key.to_string());
                                     }
                                     if !keys.is_empty() {
-                                        entry.reactions = QString::from(keys.join(",").as_str());
+                                        entry.reactions =
+                                            QString::from(keys.join(",").as_str());
                                         ::log::debug!(
                                             "fetch_messages: event {} has {} reactions: {}",
                                             event_id_str, keys.len(), keys.join(",")
