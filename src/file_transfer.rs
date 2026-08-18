@@ -22,9 +22,15 @@ fn parse_mxc(s: &str) -> AppResult<matrix_sdk::ruma::OwnedMxcUri> {
 /// Without this, sending media in an E2EE DM produced an unencrypted upload
 /// referenced by an encrypted event — the receiver couldn't decrypt the file
 /// and saw an empty bubble.
+///
+/// `display_name` is the file name that will appear in the Matrix event. If
+/// empty, the basename of `local_path` is used. This is what the "pencil"
+/// rename button in the composer edits — the original file on disk is never
+/// modified, only the name attached to the upload.
 pub async fn send_attachment(
     room_id: String,
     local_path: String,
+    display_name: String,
     mime: String,
     kind: String,
 ) -> AppResult<()> {
@@ -43,11 +49,18 @@ pub async fn send_attachment(
         return Err(AppError::File(format!("not found: {}", local_path)));
     }
     let bytes = std::fs::read(path)?;
-    let file_name = path
-        .file_name()
-        .and_then(|s| s.to_str())
-        .unwrap_or("file")
-        .to_owned();
+    // Use the user-supplied display name if non-empty, else fall back to
+    // the basename of the local path. This lets the user rename the file
+    // in the composer (e.g. strip "Screenshot 2025-..." to "share.png")
+    // without touching the original file on disk.
+    let file_name = if display_name.trim().is_empty() {
+        path.file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("file")
+            .to_owned()
+    } else {
+        display_name.trim().to_owned()
+    };
 
     // File size in bytes. Used to populate AttachmentInfo so the receiver
     // (and our own sent-message echo) shows the real size instead of 0 B.
@@ -68,12 +81,15 @@ pub async fn send_attachment(
             .map_err(|e: mime::FromStrError| AppError::Other(e.to_string()))?
     };
 
-    // Build the AttachmentConfig with type-specific metadata. For images
-    // and videos we'd ideally populate dimensions/duration, but since we
-    // don't decode the file here we just send an empty BaseImageInfo /
-    // BaseVideoInfo (size is set automatically by the SDK from data.len()).
-    // For File attachments, BaseFileInfo has an explicit `size` field we
-    // populate to make sure the receiver sees the right size.
+    // Build the AttachmentConfig with type-specific metadata.
+    //
+    // We explicitly set `size` on EVERY variant (Image / Video / Audio / File)
+    // because the matrix-sdk macro `make_media_type!` only copies fields that
+    // are `Some(...)` from BaseXxxInfo into the final ImageInfo / VideoInfo /
+    // AudioInfo / FileInfo — it does NOT auto-populate `size` from
+    // `data.len()`. With `size: None` the resulting event's `info.size` is
+    // null, which makes our own sent-file echo (and some other clients)
+    // render the size as "0 B".
     use matrix_sdk::attachment::{AttachmentConfig, AttachmentInfo,
         BaseAudioInfo, BaseFileInfo, BaseImageInfo, BaseVideoInfo};
     use matrix_sdk::ruma::UInt;
@@ -82,15 +98,15 @@ pub async fn send_attachment(
 
     let attachment_info = match kind.as_str() {
         "image" => AttachmentInfo::Image(BaseImageInfo {
-            // BaseImageInfo in matrix-sdk 0.18 has no `size` field —
-            // the SDK populates the message's `info.size` from
-            // `data.len()` automatically during `send_attachment`.
+            size: size_uint,
             ..Default::default()
         }),
         "video" => AttachmentInfo::Video(BaseVideoInfo {
+            size: size_uint,
             ..Default::default()
         }),
         "audio" => AttachmentInfo::Audio(BaseAudioInfo {
+            size: size_uint,
             ..Default::default()
         }),
         _ => AttachmentInfo::File(BaseFileInfo {

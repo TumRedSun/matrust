@@ -6,6 +6,11 @@
 // dialog uses MatrixClient.listDirectory() (Rust std::fs::read_dir) so we
 // have full control over what's shown.
 //
+// All visual chrome (backgrounds, buttons, checkboxes) uses explicit
+// Theme.* colors so the dialog matches the dark app theme even on systems
+// where the default Qt Quick Controls 2 style would otherwise paint a
+// white background (which made filenames unreadable).
+//
 // Features:
 //   - Multi-file selection (Discord-style attachment queue)
 //   - Toggle to show/hide dotfiles
@@ -32,6 +37,16 @@ Dialog {
     height: 480
     standardButtons: Dialog.Open | Dialog.Cancel
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+
+    // Force a themed background — the default Dialog background on a bare
+    // Linux Qt setup is a flat white rectangle, which makes the
+    // Theme.windowFg-colored labels (light gray) nearly invisible.
+    background: Rectangle {
+        color: Theme.windowBg
+        border.color: Theme.border
+        border.width: 1
+        radius: Theme.radiusMd
+    }
 
     // Signal emitted when the user clicks Open with at least one file selected.
     // `paths` is a JS array of absolute filesystem paths.
@@ -107,6 +122,62 @@ Dialog {
 
     onOpened: loadDir(currentPath)
 
+    // ── Reusable themed button component ──
+    // QtQuick.Controls' default Button uses the system palette, which on
+    // bare Linux is white-on-grey. We override background + contentItem
+    // to use Theme colors so the button matches the dark app theme.
+    component ThemedButton: Button {
+        id: themedBtn
+        background: Rectangle {
+            color: themedBtn.down ? Theme.accent
+                  : (themedBtn.hovered ? Qt.lighter(Theme.sidebarBg, 1.4)
+                                       : Theme.sidebarBg)
+            border.color: themedBtn.down ? Theme.accent : Theme.border
+            border.width: 1
+            radius: Theme.radiusSm
+            implicitWidth: 36
+            implicitHeight: 32
+        }
+        contentItem: Label {
+            text: themedBtn.text
+            color: themedBtn.down ? Theme.accentFg : Theme.sidebarFg
+            font.pixelSize: Theme.fontSizeMd
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+        }
+    }
+
+    // ── Reusable themed checkbox ──
+    // Default CheckBox has a white indicator that's invisible on the dark
+    // background. We replace the indicator with a Theme-colored rectangle.
+    component ThemedCheckBox: CheckBox {
+        id: themedCb
+        indicator: Rectangle {
+            implicitWidth: 18
+            implicitHeight: 18
+            x: themedCb.leftPadding
+            y: parent.height / 2 - height / 2
+            radius: 3
+            color: themedCb.checked ? Theme.accent : Theme.sidebarBg
+            border.color: themedCb.checked ? Theme.accent : Theme.border
+            border.width: 1
+            Label {
+                anchors.centerIn: parent
+                text: themedCb.checked ? "\u2713" : ""  // ✓
+                color: Theme.accentFg
+                font.pixelSize: 14
+                font.bold: true
+            }
+        }
+        contentItem: Label {
+            text: themedCb.text
+            color: Theme.sidebarFg
+            font.pixelSize: Theme.fontSizeSm
+            verticalAlignment: Text.AlignVCenter
+            leftPadding: themedCb.indicator.width + themedCb.spacing
+        }
+    }
+
     contentItem: ColumnLayout {
         spacing: 8
 
@@ -115,19 +186,19 @@ Dialog {
             Layout.fillWidth: true
             spacing: 4
 
-            Button {
+            ThemedButton {
                 text: qsTr("\u2191")  // ↑
                 onClicked: goUp()
                 ToolTip.text: qsTr("Go to parent directory")
                 ToolTip.visible: hovered
             }
-            Button {
+            ThemedButton {
                 text: qsTr("/")
                 onClicked: loadDir("/")
                 ToolTip.text: qsTr("Go to filesystem root")
                 ToolTip.visible: hovered
             }
-            Button {
+            ThemedButton {
                 text: qsTr("\uD83C\uDFE0")  // 🏠
                 onClicked: loadDir(MatrixClient.homeDir())
                 ToolTip.text: qsTr("Go to home directory")
@@ -148,7 +219,7 @@ Dialog {
             }
 
             // Show hidden files toggle
-            CheckBox {
+            ThemedCheckBox {
                 text: qsTr("Hidden")
                 checked: dialog.showHidden
                 onToggled: {
@@ -192,6 +263,7 @@ Dialog {
                             text: modelData.is_dir ? "\uD83D\uDCC1" : "\uD83D\uDCC4"  // 📁 / 📄
                             font.pixelSize: Theme.fontSizeMd
                             Layout.preferredWidth: 20
+                            color: isSelected(fullPath) ? Theme.accentFg : Theme.sidebarFg
                         }
                         Label {
                             text: modelData.name
@@ -203,12 +275,12 @@ Dialog {
                         }
                         Label {
                             text: modelData.is_dir ? "" : formatBytes(modelData.size)
-                            color: Theme.muted
+                            color: isSelected(fullPath) ? Theme.accentFg : Theme.muted
                             font.pixelSize: Theme.fontSizeXs
                             visible: !modelData.is_dir
                         }
                         // Selection checkbox
-                        CheckBox {
+                        ThemedCheckBox {
                             checked: isSelected(fullPath)
                             visible: !modelData.is_dir
                             onClicked: toggleSelected(fullPath)
@@ -252,6 +324,38 @@ Dialog {
                       : qsTr("%n file(s) selected", "", dialog.selectedPaths.length)
                 color: Theme.muted
                 font.pixelSize: Theme.fontSizeSm
+            }
+        }
+    }
+
+    // Override default button rendering for the standard Open/Cancel buttons
+    // (they live in the footer, which Dialog auto-creates from standardButtons).
+    // Without this they appear with the system theme (white background).
+    footer: DialogButtonBox {
+        background: Rectangle {
+            color: Theme.sidebarBg
+            border.color: Theme.border
+            border.width: 1
+        }
+        standardButtons: dialog.standardButtons
+
+        // Theme each button that DialogButtonBox auto-creates.
+        delegate: Button {
+            flat: false
+            background: Rectangle {
+                color: parent.down ? Theme.accent
+                      : (parent.hovered ? Qt.lighter(Theme.sidebarBg, 1.4)
+                                        : Theme.sidebarBg)
+                border.color: parent.down ? Theme.accent : Theme.border
+                border.width: 1
+                radius: Theme.radiusSm
+            }
+            contentItem: Label {
+                text: parent.text
+                color: parent.down ? Theme.accentFg : Theme.sidebarFg
+                font.pixelSize: Theme.fontSizeMd
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
             }
         }
     }

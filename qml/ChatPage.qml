@@ -18,11 +18,21 @@ Rectangle {
     // This is updated reactively when RoomModel changes (see Connections below).
     property string roomDisplayName: ""
 
-    // Pending attachments — JS array of objects: {path, name, size, mime, kind}
+    // Pending attachments — JS array of objects:
+    //   {path, name, size, mime, kind}
     // where kind is "image" | "video" | "audio" | "file" (inferred from mime).
+    // `name` is the user-editable display name (defaults to the file's
+    // basename; the pencil button lets the user rename it without
+    // touching the original file on disk).
+    // `size` is filled in via a synchronous stat call (listDirectory on
+    // the parent dir) so the composer preview can show "2.4 MB".
     // When the user presses Enter (or clicks Send), all attachments are
     // uploaded + sent, followed by the text (if any) as a separate message.
     property var pendingAttachments: []
+    // When set, the composer is replying to this event_id (set via the
+    // message context menu → Reply). Cleared on send or cancel.
+    property string replyToEventId: ""
+    property string replyToBody: ""
 
     // Helper to look up room name from RoomModel.
     // Role numbers: USER_ROLE=256, so room_id=256, name=257.
@@ -62,6 +72,36 @@ Rectangle {
         return "file"
     }
 
+    // Format a byte count as a human-readable string ("2.4 MB", etc.).
+    function formatBytes(b) {
+        if (b < 1024) return b + " B"
+        if (b < 1024 * 1024) return (b / 1024).toFixed(1) + " KB"
+        if (b < 1024 * 1024 * 1024) return (b / 1024 / 1024).toFixed(1) + " MB"
+        return (b / 1024 / 1024 / 1024).toFixed(1) + " GB"
+    }
+
+    // Synchronously stat a file by path. Returns {size: number} or {size: 0}
+    // on error. We do this by calling listDirectory on the parent folder
+    // and matching the name — listDirectory itself does a stat-per-entry
+    // in Rust so we get the real size from metadata, not 0.
+    function statFile(path) {
+        try {
+            var slash = path.lastIndexOf("/")
+            var parent = slash > 0 ? path.substring(0, slash) : "/"
+            var name = slash >= 0 ? path.substring(slash + 1) : path
+            var json = MatrixClient.listDirectory(parent, true)
+            var entries = JSON.parse(json)
+            for (var i = 0; i < entries.length; i++) {
+                if (entries[i].name === name && !entries[i].is_dir) {
+                    return {size: entries[i].size}
+                }
+            }
+        } catch (e) {
+            console.log("statFile failed: " + e)
+        }
+        return {size: 0}
+    }
+
     // Add a file path to the pending attachments list.
     function addAttachment(path) {
         // Strip file:// prefix if present
@@ -72,12 +112,14 @@ Rectangle {
         var name = path
         var slash = path.lastIndexOf("/")
         if (slash >= 0) name = path.substring(slash + 1)
-        // Get file size via listDirectory parent + name lookup — too expensive.
-        // Instead, just store the path and infer mime from extension.
+        // Stat the file to get its real size. Without this the composer
+        // preview shows "0 B" even though the file is non-empty — same bug
+        // as the timeline one, just on the local side.
+        var info = statFile(path)
         var mime = ""  // empty → send_attachment will infer via mime_guess
         var kind = inferKind(path, mime)
         var copy = pendingAttachments.slice()
-        copy.push({path: path, name: name, mime: mime, kind: kind})
+        copy.push({path: path, name: name, size: info.size, mime: mime, kind: kind})
         pendingAttachments = copy
     }
 
@@ -88,29 +130,63 @@ Rectangle {
         pendingAttachments = copy
     }
 
+    // Rename an attachment's display name (does NOT modify the file on disk).
+    function renameAttachment(index, newName) {
+        if (newName.trim().length === 0) return
+        var copy = pendingAttachments.slice()
+        if (index < 0 || index >= copy.length) return
+        copy[index] = JSON.parse(JSON.stringify(copy[index]))
+        copy[index].name = newName.trim()
+        pendingAttachments = copy
+    }
+
+    // Begin composing a reply to the given event_id.
+    function startReply(eventId, originalBody) {
+        replyToEventId = eventId
+        replyToBody = originalBody
+        composer.forceActiveFocus()
+    }
+
+    // Cancel an in-progress reply.
+    function cancelReply() {
+        replyToEventId = ""
+        replyToBody = ""
+    }
+
     // Send all pending attachments + the current text, then clear.
     function sendAll() {
         if (MatrixClient.offline) return
         if (roomId.length === 0) return
         var hasText = composer.text.trim().length > 0
         var hasAttachments = pendingAttachments.length > 0
-        if (!hasText && !hasAttachments) return
+        var hasReply = replyToEventId.length > 0
+        if (!hasText && !hasAttachments && !hasReply) return
 
-        // Send attachments first (each as its own message event — Matrix
+        // If we're replying, send the text as a reply first (so the reply
+        // relationship is attached). If there's no text but we're replying
+        // with attachments only, we send attachments normally (Matrix
+        // doesn't support attaching a reply relation to m.image/m.file in
+        // a way that other clients render consistently).
+        if (hasReply && hasText) {
+            MatrixClient.sendReply(roomId, replyToEventId, composer.text)
+        } else if (hasText) {
+            MatrixClient.sendText(roomId, composer.text)
+        }
+
+        // Send attachments (each as its own message event — Matrix
         // doesn't support multi-file events, so each file becomes a
         // separate m.image / m.video / m.file message).
         for (var i = 0; i < pendingAttachments.length; i++) {
             var a = pendingAttachments[i]
-            MatrixClient.sendFile(roomId, a.path, a.mime, a.kind)
+            // Pass the (possibly renamed) display name so the receiver
+            // sees "share.png" instead of "Screenshot_2025-08-19.png".
+            MatrixClient.sendFile(roomId, a.path, a.name, a.mime, a.kind)
         }
-        // Then send the text (if any) as a separate m.message event.
-        // Doing text last so the attachments appear above the caption in
-        // the timeline (which is the natural reading order).
-        if (hasText) {
-            MatrixClient.sendText(roomId, composer.text)
-        }
+
         composer.text = ""
         pendingAttachments = []
+        replyToEventId = ""
+        replyToBody = ""
     }
 
     ColumnLayout {
@@ -210,11 +286,67 @@ Rectangle {
             }
         }
 
-        // ── Pending attachments strip (Discord-style) ──
-        // Visible only when there are pending attachments.
+        // ── Reply banner (shown when composing a reply) ──
+        // Visible only when replyToEventId is set (set via the message
+        // context menu → Reply). Clicking ✕ cancels the reply.
         Rectangle {
             Layout.fillWidth: true
-            Layout.preferredHeight: pendingAttachments.length > 0 ? 72 : 0
+            Layout.preferredHeight: replyToEventId.length > 0 ? 36 : 0
+            color: Theme.sidebarBg
+            visible: replyToEventId.length > 0
+
+            RowLayout {
+                anchors.fill: parent
+                anchors.leftMargin: Theme.paddingMd
+                anchors.rightMargin: Theme.paddingMd
+                spacing: Theme.spacingSm
+
+                Rectangle {
+                    width: 3
+                    Layout.fillHeight: true
+                    color: Theme.accent
+                }
+                Label {
+                    text: qsTr("Replying to:")
+                    color: Theme.muted
+                    font.pixelSize: Theme.fontSizeXs
+                }
+                Label {
+                    Layout.fillWidth: true
+                    text: chatPageRoot.replyToBody.length > 0
+                          ? chatPageRoot.replyToBody
+                          : qsTr("(original message)")
+                    color: Theme.sidebarFg
+                    font.pixelSize: Theme.fontSizeXs
+                    font.italic: true
+                    elide: Text.ElideRight
+                }
+                Button {
+                    text: "\u2715"  // ✕
+                    background: Rectangle { color: "transparent" }
+                    contentItem: Label {
+                        text: parent.text
+                        color: Theme.muted
+                        font.pixelSize: Theme.fontSizeSm
+                    }
+                    onClicked: chatPageRoot.cancelReply()
+                }
+            }
+        }
+
+        // ── Pending attachments strip (Discord-style) ──
+        // Visible only when there are pending attachments.
+        //
+        // Each attachment chip shows:
+        //   - A thumbnail preview for images and videos (loaded directly
+        //     from the local file path via file:// — no upload needed).
+        //   - A kind icon for audio / generic files.
+        //   - The display name (editable via the pencil button).
+        //   - The file size (fetched at add-time via listDirectory).
+        //   - Two action buttons: ✏ (rename) and ✕ (remove).
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.preferredHeight: pendingAttachments.length > 0 ? 96 : 0
             color: Theme.sidebarBg
             visible: pendingAttachments.length > 0
 
@@ -227,27 +359,66 @@ Rectangle {
                     id: attachmentsList
                     model: chatPageRoot.pendingAttachments
                     orientation: ListView.Horizontal
-                    spacing: 4
+                    spacing: 6
 
                     delegate: Rectangle {
-                        width: 200
+                        width: 240
                         height: attachmentsList.height - 8
                         anchors.verticalCenter: undefined
                         color: Theme.bubbleBgMe
                         radius: Theme.radiusSm
+                        border.color: Theme.border
+                        border.width: 1
 
                         RowLayout {
                             anchors.fill: parent
                             anchors.margins: 6
                             spacing: 6
 
-                            Label {
-                                text: modelData.kind === "image" ? "\uD83D\uDDBC"
-                                      : modelData.kind === "video" ? "\uD83C\uDFAC"
-                                      : modelData.kind === "audio" ? "\uD83C\uDFB5"
-                                      : "\uD83D\uDCC4"
-                                font.pixelSize: Theme.fontSizeLg
+                            // Thumbnail / kind icon
+                            Item {
+                                Layout.preferredWidth: 64
+                                Layout.preferredHeight: 64
+
+                                // Image thumbnail (for image kinds)
+                                Image {
+                                    anchors.fill: parent
+                                    source: modelData.kind === "image"
+                                            ? "file://" + modelData.path
+                                            : ""
+                                    fillMode: Image.PreserveAspectCrop
+                                    asynchronous: true
+                                    visible: modelData.kind === "image" && status === Image.Ready
+                                    cache: false
+                                }
+
+                                // Video frame thumbnail — Qt 5.15's
+                                // MediaPlayer doesn't reliably produce a
+                                // poster frame without playing, so we use
+                                // the kind icon as a placeholder. The
+                                // actual video plays inline once sent.
+                                // (A future improvement could use ffmpeg
+                                // to extract a frame.)
+                                Label {
+                                    anchors.centerIn: parent
+                                    text: modelData.kind === "video" ? "\uD83C\uDFAC"
+                                          : modelData.kind === "audio" ? "\uD83C\uDFB5"
+                                          : "\uD83D\uDCC4"
+                                    font.pixelSize: 28
+                                    visible: modelData.kind !== "image"
+                                }
+
+                                // Subtle border around thumbnail
+                                Rectangle {
+                                    anchors.fill: parent
+                                    color: "transparent"
+                                    border.color: Theme.border
+                                    border.width: 1
+                                    radius: Theme.radiusSm
+                                }
                             }
+
+                            // Name + size + kind
                             ColumnLayout {
                                 Layout.fillWidth: true
                                 spacing: 0
@@ -259,17 +430,55 @@ Rectangle {
                                     Layout.fillWidth: true
                                 }
                                 Label {
-                                    text: modelData.kind
+                                    text: chatPageRoot.formatBytes(modelData.size || 0)
+                                          + " \u00B7 " + modelData.kind
                                     color: Theme.muted
                                     font.pixelSize: Theme.fontSizeXs
                                     textFormat: Text.PlainText
                                 }
                             }
-                            Button {
-                                text: "\u2715"  // ✕
-                                background: Rectangle { color: "transparent" }
-                                font.pixelSize: Theme.fontSizeSm
-                                onClicked: chatPageRoot.removeAttachment(index)
+
+                            // Action buttons
+                            ColumnLayout {
+                                spacing: 2
+                                Button {
+                                    text: "\u270F"  // ✏ pencil
+                                    background: Rectangle {
+                                        color: parent.hovered ? Theme.accent : "transparent"
+                                        radius: Theme.radiusSm
+                                    }
+                                    contentItem: Label {
+                                        text: parent.text
+                                        color: parent.hovered ? Theme.accentFg : Theme.bubbleFgMe
+                                        font.pixelSize: Theme.fontSizeSm
+                                        horizontalAlignment: Text.AlignHCenter
+                                        verticalAlignment: Text.AlignVCenter
+                                    }
+                                    ToolTip.text: qsTr("Rename this file (does not modify the original)")
+                                    ToolTip.visible: hovered
+                                    onClicked: {
+                                        renameDialog.attachmentIndex = index
+                                        renameDialog.currentName = modelData.name
+                                        renameDialog.open()
+                                    }
+                                }
+                                Button {
+                                    text: "\u2715"  // ✕
+                                    background: Rectangle {
+                                        color: parent.hovered ? Theme.accent : "transparent"
+                                        radius: Theme.radiusSm
+                                    }
+                                    contentItem: Label {
+                                        text: parent.text
+                                        color: parent.hovered ? Theme.accentFg : Theme.bubbleFgMe
+                                        font.pixelSize: Theme.fontSizeSm
+                                        horizontalAlignment: Text.AlignHCenter
+                                        verticalAlignment: Text.AlignVCenter
+                                    }
+                                    ToolTip.text: qsTr("Remove this attachment")
+                                    ToolTip.visible: hovered
+                                    onClicked: chatPageRoot.removeAttachment(index)
+                                }
                             }
                         }
                     }
@@ -351,6 +560,78 @@ Rectangle {
         onFilesSelected: function(paths) {
             for (var i = 0; i < paths.length; i++) {
                 chatPageRoot.addAttachment(paths[i])
+            }
+        }
+    }
+
+    // ── Rename dialog ──
+    // Lets the user rename the display name of a pending attachment
+    // without touching the original file on disk. Pre-fills with the
+    // current name and selects it for easy overwrite.
+    Dialog {
+        id: renameDialog
+        modal: true
+        title: qsTr("Rename attachment")
+        width: 400
+        standardButtons: Dialog.Ok | Dialog.Cancel
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+        property int attachmentIndex: -1
+        property string currentName: ""
+
+        background: Rectangle {
+            color: Theme.windowBg
+            border.color: Theme.border
+            border.width: 1
+            radius: Theme.radiusMd
+        }
+
+        onOpened: {
+            renameInput.text = currentName
+            renameInput.selectAll()
+            renameInput.forceActiveFocus()
+        }
+        onAccepted: {
+            if (attachmentIndex >= 0 && renameInput.text.trim().length > 0) {
+                chatPageRoot.renameAttachment(attachmentIndex, renameInput.text)
+            }
+        }
+
+        contentItem: ColumnLayout {
+            spacing: 8
+            Label {
+                text: qsTr("New name (the original file is not modified):")
+                color: Theme.windowFg
+                font.pixelSize: Theme.fontSizeSm
+                Layout.fillWidth: true
+                wrapMode: Text.Wrap
+            }
+            TextField {
+                id: renameInput
+                Layout.fillWidth: true
+                color: Theme.windowFg
+                font.pixelSize: Theme.fontSizeMd
+                background: Rectangle {
+                    color: Theme.sidebarBg
+                    border.color: Theme.border
+                    border.width: 1
+                    radius: Theme.radiusSm
+                }
+                Keys.onReturnPressed: {
+                    renameDialog.accept()
+                }
+            }
+        }
+    }
+
+    // Listen for replyStarted from the message context menu (in MessageBubble).
+    // We can't directly call ChatPage.startReply from a nested delegate
+    // because the delegates don't have a reference to the ChatPage, so we
+    // route through a global signal on MatrixClient.
+    Connections {
+        target: MatrixClient
+        function onReplyStarted(rid, event_id, body) {
+            if (rid === chatPageRoot.roomId) {
+                chatPageRoot.startReply(event_id, body)
             }
         }
     }

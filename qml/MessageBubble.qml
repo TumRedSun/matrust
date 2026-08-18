@@ -177,6 +177,109 @@ Item {
         }
     }
 
+    // ── Right-click context menu ──
+    // Opens a Menu with: Reply, React (emoji picker), Save (file) / Copy
+    // (text), Delete (own messages) / Hide (others).
+    //
+    // We attach the MouseArea to the bubble itself (not the whole Item) so
+    // right-clicks outside the bubble (e.g. on the avatar or spacer) don't
+    // accidentally trigger it.
+    Menu {
+        id: contextMenu
+        modal: true
+        dim: false
+
+        // ── Reply ──
+        // Always available for any non-system, non-encrypted message.
+        MenuItem {
+            text: qsTr("Reply")
+            onTriggered: {
+                MatrixClient.replyStarted(root.roomId, root.eventId, root.body)
+            }
+            enabled: root.kind !== "system" && root.kind !== "encrypted"
+        }
+
+        // ── React (emoji picker submenu) ──
+        // Shows 8 common emoji as quick reactions; "More..." opens a
+        // full emoji picker (a separate dialog). The selected emoji is
+        // sent via MatrixClient.sendReaction.
+        Menu {
+            title: qsTr("React")
+            Instantiator {
+                model: ["\uD83D\uDC4D", "\uD83D\uDC4E", "\u2764\uFE0F", "\uD83D\uDE06",
+                        "\uD83D\uDE22", "\uD83D\uDE0E", "\uD83C\uDF89", "\uD83D\uDE80"]
+                MenuItem {
+                    text: modelData
+                    onTriggered: MatrixClient.sendReaction(root.roomId, root.eventId, modelData)
+                }
+                onObjectAdded: function(index, object) {
+                    contextMenuReact.insertItem(index, object)
+                }
+                onObjectRemoved: function(index, object) {
+                    contextMenuReact.removeItem(object)
+                }
+            }
+            id: contextMenuReact
+        }
+
+        // ── Save (for files / images / videos) ──
+        // Visible only for media messages. Triggers a fresh download via
+        // MatrixClient.downloadMedia (which uses the E2EE-aware path).
+        MenuItem {
+            text: qsTr("Save")
+            visible: root.kind === "image" || root.kind === "video"
+                     || root.kind === "audio" || root.kind === "file"
+            onTriggered: {
+                if (root.mediaSourceJson.length > 0) {
+                    MatrixClient.downloadMedia(root.roomId, root.mediaSourceJson, root.fileName)
+                }
+            }
+        }
+
+        // ── Copy (for text messages) ──
+        // Copies the plain body to the clipboard via MatrixClient.copyText,
+        // which emits textCopied(text) — main.qml handles the actual
+        // clipboard write via a hidden TextEdit.
+        MenuItem {
+            text: qsTr("Copy")
+            visible: root.kind === "text"
+            onTriggered: MatrixClient.copyText(root.body)
+        }
+
+        // ── Delete (for own messages) / Hide for me (for others) ──
+        // Matrix only lets the original sender redact — for other users'
+        // messages we'd need server-side power level, which DMs typically
+        // don't grant. So for non-own messages we show "Hide" and simply
+        // remove the row from the local MessageModel (visual-only).
+        MenuItem {
+            text: root.isOwn ? qsTr("Delete") : qsTr("Hide for me")
+            onTriggered: {
+                if (root.isOwn) {
+                    MatrixClient.redactEvent(root.roomId, root.eventId, "")
+                } else {
+                    // Hide for me — purely local. We tell the model to
+                    // remove this event_id; it stays hidden until the
+                    // next full reload (sync / room switch).
+                    MessageModel.hideEvent(root.eventId)
+                }
+            }
+        }
+    }
+
+    // Right-click handler — opens the context menu at the cursor position.
+    // attachedToBubble ensures the menu only opens on right-click within
+    // the bubble, not in the surrounding ListView whitespace.
+    MouseArea {
+        anchors.fill: chatRow
+        acceptedButtons: Qt.RightButton
+        propagateComposedEvents: true
+        onClicked: function(mouse) {
+            if (mouse.button === Qt.RightButton) {
+                contextMenu.popup()
+            }
+        }
+    }
+
     // ── Inline media fetching ──
     // When this delegate becomes visible and has a mediaSourceJson, ask
     // the backend to fetch + cache the media. The backend emits

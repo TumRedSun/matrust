@@ -94,6 +94,15 @@ pub struct MatrixClient {
     /// Emitted after `leaveRoom` succeeds. The argument is the room id that
     /// was left/removed.
     roomLeft: qt_signal!(room_id: QString),
+    /// Emitted when `copyText` is called. main.qml listens for this and
+    /// uses a hidden TextEdit to actually put the text on the clipboard
+    /// (qmetaobject 0.2 doesn't expose QClipboard directly).
+    textCopied: qt_signal!(text: QString),
+    /// Emitted when a reply is being composed (user clicked "Reply" in the
+    /// message context menu). The argument is the event_id of the message
+    /// being replied to. main.qml / ChatPage listens for this and shows a
+    /// reply banner above the composer.
+    replyStarted: qt_signal!(room_id: QString, event_id: QString, body: QString),
 
     // QML-callable method declarations
     autoLogin: qt_method!(fn(&self)),
@@ -102,7 +111,7 @@ pub struct MatrixClient {
     logout: qt_method!(fn(&self)),
     deleteAccount: qt_method!(fn(&self)),
     sendText: qt_method!(fn(&self, room_id: QString, body: QString)),
-    sendFile: qt_method!(fn(&self, room_id: QString, local_path: QString, mime: QString, kind: QString)),
+    sendFile: qt_method!(fn(&self, room_id: QString, local_path: QString, display_name: QString, mime: QString, kind: QString)),
     downloadMedia: qt_method!(fn(&self, room_id: QString, mxc: QString, suggested_name: QString)),
     /// Asynchronously fetch a media file by its serialized `MediaSource`
     /// JSON and write it to the on-disk cache. When ready (or on error),
@@ -132,6 +141,29 @@ pub struct MatrixClient {
     openDirectMessage: qt_method!(fn(&self, user_id: QString)),
     /// Leave (and forget) a room. On success emits `roomLeft(roomId)`.
     leaveRoom: qt_method!(fn(&self, room_id: QString)),
+
+    /// Send a reply (m.relates_to = "m.reference") to the given event_id.
+    /// The reply body is sent as a new text message with the reply metadata
+    /// attached, so the receiver's client can render it threaded under the
+    /// original message.
+    sendReply: qt_method!(fn(&self, room_id: QString, event_id: QString, body: QString)),
+    /// Send an emoji reaction to an event. `emoji` should be a single grapheme
+    /// (e.g. "👍"). Idempotent — sending the same emoji twice from the same
+    /// user is a no-op per the Matrix spec.
+    sendReaction: qt_method!(fn(&self, room_id: QString, event_id: QString, emoji: QString)),
+    /// Redact (delete) an event. For own messages this fully removes the
+    /// content; for other users' messages Matrix only lets us redact our
+    /// own — we emulate "hide for me" on the QML side via the model filter.
+    /// `reason` is optional (pass empty string to skip).
+    redactEvent: qt_method!(fn(&self, room_id: QString, event_id: QString, reason: QString)),
+    /// Copy the given text to the system clipboard. Implemented natively
+    /// because QML's `TextEdit.copy()` only works when the text is selected
+    /// in that exact TextEdit — the context menu wants to copy arbitrary
+    /// message bodies without requiring a prior selection gesture.
+    copyText: qt_method!(fn(&self, text: QString)),
+    /// Save a string to a user-chosen file path. Emits `fileDownloaded`
+    /// when done, so the QML context menu can show a "Saved!" toast.
+    saveTextToFile: qt_method!(fn(&self, text: QString, suggested_name: QString)),
 
     /// Drain the pending-events queue and apply each event on the Qt
     /// main thread. Called from a QML `Timer` every 100 ms.
@@ -219,6 +251,16 @@ impl MatrixClient {
     /// Public wrapper to emit the `room_left` signal.
     pub fn emit_room_left(&self, room_id: QString) {
         self.roomLeft(room_id);
+    }
+
+    /// Public wrapper to emit the `text_copied` signal.
+    pub fn emit_text_copied(&self, text: QString) {
+        self.textCopied(text);
+    }
+
+    /// Public wrapper to emit the `reply_started` signal.
+    pub fn emit_reply_started(&self, room_id: QString, event_id: QString, body: QString) {
+        self.replyStarted(room_id, event_id, body);
     }
 
     /// Public wrapper to emit the `sync_done` signal from outside this module.
@@ -474,9 +516,10 @@ impl MatrixClient {
         });
     }
 
-    pub fn sendFile(&self, room_id: QString, local_path: QString, mime: QString, kind: QString) {
+    pub fn sendFile(&self, room_id: QString, local_path: QString, display_name: QString, mime: QString, kind: QString) {
         let room_id = room_id.to_string();
         let path = local_path.to_string();
+        let display_name = display_name.to_string();
         let mime = mime.to_string();
         let kind = kind.to_string();
         // After sending, reload messages for this room so the sent
@@ -495,7 +538,7 @@ impl MatrixClient {
             None => return,
         };
         self.spawn(async move {
-            crate::file_transfer::send_attachment(room_id, path, mime, kind).await?;
+            crate::file_transfer::send_attachment(room_id, path, display_name, mime, kind).await?;
             // Reload messages after sending
             let client: matrix_sdk::Client = {
                 let c = client_arc.lock().await;
@@ -515,6 +558,195 @@ impl MatrixClient {
         let name = suggested_name.to_string();
         self.spawn(async move {
             crate::file_transfer::download_media(room_id, media_source_json, name).await
+        });
+    }
+
+    /// Send a text reply to a specific event_id.
+    ///
+    /// Uses `Room::make_reply_event` to build a proper Matrix reply with
+    /// `m.relates_to: m.reference` pointing at the original event. Other
+    /// clients (Element, FluffyChat) render the replied-to message as a
+    /// quote above the reply.
+    pub fn sendReply(&self, room_id: QString, event_id: QString, body: QString) {
+        let room_id = room_id.to_string();
+        let event_id = event_id.to_string();
+        let body = body.to_string();
+        let reload_room_id = room_id.clone();
+        let reload_room_id_for_cb = reload_room_id.clone();
+        let model = MessageModel::get();
+        let reload_cb = qmetaobject::queued_callback(move |entries: Vec<MessageEntry>| {
+            if let Some(m) = model.as_pinned() {
+                m.borrow_mut().apply_entries(entries, &reload_room_id_for_cb);
+            }
+        });
+        let client_arc = match self.inner.borrow().clone() {
+            Some(c) => c,
+            None => return,
+        };
+        self.spawn(async move {
+            let c = client_arc.lock().await;
+            let rid: ruma::OwnedRoomId = room_id.parse()
+                .map_err(|e: ruma::IdParseError| crate::errors::AppError::Other(e.to_string()))?;
+            let room = c
+                .get_room(&rid)
+                .ok_or_else(|| crate::errors::AppError::RoomNotFound(room_id.clone()))?;
+            let evt_id: ruma::OwnedEventId = event_id.parse()
+                .map_err(|e: ruma::IdParseError| crate::errors::AppError::Other(e.to_string()))?;
+
+            // Build a text content (without relation — make_reply_event
+            // attaches the reply relation for us) and a Reply descriptor
+            // that says "don't enforce a thread, just a plain reply".
+            use matrix_sdk::ruma::events::room::message::{
+                RoomMessageEventContentWithoutRelation,
+            };
+            use matrix_sdk::room::reply::{Reply, EnforceThread};
+            let content = RoomMessageEventContentWithoutRelation::text_markdown(body);
+            let reply = Reply {
+                event_id: evt_id,
+                enforce_thread: EnforceThread::MaybeThreaded,
+                // Use the SDK's default AddMentions::No — we don't want to
+                // ping the original sender just because we replied.
+                add_mentions: matrix_sdk::ruma::events::room::message::AddMentions::No,
+            };
+            let reply_content = room.make_reply_event(content, reply).await
+                .map_err(|e| crate::errors::AppError::Other(format!("reply build failed: {e}")))?;
+            room.send(reply_content).await?;
+            drop(c);
+
+            let client: matrix_sdk::Client = {
+                let c = client_arc.lock().await;
+                c.clone()
+            };
+            match MessageModel::fetch_messages(client, reload_room_id).await {
+                Ok(entries) => reload_cb(entries),
+                Err(e) => ::log::warn!("sendReply: reload after send failed: {e}"),
+            }
+            AppResult::Ok(())
+        });
+    }
+
+    /// Send an emoji reaction (m.reaction) to an event.
+    /// Per the Matrix spec, reactions are m.reaction events whose
+    /// `m.relates_to` has `rel_type: m.annotation`, `event_id: <target>`,
+    /// and `key: <emoji>`. Reactions render below the original message
+    /// in Element / Discord-like UIs.
+    pub fn sendReaction(&self, room_id: QString, event_id: QString, emoji: QString) {
+        let room_id = room_id.to_string();
+        let event_id = event_id.to_string();
+        let emoji = emoji.to_string();
+        let client_arc = match self.inner.borrow().clone() {
+            Some(c) => c,
+            None => return,
+        };
+        self.spawn(async move {
+            let c = client_arc.lock().await;
+            let rid: ruma::OwnedRoomId = room_id.parse()
+                .map_err(|e: ruma::IdParseError| crate::errors::AppError::Other(e.to_string()))?;
+            let room = c
+                .get_room(&rid)
+                .ok_or_else(|| crate::errors::AppError::RoomNotFound(room_id.clone()))?;
+            let evt_id: ruma::OwnedEventId = event_id.parse()
+                .map_err(|e: ruma::IdParseError| crate::errors::AppError::Other(e.to_string()))?;
+
+            use matrix_sdk::ruma::events::reaction::ReactionEventContent;
+            use matrix_sdk::ruma::events::relation::Annotation;
+            let reaction = ReactionEventContent::new(Annotation::new(evt_id, emoji));
+            room.send(reaction).await?;
+            AppResult::Ok(())
+        });
+    }
+
+    /// Redact (delete) an event. Only the event's sender OR a room
+    /// moderator/admin can redact — for other users' messages in a DM this
+    /// will fail server-side. The QML context menu hides the "Delete" entry
+    /// for non-own messages and shows "Hide for me" instead, which is a
+    /// purely local filter (no round-trip).
+    pub fn redactEvent(&self, room_id: QString, event_id: QString, reason: QString) {
+        let room_id = room_id.to_string();
+        let event_id = event_id.to_string();
+        let reason_str = reason.to_string();
+        let reload_room_id = room_id.clone();
+        let reload_room_id_for_cb = reload_room_id.clone();
+        let model = MessageModel::get();
+        let reload_cb = qmetaobject::queued_callback(move |entries: Vec<MessageEntry>| {
+            if let Some(m) = model.as_pinned() {
+                m.borrow_mut().apply_entries(entries, &reload_room_id_for_cb);
+            }
+        });
+        let client_arc = match self.inner.borrow().clone() {
+            Some(c) => c,
+            None => return,
+        };
+        self.spawn(async move {
+            let c = client_arc.lock().await;
+            let rid: ruma::OwnedRoomId = room_id.parse()
+                .map_err(|e: ruma::IdParseError| crate::errors::AppError::Other(e.to_string()))?;
+            let room = c
+                .get_room(&rid)
+                .ok_or_else(|| crate::errors::AppError::RoomNotFound(room_id.clone()))?;
+            let evt_id: ruma::OwnedEventId = event_id.parse()
+                .map_err(|e: ruma::IdParseError| crate::errors::AppError::Other(e.to_string()))?;
+            let reason_opt = if reason_str.is_empty() { None } else { Some(reason_str.as_str()) };
+            room.redact(&evt_id, reason_opt, None).await?;
+            drop(c);
+
+            let client: matrix_sdk::Client = {
+                let c = client_arc.lock().await;
+                c.clone()
+            };
+            match MessageModel::fetch_messages(client, reload_room_id).await {
+                Ok(entries) => reload_cb(entries),
+                Err(e) => ::log::warn!("redactEvent: reload after redact failed: {e}"),
+            }
+            AppResult::Ok(())
+        });
+    }
+
+    /// Copy text to the system clipboard.
+    ///
+    /// qmetaobject 0.2 doesn't expose QClipboard directly, so we emit a
+    /// `textCopied(text)` signal — main.qml listens for it and uses a hidden
+    /// TextEdit to actually set the clipboard contents (Qt's TextEdit.copy()
+    /// copies selected text; we use `selectAll()` + `copy()`).
+    pub fn copyText(&self, text: QString) {
+        self.textCopied(text);
+    }
+
+    /// Save arbitrary text content to a file in the downloads directory.
+    /// Used by the message context menu "Save" entry for text messages
+    /// (where there's no media to download but the user wants the text
+    /// as a .txt file).
+    pub fn saveTextToFile(&self, text: QString, suggested_name: QString) {
+        let text_bytes = text.to_string().into_bytes();
+        let name = suggested_name.to_string();
+        let qptr = Self::singleton_ptr();
+        self.spawn(async move {
+            let dir = crate::avatar_cache::downloads_dir();
+            std::fs::create_dir_all(&dir)?;
+            let safe = name.chars()
+                .filter(|c| !matches!(c, '/' | '\\' | '\0' | ':' | '*' | '?' | '"' | '<' | '>' | '|'))
+                .collect::<String>();
+            let final_name = if safe.trim().is_empty() {
+                format!("message-{}.txt", uuid::Uuid::new_v4())
+            } else if !safe.ends_with(".txt") {
+                format!("{}.txt", safe)
+            } else {
+                safe
+            };
+            let path = dir.join(final_name);
+            std::fs::write(&path, &text_bytes)?;
+            let p = path.to_string_lossy().to_string();
+            let cb = qmetaobject::queued_callback(move |_: ()| {
+                if let Some(this) = qptr.as_pinned() {
+                    this.borrow_mut().emit_file_downloaded(
+                        QString::from(""),
+                        QString::from(""),
+                        QString::from(p.as_str()),
+                    );
+                }
+            });
+            cb(());
+            AppResult::Ok(())
         });
     }
 

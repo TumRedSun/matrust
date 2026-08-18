@@ -20,6 +20,26 @@ ApplicationWindow {
     font.family: Theme.fontFamily
     font.pixelSize: Theme.fontSizeMd
 
+    // ── Hidden clipboard helper ──
+    // qmetaobject 0.2 doesn't expose QClipboard directly. We use a hidden
+    // TextEdit that we set the text on, select all, and call copy(). This
+    // pushes the text onto the system clipboard without needing a Rust-side
+    // binding. Triggered whenever MatrixClient.copyText emits textCopied.
+    TextEdit {
+        id: clipboardHelper
+        visible: false
+        readOnly: true
+    }
+    Connections {
+        target: MatrixClient
+        function onTextCopied(text) {
+            clipboardHelper.text = text
+            clipboardHelper.selectAll()
+            clipboardHelper.copy()
+            clipboardHelper.deselect()
+        }
+    }
+
     StackView {
         id: stack
         anchors.fill: parent

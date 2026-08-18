@@ -44,6 +44,13 @@ pub struct MessageModel {
     historyLoaded: qt_signal!(room_id: QString),
     /// Emitted when a single new event was appended.
     eventAppended: qt_signal!(event_id: QString),
+
+    /// Remove a single event from the local model by event_id. This is
+    /// the "Hide for me" action from the message context menu — purely
+    /// visual, doesn't touch the server. The event reappears on the next
+    /// full reload (sync / room switch) because we don't persist the
+    /// hidden state.
+    hideEvent: qt_method!(fn(&self, event_id: QString)),
 }
 
 /// Helper to extract a URL string from a MediaSource enum.
@@ -617,6 +624,30 @@ impl MessageModel {
     /// Used by the sync loop to auto-reload messages after each cycle.
     pub fn current_room_id(&self) -> Option<String> {
         self.current_room_id.borrow().clone()
+    }
+
+    /// Remove a single event from the local model by event_id. This is
+    /// the "Hide for me" action from the message context menu — purely
+    /// visual, doesn't touch the server. The event reappears on the next
+    /// full reload (sync / room switch) because we don't persist the
+    /// hidden state.
+    pub fn hideEvent(&self, event_id: QString) {
+        let target = event_id.to_string();
+        let mut entries = self.entries.borrow_mut();
+        let before = entries.len();
+        entries.retain(|e| e.event_id.to_string() != target);
+        let after = entries.len();
+        if before != after {
+            // We need to reset the model so the ListView re-renders without
+            // the removed row. Using beginResetModel / endResetModel is the
+            // simplest correct approach here (the row count changed, which
+            // invalidates all indices).
+            drop(entries);
+            self.begin_reset_model();
+            self.end_reset_model();
+            self.count_changed();
+            ::log::info!("hideEvent: removed event_id={} ({} -> {})", target, before, after);
+        }
     }
 }
 
