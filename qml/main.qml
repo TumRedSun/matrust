@@ -63,6 +63,87 @@ ApplicationWindow {
             // "home" = DMs, "space" = rooms of selected space
             property string sidebarMode: "home"
 
+            // ── Chat navigation history (mouse back/forward) ──
+            // Maintains a sliding-window history of recently-opened
+            // rooms (capped at 20), like a browser. The "present" pointer
+            // is `chatHistoryIndex`. Clicking a room pushes a new entry
+            // at index+1 and discards any forward history (matches
+            // browser semantics: navigating back then clicking a link
+            // erases the forward history). Pressing the mouse back /
+            // forward buttons just moves the pointer without pushing.
+            property var chatHistory: []
+            property int chatHistoryIndex: -1
+            // Guard flag: while we change activeRoomId from the
+            // back/forward handlers, we don't want onActiveRoomIdChanged
+            // to push a new history entry (which would split the line).
+            property bool _navigatingFromHistory: false
+
+            function pushChatHistory(roomId) {
+                if (roomId.length === 0) return
+                if (_navigatingFromHistory) return
+                // Truncate any forward history (entries after current index).
+                if (chatHistoryIndex + 1 < chatHistory.length) {
+                    chatHistory = chatHistory.slice(0, chatHistoryIndex + 1)
+                }
+                // Avoid duplicate consecutive entries (e.g. clicking the
+                // already-active room shouldn't pollute the history).
+                if (chatHistory.length > 0 && chatHistory[chatHistory.length - 1] === roomId) {
+                    chatHistoryIndex = chatHistory.length - 1
+                    return
+                }
+                chatHistory.push(roomId)
+                // Cap at 20 — drop the oldest entry.
+                if (chatHistory.length > 20) {
+                    chatHistory = chatHistory.slice(chatHistory.length - 20)
+                }
+                chatHistoryIndex = chatHistory.length - 1
+            }
+
+            function navigateChatBack() {
+                if (chatHistoryIndex > 0) {
+                    chatHistoryIndex--
+                    _navigatingFromHistory = true
+                    activeRoomId = chatHistory[chatHistoryIndex]
+                    _navigatingFromHistory = false
+                    // Show a toast so the user sees the navigation happened
+                    // (otherwise it can feel like nothing happened when the
+                    // target room has the same name as the current one).
+                    root.showToast(Tr.tr(Theme.language, "Back"))
+                }
+            }
+
+            function navigateChatForward() {
+                if (chatHistoryIndex >= 0 && chatHistoryIndex < chatHistory.length - 1) {
+                    chatHistoryIndex++
+                    _navigatingFromHistory = true
+                    activeRoomId = chatHistory[chatHistoryIndex]
+                    _navigatingFromHistory = false
+                    root.showToast(Tr.tr(Theme.language, "Forward"))
+                }
+            }
+
+            // Full-window mouse-area that captures the back / forward
+            // mouse buttons (typically mouse buttons 8 & 9). It only
+            // accepts those buttons, so regular left/right clicks pass
+            // through to the underlying UI (room list, message bubbles,
+            // composer, etc.) unimpeded.
+            MouseArea {
+                anchors.fill: parent
+                acceptedButtons: Qt.BackButton | Qt.ForwardButton
+                propagateComposedEvents: true
+                onClicked: function(mouse) {
+                    if (mouse.button === Qt.BackButton) {
+                        mainViewRoot.navigateChatBack()
+                    } else if (mouse.button === Qt.ForwardButton) {
+                        mainViewRoot.navigateChatForward()
+                    }
+                    // Don't accept — let it propagate (harmless if nothing
+                    // else handles it, and avoids swallowing the event in
+                    // case a child widget also wants it).
+                    mouse.accepted = false
+                }
+            }
+
             RowLayout {
                 anchors.fill: parent
                 spacing: 0
@@ -483,10 +564,15 @@ ApplicationWindow {
                 }
             }
 
-            // When a room is selected, close settings overlay
+            // When a room is selected, close settings overlay and push
+            // it onto the chat-history stack (for mouse back/forward
+            // navigation). The `_navigatingFromHistory` flag inside
+            // pushChatHistory suppresses duplicate pushes when we're
+            // moving the pointer from the back/forward handlers.
             onActiveRoomIdChanged: {
                 if (activeRoomId.length > 0) {
                     settingsOverlay.visible = false
+                    pushChatHistory(activeRoomId)
                 }
             }
         }
@@ -499,6 +585,19 @@ ApplicationWindow {
         anchors.fill: parent
         color: "transparent"
         z: 100  // above everything
+
+        // ESC closes the settings overlay. Dialog-based popups
+        // (userSearchDialog, leaveRoomDialog, renameDialog, etc.) already
+        // close on ESC via Qt's default `Popup.CloseOnEscape` policy;
+        // this Shortcut covers the settings overlay, which is a plain
+        // Rectangle (not a Dialog) and so doesn't get that behavior
+        // automatically. The Shortcut is only enabled while the overlay
+        // is visible so it doesn't shadow ESC handling elsewhere.
+        Shortcut {
+            sequence: "Escape"
+            enabled: settingsOverlay.visible
+            onActivated: settingsOverlay.visible = false
+        }
 
         // Dim background
         MouseArea {

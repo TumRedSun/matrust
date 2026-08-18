@@ -253,7 +253,12 @@ impl Theme {
     }
 
     fn apply_defaults(&self) {
-        let defaults = preset("Material Dark");
+        // Preserve the current language when resetting to defaults —
+        // the user explicitly chose a language and "Reset theme" should
+        // only reset visual properties, not flip the UI back to English.
+        let saved_language = self.state.borrow().language.clone();
+        let mut defaults = preset("Material Dark");
+        defaults.language = saved_language;
         *self.state.borrow_mut() = defaults;
     }
 
@@ -313,7 +318,15 @@ impl Theme {
     }
 
     pub fn applyPreset(&self, name: QString) {
-        let s = preset(&name.to_string());
+        // Preserve the current language across preset switches.
+        // `preset()` hardcodes `language: "en"` in the returned ThemeState,
+        // so without this preservation, switching presets (or the
+        // `Theme.applyPreset(Theme.preset)` call in main.qml's
+        // Component.onCompleted) would silently reset the user's chosen
+        // interface language back to English on every startup.
+        let saved_language = self.state.borrow().language.clone();
+        let mut s = preset(&name.to_string());
+        s.language = saved_language;
         *self.state.borrow_mut() = s;
         self.fire_all_signals();
         self.save_to_disk();
@@ -369,7 +382,10 @@ impl Theme {
     pub fn preset(&self) -> QString { QString::from(self.state.borrow().preset.as_str()) }
     pub fn set_preset(&self, v: QString) {
         let name = v.to_string();
-        let s = preset(&name);
+        // Preserve current language (see applyPreset for rationale).
+        let saved_language = self.state.borrow().language.clone();
+        let mut s = preset(&name);
+        s.language = saved_language;
         *self.state.borrow_mut() = s;
         self.fire_all_signals();
         self.save_to_disk();

@@ -55,6 +55,8 @@ const RU_SOURCES: &[(&str, &str)] = &[
     ("Delete", "Удалить"),
     ("Hide for me", "Скрыть для меня"),
     ("Send", "Отправить"),
+    ("Back", "Назад"),
+    ("Forward", "Вперёд"),
     ("Close", "Закрыть"),
     ("Cancel", "Отмена"),
     ("Rename attachment", "Переименовать вложение"),

@@ -32,7 +32,7 @@ Rectangle {
                 Layout.rightMargin: Theme.paddingLg
                 color: Theme.sidebarBg
                 radius: Theme.radiusMd
-                implicitHeight: accountCol.implicitHeight + Theme.paddingMd * 2
+                Layout.preferredHeight: accountCol.implicitHeight + Theme.paddingMd * 2
 
                 ColumnLayout {
                     id: accountCol
@@ -51,7 +51,7 @@ Rectangle {
                 Layout.rightMargin: Theme.paddingLg
                 color: Theme.sidebarBg
                 radius: Theme.radiusMd
-                implicitHeight: netCol.implicitHeight + Theme.paddingMd * 2
+                Layout.preferredHeight: netCol.implicitHeight + Theme.paddingMd * 2
 
                 ColumnLayout {
                     id: netCol
@@ -75,7 +75,7 @@ Rectangle {
                 Layout.rightMargin: Theme.paddingLg
                 color: Theme.sidebarBg
                 radius: Theme.radiusMd
-                implicitHeight: diagCol.implicitHeight + Theme.paddingMd * 2
+                Layout.preferredHeight: diagCol.implicitHeight + Theme.paddingMd * 2
 
                 ColumnLayout {
                     id: diagCol

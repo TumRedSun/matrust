@@ -579,9 +579,24 @@ Rectangle {
         }
 
         // ── Composer ──
+        // Auto-growing: the textarea expands with content up to half the
+        // window height, then switches to internal scrolling (mouse wheel
+        // scrolls inside the textarea, not the message list).
+        //
+        // Layout: [📁 😀] │ [textarea grows] │ [↑]
+        //   - The 📁 and 😀 buttons are visually grouped together and
+        //     separated from the textarea by a thin vertical divider, so
+        //     the user can immediately tell that those buttons are
+        //     attach/insert actions, not part of the message input.
+        //   - The ↑ send button is a fixed-size square (not a rectangle
+        //     sized to the label width), matching Discord/Telegram style.
         Rectangle {
             Layout.fillWidth: true
-            Layout.preferredHeight: 64
+            // Outer composer height = textarea height + vertical padding.
+            // The textarea itself is capped to half the chat-page height
+            // (so very long drafts scroll inside the textarea instead of
+            // pushing the message list off-screen).
+            Layout.preferredHeight: composerScroll.height + Theme.paddingSm * 2
             color: Theme.sidebarBg
             visible: chatPageRoot.roomId.length > 0
 
@@ -590,13 +605,6 @@ Rectangle {
             // is added to pendingAttachments via addAttachment(), so the
             // user sees the same preview strip as if they'd clicked the
             // 📁 button — then sends the batch with Enter / Send.
-            //
-            // We accept "text/uri-list" (the standard MIME for file drags
-            // from file managers) and reject everything else (so the user
-            // doesn't accidentally drop text selections, etc).
-            //
-            // A subtle highlight border appears while a drag is hovering
-            // to give visual feedback that the drop will be accepted.
             Rectangle {
                 id: dropHighlight
                 anchors.fill: parent
@@ -612,18 +620,11 @@ Rectangle {
                 anchors.fill: parent
                 keys: ["text/uri-list"]
                 onDropped: function(drop) {
-                    // `drop.urls` is a list of QUrl — toString() gives
-                    // "file:///path/to/file". We strip the "file://" prefix.
                     var added = 0
                     for (var i = 0; i < drop.urls.length; i++) {
                         var url = drop.urls[i].toString()
                         if (url.indexOf("file://") === 0) {
-                            // Qt encodes the path — decode it back to a
-                            // filesystem path before passing to Rust.
                             var path = decodeURIComponent(url.substring(7))
-                            // On Linux the path is absolute and starts
-                            // with "/". On Windows it'd be "C:/..." but
-                            // this client is Linux-only for now.
                             chatPageRoot.addAttachment(path)
                             added++
                         }
@@ -638,41 +639,93 @@ Rectangle {
                 anchors.fill: parent
                 anchors.leftMargin: Theme.paddingSm
                 anchors.rightMargin: Theme.paddingSm
+                anchors.topMargin: Theme.paddingSm
+                anchors.bottomMargin: Theme.paddingSm
                 spacing: Theme.spacingSm
 
-                // Single universal attach button (replaces 3 buttons).
-                // Clicking it opens the custom FileBrowserDialog which
-                // supports multi-file selection + hidden files.
-                Button {
-                    text: Tr.tr(Theme.language, "\uD83D\uDCC1")  // 📁
-                    background: Rectangle { color: "transparent"; radius: Theme.radiusSm }
-                    font.pixelSize: Theme.fontSizeLg
-                    onClicked: fileBrowser.open()
-                    enabled: roomId.length > 0 && !MatrixClient.offline
-                    ToolTip.text: Tr.tr(Theme.language, "Attach files (multiple selection supported)")
-                    ToolTip.visible: hovered
+                // ── Left: file + emoji button group ──
+                // Visually separated from the textarea by a 1px vertical
+                // divider on the right. Both buttons are square icons of
+                // the same size so the group reads as a single cluster.
+                RowLayout {
+                    Layout.alignment: Qt.AlignBottom
+                    spacing: 0
+
+                    // Square icon button component (used for 📁 and 😀).
+                    // Square because the icon should fill the button
+                    // symmetrically — a rectangle would leave the icon
+                    // floating with uneven side margins.
+                    component IconButton: Button {
+                        id: iconBtn
+                        Layout.preferredWidth: 40
+                        Layout.preferredHeight: 40
+                        leftPadding: 0
+                        rightPadding: 0
+                        topPadding: 0
+                        bottomPadding: 0
+                        background: Rectangle {
+                            color: iconBtn.hovered ? Qt.lighter(Theme.sidebarBg, 1.4) : "transparent"
+                            radius: Theme.radiusSm
+                        }
+                        contentItem: Label {
+                            text: iconBtn.text
+                            font.pixelSize: Theme.fontSizeLg
+                            horizontalAlignment: Qt.AlignHCenter
+                            verticalAlignment: Qt.AlignVCenter
+                        }
+                    }
+
+                    IconButton {
+                        text: "\uD83D\uDCC1"  // 📁
+                        onClicked: fileBrowser.open()
+                        enabled: roomId.length > 0 && !MatrixClient.offline
+                        ToolTip.text: Tr.tr(Theme.language, "Attach files (multiple selection supported)")
+                        ToolTip.visible: hovered
+                    }
+                    IconButton {
+                        text: "\uD83D\uDE00"  // 😀
+                        onClicked: emojiInserter.open()
+                        enabled: roomId.length > 0 && !MatrixClient.offline
+                        ToolTip.text: Tr.tr(Theme.language, "Insert emoji into message")
+                        ToolTip.visible: hovered
+                    }
+
+                    // Vertical divider — logical separator between the
+                    // attach/insert cluster and the message text input.
+                    Rectangle {
+                        Layout.preferredWidth: 1
+                        Layout.preferredHeight: 32
+                        Layout.leftMargin: Theme.spacingSm
+                        Layout.alignment: Qt.AlignVCenter
+                        color: Theme.border
+                    }
                 }
 
-                // Emoji insert button — opens the emoji picker in
-                // "insert" mode. Picking an emoji inserts it as text at
-                // the composer's cursor position (Discord-style), NOT as
-                // a reaction. Reactions are sent via right-click on a
-                // message bubble.
-                Button {
-                    text: "\uD83D\uDE00"  // 😀
-                    background: Rectangle { color: "transparent"; radius: Theme.radiusSm }
-                    font.pixelSize: Theme.fontSizeLg
-                    onClicked: emojiInserter.open()
-                    enabled: roomId.length > 0 && !MatrixClient.offline
-                    ToolTip.text: Tr.tr(Theme.language, "Insert emoji into message")
-                    ToolTip.visible: hovered
-                }
-
+                // ── Center: growing textarea ──
+                // Height auto-grows with content up to half the chat-page
+                // height. Beyond that, the ScrollView scrolls internally
+                // (mouse wheel scrolls inside the textarea).
+                //
+                // `composer.implicitHeight` reflects the natural content
+                // height (text + padding). We cap the ScrollView to
+                // `chatPageRoot.height / 2` so very long drafts don't push
+                // the message list off-screen.
                 ScrollView {
+                    id: composerScroll
                     Layout.fillWidth: true
-                    Layout.fillHeight: true
+                    Layout.preferredHeight: Math.min(
+                        composer.implicitHeight,
+                        chatPageRoot.height / 2
+                    )
+                    clip: true
+
                     TextArea {
                         id: composer
+                        // Give the textarea a defined width so wrap mode
+                        // knows where to break lines. Without this, the
+                        // textarea would try to grow horizontally
+                        // indefinitely.
+                        width: composerScroll.width
                         placeholderText: MatrixClient.offline
                                                ? Tr.tr(Theme.language, "Offline \u2014 messages cannot be sent")
                                                : (pendingAttachments.length > 0
@@ -683,10 +736,14 @@ Rectangle {
                         wrapMode: TextArea.Wrap
                         background: Rectangle { color: "transparent" }
                         readOnly: MatrixClient.offline
+                        // Enter sends; Shift+Enter inserts a newline.
+                        // (Previously Ctrl+Enter was the newline shortcut;
+                        //  the user requested Shift+Enter to match common
+                        //  chat clients like Discord and Telegram.)
                         Keys.onReturnPressed: function(event) {
                             if (MatrixClient.offline) return
-                            if (event.modifiers & Qt.ControlModifier) {
-                                composer.append("\n")
+                            if (event.modifiers & Qt.ShiftModifier) {
+                                composer.insert(composer.cursorPosition, "\n")
                             } else {
                                 event.accepted = true
                                 chatPageRoot.sendAll()
@@ -695,22 +752,31 @@ Rectangle {
                     }
                 }
 
-                // Send button — up-arrow icon (Discord/Telegram style).
-                // Icon-only to save horizontal space and avoid translation
-                // width issues ("Send" vs "Отправить" had different widths).
+                // ── Right: square send button ──
+                // Fixed 40x40 square (matches the icon-button size on the
+                // left) so the up-arrow sits centered in a true square,
+                // not a rectangle stretched to the label width.
                 Button {
+                    id: sendBtn
+                    Layout.preferredWidth: 40
+                    Layout.preferredHeight: 40
+                    Layout.alignment: Qt.AlignBottom
+                    leftPadding: 0
+                    rightPadding: 0
+                    topPadding: 0
+                    bottomPadding: 0
                     text: "\u2191"  // ↑
-                    font.pixelSize: Theme.fontSizeLg
-                    font.bold: true
                     enabled: roomId.length > 0
                              && (composer.text.trim().length > 0 || pendingAttachments.length > 0)
                              && !MatrixClient.offline
                     background: Rectangle {
-                        color: parent.enabled ? Theme.accent : Theme.muted
+                        color: sendBtn.enabled
+                                ? (sendBtn.hovered ? Qt.darker(Theme.accent, 1.15) : Theme.accent)
+                                : Theme.muted
                         radius: Theme.radiusSm
                     }
                     contentItem: Label {
-                        text: parent.text
+                        text: sendBtn.text
                         color: Theme.accentFg
                         font.pixelSize: Theme.fontSizeLg
                         font.bold: true

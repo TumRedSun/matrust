@@ -532,7 +532,7 @@ Item {
                             Layout.fillWidth: true
                             color: Theme.sidebarBg
                             radius: Theme.radiusMd
-                            implicitHeight: accountCol.implicitHeight + Theme.paddingMd * 2
+                            Layout.preferredHeight: accountCol.implicitHeight + Theme.paddingMd * 2
 
                             ColumnLayout {
                                 id: accountCol
@@ -556,7 +556,7 @@ Item {
                             Layout.fillWidth: true
                             color: Theme.sidebarBg
                             radius: Theme.radiusMd
-                            implicitHeight: netCol.implicitHeight + Theme.paddingMd * 2
+                            Layout.preferredHeight: netCol.implicitHeight + Theme.paddingMd * 2
 
                             ColumnLayout {
                                 id: netCol
@@ -580,7 +580,7 @@ Item {
                             Layout.fillWidth: true
                             color: Theme.sidebarBg
                             radius: Theme.radiusMd
-                            implicitHeight: diagCol.implicitHeight + Theme.paddingMd * 2
+                            Layout.preferredHeight: diagCol.implicitHeight + Theme.paddingMd * 2
 
                             ColumnLayout {
                                 id: diagCol
@@ -609,7 +609,7 @@ Item {
                             Layout.fillWidth: true
                             color: Theme.sidebarBg
                             radius: Theme.radiusMd
-                            implicitHeight: actionCol.implicitHeight + Theme.paddingMd * 2
+                            Layout.preferredHeight: actionCol.implicitHeight + Theme.paddingMd * 2
 
                             ColumnLayout {
                                 id: actionCol
@@ -676,7 +676,7 @@ Item {
                             Layout.fillWidth: true
                             color: Theme.sidebarBg
                             radius: Theme.radiusMd
-                            implicitHeight: langCol.implicitHeight + Theme.paddingMd * 2
+                            Layout.preferredHeight: langCol.implicitHeight + Theme.paddingMd * 2
 
                             ColumnLayout {
                                 id: langCol
@@ -722,7 +722,7 @@ Item {
                             Layout.fillWidth: true
                             color: Theme.sidebarBg
                             radius: Theme.radiusMd
-                            implicitHeight: mapCol.implicitHeight + Theme.paddingMd * 2
+                            Layout.preferredHeight: mapCol.implicitHeight + Theme.paddingMd * 2
 
                             ColumnLayout {
                                 id: mapCol
