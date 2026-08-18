@@ -17,8 +17,9 @@ pub struct MessageEntry {
     pub body_html: QString,      // rendered HTML for rich content
     pub ts: i64,                 // epoch millis
     pub is_own: bool,
-    pub kind: QString,           // "text" | "image" | "video" | "file" | "audio" | "system"
-    pub mxc_url: QString,        // mxc:// for media messages
+    pub kind: QString,           // "text" | "image" | "video" | "file" | "audio" | "system" | "encrypted"
+    pub mxc_url: QString,        // mxc:// for media messages (empty if encrypted)
+    pub media_source_json: QString, // Serialized MediaSource (Plain or Encrypted) for proper download
     pub file_name: QString,
     pub file_size: i64,
     pub mime_type: QString,
@@ -49,8 +50,16 @@ pub struct MessageModel {
 fn media_source_url(source: &matrix_sdk::ruma::events::room::MediaSource) -> Option<&str> {
     match source {
         matrix_sdk::ruma::events::room::MediaSource::Plain(uri) => Some(uri.as_str()),
-        matrix_sdk::ruma::events::room::MediaSource::Encrypted(_) => None,
+        matrix_sdk::ruma::events::room::MediaSource::Encrypted(file) => Some(file.url.as_str()),
     }
+}
+
+/// Serialize a `MediaSource` to JSON so QML can pass it back to
+/// `download_media` for proper download (works for both Plain and
+/// Encrypted media — encrypted sources carry the key/IV/hashes needed
+/// for decryption).
+fn serialize_media_source(source: &matrix_sdk::ruma::events::room::MediaSource) -> String {
+    serde_json::to_string(source).unwrap_or_default()
 }
 
 impl MessageModel {
@@ -199,23 +208,36 @@ impl MessageModel {
                                 MessageType::Image(t) => {
                                     entry.kind = QString::from("image");
                                     entry.mxc_url = QString::from(media_source_url(&t.source).unwrap_or(""));
+                                    entry.media_source_json = QString::from(serialize_media_source(&t.source).as_str());
                                     entry.body = QString::from(t.body.as_str());
                                     entry.file_name = QString::from(t.body.as_str());
                                     entry.mime_type = QString::from(
                                         t.info.as_ref().and_then(|i| i.mimetype.as_deref()).unwrap_or("image/*")
                                     );
+                                    entry.file_size = t.info.as_ref()
+                                        .and_then(|i| i.size)
+                                        .map(|s| u64::from(s) as i64)
+                                        .unwrap_or(0);
                                 }
                                 MessageType::Video(t) => {
                                     entry.kind = QString::from("video");
                                     entry.mxc_url = QString::from(media_source_url(&t.source).unwrap_or(""));
+                                    entry.media_source_json = QString::from(serialize_media_source(&t.source).as_str());
+                                    entry.body = QString::from(t.body.as_str());
                                     entry.file_name = QString::from(t.body.as_str());
                                     entry.mime_type = QString::from(
                                         t.info.as_ref().and_then(|i| i.mimetype.as_deref()).unwrap_or("video/*")
                                     );
+                                    entry.file_size = t.info.as_ref()
+                                        .and_then(|i| i.size)
+                                        .map(|s| u64::from(s) as i64)
+                                        .unwrap_or(0);
                                 }
                                 MessageType::File(t) => {
                                     entry.kind = QString::from("file");
                                     entry.mxc_url = QString::from(media_source_url(&t.source).unwrap_or(""));
+                                    entry.media_source_json = QString::from(serialize_media_source(&t.source).as_str());
+                                    entry.body = QString::from(t.body.as_str());
                                     entry.file_name = QString::from(t.body.as_str());
                                     entry.mime_type = QString::from(
                                         t.info.as_ref().and_then(|i| i.mimetype.as_deref()).unwrap_or("application/octet-stream")
@@ -228,10 +250,16 @@ impl MessageModel {
                                 MessageType::Audio(t) => {
                                     entry.kind = QString::from("audio");
                                     entry.mxc_url = QString::from(media_source_url(&t.source).unwrap_or(""));
+                                    entry.media_source_json = QString::from(serialize_media_source(&t.source).as_str());
+                                    entry.body = QString::from(t.body.as_str());
                                     entry.file_name = QString::from(t.body.as_str());
                                     entry.mime_type = QString::from(
                                         t.info.as_ref().and_then(|i| i.mimetype.as_deref()).unwrap_or("audio/*")
                                     );
+                                    entry.file_size = t.info.as_ref()
+                                        .and_then(|i| i.size)
+                                        .map(|s| u64::from(s) as i64)
+                                        .unwrap_or(0);
                                 }
                                 _ => {
                                     entry.kind = QString::from("system");
@@ -436,23 +464,36 @@ impl MessageModel {
                                 MessageType::Image(t) => {
                                     entry.kind = QString::from("image");
                                     entry.mxc_url = QString::from(media_source_url(&t.source).unwrap_or(""));
+                                    entry.media_source_json = QString::from(serialize_media_source(&t.source).as_str());
                                     entry.body = QString::from(t.body.as_str());
                                     entry.file_name = QString::from(t.body.as_str());
                                     entry.mime_type = QString::from(
                                         t.info.as_ref().and_then(|i| i.mimetype.as_deref()).unwrap_or("image/*")
                                     );
+                                    entry.file_size = t.info.as_ref()
+                                        .and_then(|i| i.size)
+                                        .map(|s| u64::from(s) as i64)
+                                        .unwrap_or(0);
                                 }
                                 MessageType::Video(t) => {
                                     entry.kind = QString::from("video");
                                     entry.mxc_url = QString::from(media_source_url(&t.source).unwrap_or(""));
+                                    entry.media_source_json = QString::from(serialize_media_source(&t.source).as_str());
+                                    entry.body = QString::from(t.body.as_str());
                                     entry.file_name = QString::from(t.body.as_str());
                                     entry.mime_type = QString::from(
                                         t.info.as_ref().and_then(|i| i.mimetype.as_deref()).unwrap_or("video/*")
                                     );
+                                    entry.file_size = t.info.as_ref()
+                                        .and_then(|i| i.size)
+                                        .map(|s| u64::from(s) as i64)
+                                        .unwrap_or(0);
                                 }
                                 MessageType::File(t) => {
                                     entry.kind = QString::from("file");
                                     entry.mxc_url = QString::from(media_source_url(&t.source).unwrap_or(""));
+                                    entry.media_source_json = QString::from(serialize_media_source(&t.source).as_str());
+                                    entry.body = QString::from(t.body.as_str());
                                     entry.file_name = QString::from(t.body.as_str());
                                     entry.mime_type = QString::from(
                                         t.info.as_ref().and_then(|i| i.mimetype.as_deref()).unwrap_or("application/octet-stream")
@@ -465,10 +506,16 @@ impl MessageModel {
                                 MessageType::Audio(t) => {
                                     entry.kind = QString::from("audio");
                                     entry.mxc_url = QString::from(media_source_url(&t.source).unwrap_or(""));
+                                    entry.media_source_json = QString::from(serialize_media_source(&t.source).as_str());
+                                    entry.body = QString::from(t.body.as_str());
                                     entry.file_name = QString::from(t.body.as_str());
                                     entry.mime_type = QString::from(
                                         t.info.as_ref().and_then(|i| i.mimetype.as_deref()).unwrap_or("audio/*")
                                     );
+                                    entry.file_size = t.info.as_ref()
+                                        .and_then(|i| i.size)
+                                        .map(|s| u64::from(s) as i64)
+                                        .unwrap_or(0);
                                 }
                                 _ => {
                                     entry.kind = QString::from("system");

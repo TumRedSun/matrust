@@ -447,17 +447,42 @@ impl MatrixClient {
         let path = local_path.to_string();
         let mime = mime.to_string();
         let kind = kind.to_string();
+        // After sending, reload messages for this room so the sent
+        // file appears immediately (mirrors how sendText works). Without
+        // this the user had to switch rooms to see their own attachment.
+        let reload_room_id = room_id.clone();
+        let reload_room_id_for_cb = reload_room_id.clone();
+        let model = MessageModel::get();
+        let reload_cb = qmetaobject::queued_callback(move |entries: Vec<MessageEntry>| {
+            if let Some(m) = model.as_pinned() {
+                m.borrow_mut().apply_entries(entries, &reload_room_id_for_cb);
+            }
+        });
+        let client_arc = match self.inner.borrow().clone() {
+            Some(c) => c,
+            None => return,
+        };
         self.spawn(async move {
-            crate::file_transfer::send_attachment(room_id, path, mime, kind).await
+            crate::file_transfer::send_attachment(room_id, path, mime, kind).await?;
+            // Reload messages after sending
+            let client: matrix_sdk::Client = {
+                let c = client_arc.lock().await;
+                c.clone()
+            };
+            match MessageModel::fetch_messages(client, reload_room_id).await {
+                Ok(entries) => reload_cb(entries),
+                Err(e) => ::log::warn!("sendFile: reload after send failed: {e}"),
+            }
+            AppResult::Ok(())
         });
     }
 
-    pub fn downloadMedia(&self, room_id: QString, mxc: QString, suggested_name: QString) {
+    pub fn downloadMedia(&self, room_id: QString, media_source_json: QString, suggested_name: QString) {
         let room_id = room_id.to_string();
-        let mxc = mxc.to_string();
+        let media_source_json = media_source_json.to_string();
         let name = suggested_name.to_string();
         self.spawn(async move {
-            crate::file_transfer::download_media(room_id, mxc, name).await
+            crate::file_transfer::download_media(room_id, media_source_json, name).await
         });
     }
 

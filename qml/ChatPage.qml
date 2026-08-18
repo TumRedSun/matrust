@@ -126,6 +126,7 @@ Rectangle {
                         isOwn: model.is_own
                         kind: model.kind
                         mxcUrl: model.mxc_url
+                        mediaSourceJson: model.media_source_json
                         fileName: model.file_name
                         fileSize: model.file_size
                         mimeType: model.mime_type
@@ -247,7 +248,13 @@ Rectangle {
         target: MessageModel
         function onHistoryLoaded(rid) {
             if (rid === roomId) {
-                messagesView.positionViewAtBeginning()
+                // If we just switched to this room (no saved scroll
+                // position), pin to the bottom so the newest message
+                // is visible. Otherwise, the syncDone handler in
+                // ChatPage already restored scroll via the Timer.
+                if (!restoreScrollTimer.running) {
+                    messagesView.positionViewAtBeginning()
+                }
             }
         }
     }
@@ -262,19 +269,48 @@ Rectangle {
     }
 
     // After each sync cycle, reload messages for the currently open
-    // room — but ONLY if the user is already viewing the newest
-    // messages (atYBeginning is true with BottomToTop layout).
-    // This is what makes new incoming messages appear in real time
-    // without the user having to close and reopen the DM.
+    // room so new incoming messages appear in real time.
     //
-    // If the user has scrolled up to read history, we DON'T reload,
-    // so their scroll position is preserved.
+    // We save the current scroll position (contentY) before the reload
+    // and restore it afterwards, so a user who has scrolled up to read
+    // history is NOT yanked back to the bottom. If the user is already
+    // at the bottom (atYBeginning), we explicitly re-pin to the bottom
+    // so the newly arrived message is visible.
     Connections {
         target: MatrixClient
         function onSyncDone(payload) {
-            if (chatPageRoot.roomId.length > 0 && messagesView.atYBeginning) {
-                MatrixClient.loadRoomMessages(chatPageRoot.roomId)
+            if (chatPageRoot.roomId.length === 0) return
+            // Save scroll state. For BottomToTop layout:
+            //   atYBeginning == true  → user is at the bottom (newest)
+            //   atYBeginning == false → user scrolled up to read history
+            var wasAtBottom = messagesView.atYBeginning
+            var savedY = messagesView.contentY
+            MatrixClient.loadRoomMessages(chatPageRoot.roomId)
+            // Restore after the model resets (onHistoryLoaded handles
+            // re-positioning to the bottom; for the "scrolled up" case
+            // we re-apply savedY here via a Timer to let the model
+            // settle first).
+            if (!wasAtBottom) {
+                restoreScrollTimer.savedY = savedY
+                restoreScrollTimer.start()
             }
+        }
+    }
+
+    // Used to restore scroll position after a sync-triggered reload
+    // when the user was NOT at the bottom.
+    Timer {
+        id: restoreScrollTimer
+        property real savedY: 0
+        interval: 50
+        repeat: false
+        onTriggered: {
+            // Clamp to valid range. contentY can be negative for
+            // BottomToTop layout when scrolled up.
+            var minY = messagesView.originY
+            var maxY = messagesView.originY + messagesView.contentHeight - messagesView.height
+            var clamped = Math.max(minY, Math.min(savedY, maxY))
+            messagesView.contentY = clamped
         }
     }
 

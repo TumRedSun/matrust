@@ -7,21 +7,21 @@ use qmetaobject::QString;
 use crate::errors::{AppError, AppResult};
 
 /// Parse an mxc:// URI string into OwnedMxcUri.
+#[allow(dead_code)]
 fn parse_mxc(s: &str) -> AppResult<matrix_sdk::ruma::OwnedMxcUri> {
     s.try_into()
         .map_err(|e| AppError::Other(format!("invalid mxc URI '{}': {:?}", s, e)))
 }
 
-/// Helper to extract a URL string from a MediaSource enum.
-#[allow(dead_code)]
-fn media_source_url(source: &matrix_sdk::ruma::events::room::MediaSource) -> Option<String> {
-    match source {
-        matrix_sdk::ruma::events::room::MediaSource::Plain(uri) => Some(uri.to_string()),
-        matrix_sdk::ruma::events::room::MediaSource::Encrypted(_) => None,
-    }
-}
-
 /// Send a local file as an attachment in `room_id`.
+///
+/// Uses `Room::send_attachment` from matrix-sdk, which automatically handles
+/// encryption for E2EE rooms (encrypts the media file + sends the encryption
+/// keys alongside the event so other participants can decrypt it).
+///
+/// Without this, sending media in an E2EE DM produced an unencrypted upload
+/// referenced by an encrypted event — the receiver couldn't decrypt the file
+/// and saw an empty bubble.
 pub async fn send_attachment(
     room_id: String,
     local_path: String,
@@ -48,60 +48,73 @@ pub async fn send_attachment(
         .and_then(|s| s.to_str())
         .unwrap_or("file")
         .to_owned();
-    let mime_val: mime::Mime = mime
-        .parse()
-        .map_err(|e: mime::FromStrError| AppError::Other(e.to_string()))?;
 
-    use matrix_sdk::ruma::events::room::message::{
-        AudioMessageEventContent, FileMessageEventContent, ImageMessageEventContent,
-        MessageType, RoomMessageEventContent, VideoMessageEventContent,
+    // Infer the MIME type. The caller may pass an empty string (fileDialog
+    // sends "") or a wildcard like "image/*". In both cases, fall back to
+    // mime_guess so we get a concrete Content-Type for the upload.
+    let mime_val: mime::Mime = if mime.is_empty() || mime.contains('*') {
+        mime_guess::from_path(&local_path)
+            .first()
+            .unwrap_or(mime::APPLICATION_OCTET_STREAM)
+    } else {
+        mime.parse()
+            .map_err(|e: mime::FromStrError| AppError::Other(e.to_string()))?
     };
 
-    let content = match kind.as_str() {
-        "image" => {
-            let uploaded = c.media().upload(&mime_val, bytes, None).await?;
-            let mut img = ImageMessageEventContent::plain(file_name, uploaded.content_uri);
-            img.info = Some(Box::new(ruma::events::room::ImageInfo::default()));
-            RoomMessageEventContent::new(MessageType::Image(img))
-        }
-        "video" => {
-            let uploaded = c.media().upload(&mime_val, bytes, None).await?;
-            let mut v = VideoMessageEventContent::plain(file_name, uploaded.content_uri);
-            v.info = Some(Box::new(ruma::events::room::message::VideoInfo::default()));
-            RoomMessageEventContent::new(MessageType::Video(v))
-        }
-        "audio" => {
-            let uploaded = c.media().upload(&mime_val, bytes, None).await?;
-            let a = AudioMessageEventContent::plain(file_name, uploaded.content_uri);
-            RoomMessageEventContent::new(MessageType::Audio(a))
-        }
-        _ => {
-            let uploaded = c.media().upload(&mime_val, bytes, None).await?;
-            let f = FileMessageEventContent::plain(file_name, uploaded.content_uri);
-            RoomMessageEventContent::new(MessageType::File(f))
-        }
-    };
+    // Build the AttachmentConfig with type-specific metadata. For images and
+    // videos we'd ideally populate dimensions/duration, but since we don't
+    // decode the file here we just send an empty BaseImageInfo / BaseVideoInfo.
+    // The server/client will still display the file correctly.
+    use matrix_sdk::attachment::{AttachmentConfig, AttachmentInfo,
+        BaseAudioInfo, BaseFileInfo, BaseImageInfo, BaseVideoInfo};
 
-    let _ = room.send(content).await?;
+    let attachment_info = match kind.as_str() {
+        "image" => AttachmentInfo::Image(BaseImageInfo::default()),
+        "video" => AttachmentInfo::Video(BaseVideoInfo::default()),
+        "audio" => AttachmentInfo::Audio(BaseAudioInfo::default()),
+        _ => AttachmentInfo::File(BaseFileInfo::default()),
+    };
+    let config = AttachmentConfig::new().info(attachment_info);
+
+    // `send_attachment` returns an IntoFuture (SendAttachment). Awaiting it
+    // uploads the file, builds the appropriate message event content (plain
+    // or encrypted based on the room's encryption state), and sends the
+    // event — all in one call.
+    room.send_attachment(file_name, &mime_val, bytes, config).await?;
+
     Ok(())
 }
 
-/// Download `mxc://` to a file in the user's Downloads directory and return
-/// the local path via the `fileDownloaded` signal on `MatrixClient`.
+/// Download a media file by its serialized `MediaSource`.
+///
+/// `media_source_json` is the JSON-serialized form of
+/// `matrix_sdk::ruma::events::room::MediaSource` — which can be either
+/// `Plain(mxc_uri)` or `Encrypted(EncryptedFile { url, key, iv, hashes, ... })`.
+/// For encrypted media the SDK uses the key/IV/hashes to decrypt the
+/// downloaded bytes automatically.
+///
+/// Without this, downloading encrypted media from a DM failed because the
+/// old `download_media` only accepted a plain `mxc://` string and built a
+/// `MediaSource::Plain` from it — encrypted sources returned `None` in
+/// `media_source_url()`, leaving `mxc_url` empty and the download button
+/// broken.
 pub async fn download_media(
     room_id: String,
-    mxc: String,
+    media_source_json: String,
     suggested_name: String,
 ) -> AppResult<()> {
     let client_arc = crate::MatrixClient::require_client().await?;
     let c = client_arc.lock().await;
 
-    let uri = parse_mxc(&mxc)?;
+    // Deserialize the MediaSource from JSON. This supports both Plain and
+    // Encrypted sources.
+    let source: matrix_sdk::ruma::events::room::MediaSource =
+        serde_json::from_str(&media_source_json)
+            .map_err(|e| AppError::Other(format!("invalid media source JSON: {e}")))?;
 
     use matrix_sdk::media::{MediaRequestParameters, MediaFormat};
-    use matrix_sdk::ruma::events::room::MediaSource;
     let request_params = MediaRequestParameters {
-        source: MediaSource::Plain(uri),
+        source,
         format: MediaFormat::File,
     };
     let bytes = c
@@ -137,7 +150,7 @@ pub async fn download_media(
     let qptr = crate::MatrixClient::singleton_ptr();
     let p = path.to_string_lossy().to_string();
     let rid = room_id.clone();
-    let mxc_url = mxc.clone();
+    let mxc_url = media_source_json.clone();
     let cb = qmetaobject::queued_callback(move |_: ()| {
         if let Some(this) = qptr.as_pinned() {
             this.borrow_mut().emit_file_downloaded(

@@ -20,6 +20,16 @@
 //
 // Regular messages render with avatar + bubble, mirrored for own
 // messages via layoutDirection.
+//
+// Media bubbles (image/video/audio/file):
+//   We do NOT try to inline-render the media — that would require a
+//   QML image provider (not registered in this build) and decryption
+//   for E2EE media. Instead we show a tile with the file name, size,
+//   mime type, and a Download button. Clicking the button calls
+//   MatrixClient.downloadMedia(roomId, mediaSourceJson, fileName),
+//   which uses the SDK to fetch + (if needed) decrypt the bytes and
+//   save them to the user's Downloads directory. The download
+//   completes via the `fileDownloaded` signal.
 
 import QtQuick
 import QtQuick.Controls
@@ -38,6 +48,7 @@ Item {
     property bool isOwn: false
     property string kind: "text"
     property string mxcUrl
+    property string mediaSourceJson
     property string fileName
     property var fileSize: 0
     property string mimeType
@@ -203,42 +214,61 @@ Item {
         }
     }
 
+    // ── Image message ──
+    // We don't try to render the image inline (would need a QML image
+    // provider + E2EE decryption). Instead we show a tile with the
+    // file name, size, and a Download button. The body (caption) is
+    // shown above the tile if present.
     Component {
         id: imageComp
         ColumnLayout {
             spacing: 4
-            Image {
+            // Caption (if the sender added one)
+            Label {
                 Layout.fillWidth: true
-                Layout.maximumHeight: 320
-                fillMode: Image.PreserveAspectFit
-                source: root.mxcUrl.length > 0 ? "image://matrix/" + root.mxcUrl : ""
-                asynchronous: true
+                visible: root.body.length > 0 && root.body !== root.fileName
+                text: root.body
+                color: root.isOwn ? Theme.bubbleFgMe : Theme.bubbleFgThem
+                font.pixelSize: Theme.fontSizeMd
+                wrapMode: Text.Wrap
+            }
+            // Image tile: icon + file info + Download button
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: Theme.spacingSm
                 Label {
-                    anchors.centerIn: parent
-                    visible: parent.status === Image.Loading
-                    text: qsTr("Loading\u2026")
-                    color: Theme.muted
-                    font.pixelSize: Theme.fontSizeXs
+                    text: "\uD83D\uDDBC"  // 🖼
+                    font.pixelSize: Theme.fontSizeLg
                 }
-                Label {
-                    anchors.centerIn: parent
-                    visible: parent.status === Image.Error
-                    text: qsTr("Image unavailable")
-                    color: Theme.muted
-                    font.pixelSize: Theme.fontSizeXs
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 0
+                    Label {
+                        text: root.fileName.length > 0 ? root.fileName : qsTr("Image")
+                        color: root.isOwn ? Theme.bubbleFgMe : Theme.bubbleFgThem
+                        font.pixelSize: Theme.fontSizeSm
+                        elide: Text.ElideRight
+                        Layout.fillWidth: true
+                    }
+                    Label {
+                        text: formatBytes(root.fileSize)
+                              + (root.mimeType.length > 0 ? " \u00B7 " + root.mimeType : "")
+                        color: Theme.muted
+                        font.pixelSize: Theme.fontSizeXs
+                    }
                 }
-                MouseArea {
-                    anchors.fill: parent
-                    cursorShape: Qt.PointingHandCursor
-                    onDoubleClicked: MatrixClient.downloadMedia(root.roomId, root.mxcUrl, root.fileName)
+                Button {
+                    text: qsTr("\u2193")  // ↓
+                    enabled: root.mediaSourceJson.length > 0
+                    onClicked: MatrixClient.downloadMedia(root.roomId, root.mediaSourceJson, root.fileName)
                 }
             }
             Label {
-                Layout.alignment: Qt.AlignRight
                 visible: Theme.showTimestamps && root.ts > 0
                 text: formatTime(root.ts)
                 color: root.isOwn ? Theme.bubbleFgMe : Theme.muted
                 font.pixelSize: Theme.fontSizeXs
+                Layout.alignment: Qt.AlignRight
             }
         }
     }
@@ -250,29 +280,35 @@ Item {
             RowLayout {
                 Layout.fillWidth: true
                 spacing: Theme.spacingSm
-                Label { text: "\uD83C\uDFAC"; font.pixelSize: Theme.fontSizeLg }
+                Label { text: "\uD83C\uDFAC"; font.pixelSize: Theme.fontSizeLg }  // 🎬
                 ColumnLayout {
                     Layout.fillWidth: true
+                    spacing: 0
                     Label {
-                        text: root.fileName
+                        text: root.fileName.length > 0 ? root.fileName : qsTr("Video")
                         color: root.isOwn ? Theme.bubbleFgMe : Theme.bubbleFgThem
+                        font.pixelSize: Theme.fontSizeSm
                         elide: Text.ElideRight
                         Layout.fillWidth: true
                     }
                     Label {
-                        text: qsTr("Video \u00B7 click to download")
+                        text: formatBytes(root.fileSize)
+                              + (root.mimeType.length > 0 ? " \u00B7 " + root.mimeType : "")
                         color: Theme.muted
                         font.pixelSize: Theme.fontSizeXs
                     }
                 }
                 Button {
                     text: qsTr("\u2193")
-                    onClicked: MatrixClient.downloadMedia(root.roomId, root.mxcUrl, root.fileName)
+                    enabled: root.mediaSourceJson.length > 0
+                    onClicked: MatrixClient.downloadMedia(root.roomId, root.mediaSourceJson, root.fileName)
                 }
             }
             Label {
                 visible: Theme.showTimestamps && root.ts > 0
-                text: formatTime(root.ts); color: Theme.muted; font.pixelSize: Theme.fontSizeXs
+                text: formatTime(root.ts)
+                color: root.isOwn ? Theme.bubbleFgMe : Theme.muted
+                font.pixelSize: Theme.fontSizeXs
                 Layout.alignment: Qt.AlignRight
             }
         }
@@ -280,40 +316,82 @@ Item {
 
     Component {
         id: audioComp
-        RowLayout {
-            spacing: Theme.spacingSm
-            Label { text: "\uD83C\uDFB5"; font.pixelSize: Theme.fontSizeLg }
-            Label {
-                text: root.fileName + " \u00B7 " + formatBytes(root.fileSize)
-                color: root.isOwn ? Theme.bubbleFgMe : Theme.bubbleFgThem
-                Layout.fillWidth: true; elide: Text.ElideRight
+        ColumnLayout {
+            spacing: 4
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: Theme.spacingSm
+                Label { text: "\uD83C\uDFB5"; font.pixelSize: Theme.fontSizeLg }  // 🎵
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 0
+                    Label {
+                        text: root.fileName.length > 0 ? root.fileName : qsTr("Audio")
+                        color: root.isOwn ? Theme.bubbleFgMe : Theme.bubbleFgThem
+                        font.pixelSize: Theme.fontSizeSm
+                        elide: Text.ElideRight
+                        Layout.fillWidth: true
+                    }
+                    Label {
+                        text: formatBytes(root.fileSize)
+                              + (root.mimeType.length > 0 ? " \u00B7 " + root.mimeType : "")
+                        color: Theme.muted
+                        font.pixelSize: Theme.fontSizeXs
+                    }
+                }
+                Button {
+                    text: qsTr("\u2193")
+                    enabled: root.mediaSourceJson.length > 0
+                    onClicked: MatrixClient.downloadMedia(root.roomId, root.mediaSourceJson, root.fileName)
+                }
             }
-            Button { text: qsTr("\u2193"); onClicked: MatrixClient.downloadMedia(root.roomId, root.mxcUrl, root.fileName) }
+            Label {
+                visible: Theme.showTimestamps && root.ts > 0
+                text: formatTime(root.ts)
+                color: root.isOwn ? Theme.bubbleFgMe : Theme.muted
+                font.pixelSize: Theme.fontSizeXs
+                Layout.alignment: Qt.AlignRight
+            }
         }
     }
 
     Component {
         id: fileComp
-        RowLayout {
-            spacing: Theme.spacingSm
-            Label { text: "\uD83D\uDCC4"; font.pixelSize: Theme.fontSizeLg }
-            ColumnLayout {
+        ColumnLayout {
+            spacing: 4
+            RowLayout {
                 Layout.fillWidth: true
-                Label {
-                    text: root.fileName
-                    color: root.isOwn ? Theme.bubbleFgMe : Theme.bubbleFgThem
-                    elide: Text.ElideRight
+                spacing: Theme.spacingSm
+                Label { text: "\uD83D\uDCC4"; font.pixelSize: Theme.fontSizeLg }  // 📄
+                ColumnLayout {
                     Layout.fillWidth: true
+                    spacing: 0
+                    Label {
+                        text: root.fileName.length > 0 ? root.fileName : qsTr("File")
+                        color: root.isOwn ? Theme.bubbleFgMe : Theme.bubbleFgThem
+                        font.pixelSize: Theme.fontSizeSm
+                        elide: Text.ElideRight
+                        Layout.fillWidth: true
+                    }
+                    Label {
+                        text: formatBytes(root.fileSize)
+                              + (root.mimeType.length > 0 ? " \u00B7 " + root.mimeType : "")
+                        color: Theme.muted
+                        font.pixelSize: Theme.fontSizeXs
+                    }
                 }
-                Label {
-                    text: formatBytes(root.fileSize) + (root.mimeType.length > 0 ? " \u00B7 " + root.mimeType : "")
-                    color: Theme.muted
-                    font.pixelSize: Theme.fontSizeXs
+                Button {
+                    text: qsTr("\u2193")
+                    enabled: root.mediaSourceJson.length > 0
+                    onClicked: MatrixClient.downloadMedia(root.roomId, root.mediaSourceJson, root.fileName)
                 }
             }
-            Button {
-                text: qsTr("Download")
-                onClicked: MatrixClient.downloadMedia(root.roomId, root.mxcUrl, root.fileName)
+            Label {
+                visible: Theme.showTimestamps && root.ts > 0
+                text: formatTime(root.ts)
+                color: root.isOwn ? Theme.bubbleFgMe : Theme.muted
+                font.pixelSize: Theme.fontSizeXs
+                Layout.alignment: Qt.AlignRight
             }
         }
     }
