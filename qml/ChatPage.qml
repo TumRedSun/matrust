@@ -246,7 +246,7 @@ Rectangle {
         // ── Header ──
         Rectangle {
             Layout.fillWidth: true
-            Layout.preferredHeight: 56
+            Layout.preferredHeight: Theme.headerChatH
             color: Theme.sidebarBg
 
             RowLayout {
@@ -383,7 +383,7 @@ Rectangle {
         // context menu → Reply). Clicking ✕ cancels the reply.
         Rectangle {
             Layout.fillWidth: true
-            Layout.preferredHeight: replyToEventId.length > 0 ? 36 : 0
+            Layout.preferredHeight: replyToEventId.length > 0 ? Theme.replyBannerH : 0
             color: Theme.sidebarBg
             visible: replyToEventId.length > 0
 
@@ -657,8 +657,8 @@ Rectangle {
                     // floating with uneven side margins.
                     component IconButton: Button {
                         id: iconBtn
-                        Layout.preferredWidth: 40
-                        Layout.preferredHeight: 40
+                        Layout.preferredWidth: Theme.iconBtnSize
+                        Layout.preferredHeight: Theme.iconBtnSize
                         leftPadding: 0
                         rightPadding: 0
                         topPadding: 0
@@ -694,7 +694,7 @@ Rectangle {
                     // attach/insert cluster and the message text input.
                     Rectangle {
                         Layout.preferredWidth: 1
-                        Layout.preferredHeight: 32
+                        Layout.preferredHeight: Theme.iconBtnSize - Theme.paddingSm
                         Layout.leftMargin: Theme.spacingSm
                         Layout.alignment: Qt.AlignVCenter
                         color: Theme.border
@@ -753,13 +753,13 @@ Rectangle {
                 }
 
                 // ── Right: square send button ──
-                // Fixed 40x40 square (matches the icon-button size on the
+                // Fixed square (matches the icon-button size on the
                 // left) so the up-arrow sits centered in a true square,
                 // not a rectangle stretched to the label width.
                 Button {
                     id: sendBtn
-                    Layout.preferredWidth: 40
-                    Layout.preferredHeight: 40
+                    Layout.preferredWidth: Theme.iconBtnSize
+                    Layout.preferredHeight: Theme.iconBtnSize
                     Layout.alignment: Qt.AlignBottom
                     leftPadding: 0
                     rightPadding: 0

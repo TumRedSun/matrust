@@ -17,7 +17,7 @@ Rectangle {
         // ── Space banner / name ──
         Rectangle {
             Layout.fillWidth: true
-            Layout.preferredHeight: 80
+            Layout.preferredHeight: Theme.bannerH - Theme.paddingLg
             color: Theme.accent
             opacity: 0.15
             clip: true
@@ -89,7 +89,7 @@ Rectangle {
                         || model.display_name.toLowerCase().indexOf(memberSearch.text.toLowerCase()) >= 0
                         || model.user_id.toLowerCase().indexOf(memberSearch.text.toLowerCase()) >= 0
                     visible: matchesSearch
-                    height: matchesSearch ? 48 : 0
+                    height: matchesSearch ? Theme.headerH : 0
 
                     RowLayout {
                         anchors.fill: parent
@@ -99,9 +99,9 @@ Rectangle {
 
                         // Avatar
                         Rectangle {
-                            Layout.preferredWidth: 32
-                            Layout.preferredHeight: 32
-                            radius: 16
+                            Layout.preferredWidth: Theme.avatarListMd
+                            Layout.preferredHeight: Theme.avatarListMd
+                            radius: Theme.avatarListMd / 2
                             color: Theme.accent
                             opacity: 0.3
 

@@ -34,7 +34,7 @@ Rectangle {
                 spacing: 0
                 delegate: Item {
                     width: ListView.view.width
-                    height: 56
+                    height: Theme.roomRowH
 
                     Rectangle {
                         anchors.fill: parent
@@ -84,11 +84,12 @@ Rectangle {
                         }
                         Rectangle {
                             visible: model.unread_count > 0
-                            Layout.preferredWidth: 20
-                            Layout.preferredHeight: 20
-                            radius: 10
+                            Layout.preferredWidth: Math.max(Theme.colorSwatchSize - 4, unreadLbl.implicitWidth + Theme.paddingXs)
+                            Layout.preferredHeight: Theme.colorSwatchSize - 4
+                            radius: (Theme.colorSwatchSize - 4) / 2
                             color: model.highlight_count > 0 ? Theme.danger : Theme.accent
                             Label {
+                                id: unreadLbl
                                 anchors.centerIn: parent
                                 text: model.unread_count
                                 color: Theme.accentFg

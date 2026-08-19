@@ -93,6 +93,53 @@ pub struct Theme {
     // --- Language ---
     language: qt_property!(QString; NOTIFY languageChanged READ language WRITE set_language),
 
+    // --- Window-relative sizing ---
+    // The application window's current dimensions, written from QML
+    // (main.qml syncs these on every onWidthChanged / onHeightChanged).
+    // They are NOT part of ThemeState and are NOT persisted to disk —
+    // they exist only so that derived size properties (colSpacesW,
+    // headerH, iconBtnSize, etc.) can scale with the live window size.
+    //
+    // The whole point of this group is to make UI element sizes
+    // depend on the window dimensions rather than on translated text
+    // content. Translated strings can be much longer (or shorter)
+    // than English, which used to cause layouts to "shift" when the
+    // user changed language. By deriving every fixed-pixel size from
+    // `min(appWidth/1280, appHeight/800)`, the layout stays stable
+    // across languages and scales gracefully when the user resizes
+    // the window.
+    appWidth: qt_property!(i32; NOTIFY appWidthChanged READ app_width WRITE set_app_width),
+    appHeight: qt_property!(i32; NOTIFY appHeightChanged READ app_height WRITE set_app_height),
+    scale: qt_property!(f64; NOTIFY scaleChanged READ scale),
+
+    // Derived window-relative sizes (all read-only, all driven by `scale`).
+    // Every fixed pixel size that appears in the QML UI has a matching
+    // property here, so QML never uses a raw integer for layout — it
+    // always goes through Theme.<name>. This makes the UI scale
+    // uniformly with the window.
+    colSpacesW:    qt_property!(i32; NOTIFY scaleChanged READ col_spaces_w),
+    colRoomsW:     qt_property!(i32; NOTIFY scaleChanged READ col_rooms_w),
+    colMembersW:   qt_property!(i32; NOTIFY scaleChanged READ col_members_w),
+    headerH:       qt_property!(i32; NOTIFY scaleChanged READ header_h),
+    headerChatH:   qt_property!(i32; NOTIFY scaleChanged READ header_chat_h),
+    tabBtnH:       qt_property!(i32; NOTIFY scaleChanged READ tab_btn_h),
+    iconBtnSize:   qt_property!(i32; NOTIFY scaleChanged READ icon_btn_size),
+    settingsNavW:  qt_property!(i32; NOTIFY scaleChanged READ settings_nav_w),
+    dialogMdW:     qt_property!(i32; NOTIFY scaleChanged READ dialog_md_w),
+    dialogLgW:     qt_property!(i32; NOTIFY scaleChanged READ dialog_lg_w),
+    avatarProfile: qt_property!(i32; NOTIFY scaleChanged READ avatar_profile),
+    bannerH:       qt_property!(i32; NOTIFY scaleChanged READ banner_h),
+    comboBoxMdW:   qt_property!(i32; NOTIFY scaleChanged READ combo_box_md_w),
+    comboBoxSmW:   qt_property!(i32; NOTIFY scaleChanged READ combo_box_sm_w),
+    comboBoxXsW:   qt_property!(i32; NOTIFY scaleChanged READ combo_box_xs_w),
+    spinBoxW:      qt_property!(i32; NOTIFY scaleChanged READ spin_box_w),
+    colorSwatchSize: qt_property!(i32; NOTIFY scaleChanged READ color_swatch_size),
+    replyBannerH:  qt_property!(i32; NOTIFY scaleChanged READ reply_banner_h),
+    previewBoxH:   qt_property!(i32; NOTIFY scaleChanged READ preview_box_h),
+    avatarListMd:  qt_property!(i32; NOTIFY scaleChanged READ avatar_list_md),
+    roomRowH:      qt_property!(i32; NOTIFY scaleChanged READ room_row_h),
+    spaceIconSize: qt_property!(i32; NOTIFY scaleChanged READ space_icon_size),
+
     // --- Signals ---
     presetChanged: qt_signal!(),
     windowBgChanged: qt_signal!(),
@@ -147,6 +194,16 @@ pub struct Theme {
     animationDurationMsChanged: qt_signal!(),
     languageChanged: qt_signal!(),
 
+    // Window-relative sizing signals.
+    appWidthChanged: qt_signal!(),
+    appHeightChanged: qt_signal!(),
+    // Single shared NOTIFY signal for every derived size property
+    // (colSpacesW, headerH, iconBtnSize, etc.). Firing this one
+    // signal makes QML re-evaluate every binding that reads any
+    // derived size, which is exactly what we want when the window
+    // is resized.
+    scaleChanged: qt_signal!(),
+
     /// Fired after `apply_preset` or `load_from_disk` finishes; QML uses it
     /// to rebind bound expressions.
     themeChanged: qt_signal!(),
@@ -159,8 +216,22 @@ pub struct Theme {
     importJson: qt_method!(fn(&self, json: QString) -> bool),
     availablePresets: qt_method!(fn(&self) -> QString),
     availableLanguages: qt_method!(fn(&self) -> QString),
+    // Reload theme.json from disk. QML calls this explicitly in
+    // Component.onCompleted (BEFORE applyPreset) to be 100% sure the
+    // persisted language is loaded even if QSingletonInit::init ran
+    // too early for QML bindings to have registered. This is the
+    // robust fix for "language is English on startup, only applies
+    // after I re-click it in settings".
+    loadFromDisk: qt_method!(fn(&self)),
 
     state: RefCell<ThemeState>,
+
+    // Live window dimensions, written from QML. Kept OUTSIDE
+    // ThemeState so they are NOT persisted to theme.json (the
+    // persisted value would be stale on the next launch and could
+    // briefly feed wrong sizes into bindings before QML overwrites
+    // it with the real window size).
+    app_size: RefCell<(i32, i32)>,
 }
 
 #[derive(Default, Serialize, Deserialize, Clone)]
@@ -314,6 +385,14 @@ impl Theme {
         let _ = self.showAvatarsChanged();
         let _ = self.animateBubblesChanged();
         let _ = self.animationDurationMsChanged();
+        let _ = self.languageChanged();
+        // Re-derive window-relative sizes. The actual app_size hasn't
+        // changed, but firing scaleChanged forces every binding that
+        // reads a derived size (colSpacesW, headerH, iconBtnSize, …)
+        // to re-evaluate. This matters after load_from_disk /
+        // applyPreset, where ThemeState was just wholesale replaced
+        // and QML bindings may be holding stale values.
+        let _ = self.scaleChanged();
         self.themeChanged();
     }
 
@@ -367,6 +446,21 @@ impl Theme {
         QString::from(
             r#"["en","ru","de","fr","es","pt","ja","zh","ko","it","pl","uk"]"#,
         )
+    }
+
+    /// QML-callable wrapper around `load_from_disk`. main.qml calls
+    /// this in Component.onCompleted BEFORE `Theme.applyPreset(...)` so
+    /// the persisted language is definitely loaded into ThemeState
+    /// before any bindings evaluate. This fixes the bug where the UI
+    /// started in English even though the user had picked Russian in
+    /// a previous session — QSingletonInit::init() does call
+    /// load_from_disk, but it runs so early in singleton construction
+    /// that QML bindings haven't subscribed to languageChanged yet,
+    /// so the signal is missed. Calling loadFromDisk again here, after
+    /// the QML scene is fully built, guarantees the language signal
+    /// fires while bindings are listening.
+    pub fn loadFromDisk(&self) {
+        self.load_from_disk();
     }
 
     // --- Getters / setters ---
@@ -510,6 +604,97 @@ impl Theme {
     pub fn get() -> QPointer<Theme> {
         THEME_SINGLETON.get_or_init(|| QPointer::default()).clone()
     }
+
+    // ── Window-relative sizing ──
+    //
+    // Reference design size is 1280×800 (the default ApplicationWindow
+    // size in main.qml). `scale` is `min(appWidth/1280, appHeight/800)`,
+    // clamped to [0.5, 3.0] so the UI doesn't become unusably tiny on
+    // very small windows or absurdly large on 4K monitors. All derived
+    // sizes are `(reference_px * scale).round() as i32`.
+    //
+    // QML writes appWidth / appHeight from main.qml's onWidthChanged /
+    // onHeightChanged handlers; that fires scaleChanged, which makes
+    // every binding that reads any derived size re-evaluate.
+
+    pub fn app_width(&self) -> i32 { self.app_size.borrow().0 }
+    pub fn app_height(&self) -> i32 { self.app_size.borrow().1 }
+
+    pub fn set_app_width(&self, v: i32) {
+        let prev = *self.app_size.borrow();
+        if prev.0 == v { return; }
+        self.app_size.borrow_mut().0 = v;
+        let _ = self.appWidthChanged();
+        let _ = self.scaleChanged();
+    }
+
+    pub fn set_app_height(&self, v: i32) {
+        let prev = *self.app_size.borrow();
+        if prev.1 == v { return; }
+        self.app_size.borrow_mut().1 = v;
+        let _ = self.appHeightChanged();
+        let _ = self.scaleChanged();
+    }
+
+    /// Uniform scale factor relative to the 1280×800 reference.
+    /// Returns 1.0 if the window size hasn't been set yet (so the UI
+    /// still renders correctly during the very first frame, before
+    /// main.qml's Component.onCompleted has run).
+    pub fn scale(&self) -> f64 {
+        let (w, h) = *self.app_size.borrow();
+        if w <= 0 || h <= 0 {
+            return 1.0;
+        }
+        let s = (w as f64 / 1280.0).min(h as f64 / 800.0);
+        s.clamp(0.5, 3.0)
+    }
+
+    /// Convenience: scaled integer for a single reference pixel size.
+    fn scaled(&self, reference: f64) -> i32 {
+        (reference * self.scale()).round() as i32
+    }
+
+    // Column widths.
+    pub fn col_spaces_w(&self) -> i32 { self.scaled(72.0) }   // server-icon sidebar
+    pub fn col_rooms_w(&self) -> i32 { self.scaled(240.0) }   // room list
+    pub fn col_members_w(&self) -> i32 { self.scaled(220.0) } // member list (right)
+
+    // Header heights.
+    pub fn header_h(&self) -> i32 { self.scaled(48.0) }       // sidebar headers
+    pub fn header_chat_h(&self) -> i32 { self.scaled(56.0) }  // chat header
+
+    // Buttons.
+    pub fn tab_btn_h(&self) -> i32 { self.scaled(40.0) }      // settings tab button
+    pub fn icon_btn_size(&self) -> i32 { self.scaled(40.0) }  // square icon button (📁 😀 ↑)
+
+    // Settings panel.
+    pub fn settings_nav_w(&self) -> i32 { self.scaled(180.0) } // left nav in settings
+
+    // Dialogs.
+    pub fn dialog_md_w(&self) -> i32 { self.scaled(360.0) }   // medium dialog (delete confirm)
+    pub fn dialog_lg_w(&self) -> i32 { self.scaled(500.0) }   // large dialog (export/import JSON)
+
+    // Profile page.
+    pub fn avatar_profile(&self) -> i32 { self.scaled(80.0) } // big avatar in profile settings
+    pub fn banner_h(&self) -> i32 { self.scaled(140.0) }      // profile banner
+
+    // Form controls.
+    pub fn combo_box_md_w(&self) -> i32 { self.scaled(180.0) } // preset / language combo
+    pub fn combo_box_sm_w(&self) -> i32 { self.scaled(140.0) } // presence combo
+    pub fn combo_box_xs_w(&self) -> i32 { self.scaled(100.0) } // (reserved)
+    pub fn spin_box_w(&self) -> i32 { self.scaled(100.0) }     // IntRow SpinBox
+
+    // Appearance editor.
+    pub fn color_swatch_size(&self) -> i32 { self.scaled(24.0) } // ColorRow swatch
+    pub fn preview_box_h(&self) -> i32 { self.scaled(32.0) }     // IntRow preview box
+
+    // Chat composer.
+    pub fn reply_banner_h(&self) -> i32 { self.scaled(36.0) }   // reply preview banner
+
+    // List rows.
+    pub fn avatar_list_md(&self) -> i32 { self.scaled(32.0) } // 32px list avatar (room list, member list)
+    pub fn room_row_h(&self) -> i32 { self.scaled(56.0) }     // room list row
+    pub fn space_icon_size(&self) -> i32 { self.scaled(48.0) } // space icon in spaces column
 }
 
 impl qmetaobject::QSingletonInit for Theme {

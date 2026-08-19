@@ -17,7 +17,7 @@ Rectangle {
         // ── Spaces column ──
         Rectangle {
             Layout.fillHeight: true
-            Layout.preferredWidth: 280
+            Layout.preferredWidth: Theme.colRoomsW + Theme.paddingSm
             color: Theme.sidebarBg
 
             ColumnLayout {
@@ -48,8 +48,8 @@ Rectangle {
 
                         delegate: Item {
                             width: ListView.view.width
-                            height: 48
-                            property int indent: model.parent_id.length > 0 ? 24 : 0
+                            height: Theme.headerH
+                            property int indent: model.parent_id.length > 0 ? Theme.paddingLg : 0
 
                             Rectangle {
                                 anchors.fill: parent

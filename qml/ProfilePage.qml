@@ -23,7 +23,7 @@ Rectangle {
         // Banner with upload
         Rectangle {
             Layout.fillWidth: true
-            Layout.preferredHeight: 100
+            Layout.preferredHeight: Theme.bannerH - Theme.paddingLg
             radius: Theme.radiusMd
             color: Theme.accent
             opacity: 0.15
@@ -54,9 +54,9 @@ Rectangle {
         // Avatar with upload button
         Rectangle {
             Layout.alignment: Qt.AlignHCenter
-            Layout.preferredWidth: 80
-            Layout.preferredHeight: 80
-            radius: 40
+            Layout.preferredWidth: Theme.avatarProfile
+            Layout.preferredHeight: Theme.avatarProfile
+            radius: Theme.avatarProfile / 2
             color: Theme.accent
             opacity: 0.3
 
@@ -97,7 +97,7 @@ Rectangle {
         RowLayout {
             Layout.fillWidth: true
             spacing: Theme.spacingSm
-            Label { text: Tr.tr(Theme.language, "Name"); color: Theme.windowFg; Layout.preferredWidth: 60 }
+            Label { text: Tr.tr(Theme.language, "Name"); color: Theme.windowFg; Layout.preferredWidth: Theme.paddingLg * 2 + Theme.paddingMd }
             TextField {
                 id: dnField
                 Layout.fillWidth: true
@@ -121,7 +121,7 @@ Rectangle {
             ComboBox {
                 id: presenceBox
                 model: ["online", "unavailable", "offline"]
-                Layout.preferredWidth: 140
+                Layout.preferredWidth: Theme.comboBoxSmW
             }
             TextField {
                 id: statusField

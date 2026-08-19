@@ -20,6 +20,71 @@ ApplicationWindow {
     font.family: Theme.fontFamily
     font.pixelSize: Theme.fontSizeMd
 
+    // ── Sync live window dimensions into Theme ──
+    // Every window-relative size property in Theme (colSpacesW,
+    // headerH, iconBtnSize, dialogMdW, …) is derived from
+    // min(appWidth/1280, appHeight/800). Writing them here fires
+    // Theme.scaleChanged, which makes every binding that reads any
+    // derived size re-evaluate immediately, so the whole UI scales
+    // with the window. Doing this in onWidthChanged / onHeightChanged
+    // (rather than only once in Component.onCompleted) means
+    // resizing the window also re-scales the UI live.
+    //
+    // Why this fixes the "background shifts on language change" bug:
+    // every fixed-pixel size in the QML UI is now a function of the
+    // window size (which doesn't change when the user picks a
+    // different language), not of the translated text content (which
+    // does change length and used to push backgrounds out of place).
+    onWidthChanged:  Theme.appWidth  = root.width
+    onHeightChanged: Theme.appHeight = root.height
+    // Also set once at startup so the very first frame already has
+    // the correct scale (onWidthChanged / onHeightChanged only fire
+    // when the value changes after construction, and the initial
+    // 1280×800 happens to match Qt's default ApplicationWindow size
+    // without firing a "change").
+    Component.onCompleted: {
+        Theme.appWidth  = root.width
+        Theme.appHeight = root.height
+
+        // Reload persisted theme from disk BEFORE applyPreset. This
+        // guarantees the user's saved language is loaded into
+        // ThemeState while QML bindings are already listening for
+        // languageChanged — so the very first render uses the right
+        // language instead of falling back to English.
+        Theme.loadFromDisk()
+
+        // Force a fresh re-read of every Theme-driven property so changes
+        // the user made via the Settings dialog (in a previous session)
+        // propagate even if QML cached a stale value during the initial
+        // singleton construction race.
+        Theme.applyPreset(Theme.preset)
+
+        // Force QML to eagerly create ALL the singleton models RIGHT
+        // NOW. qmetaobject creates singletons lazily on first reference,
+        // but the sync loop running on Tokio may push ApplyRooms /
+        // ApplySpaces / RefreshProfile events into the pending queue
+        // before QML ever touches RoomModel, SpaceModel, etc. If the
+        // singleton hasn't been created yet, pollPending() logs
+        // "QPointer is null, dropping N entries" and the data is lost
+        // until the next sync cycle. Touching each model's `count`
+        // property here forces singleton creation before autoLogin()
+        // kicks off the sync.
+        // eslint-disable-next-line no-unused-expressions
+        RoomModel.count
+        MessageModel.count
+        SpaceModel.count
+        ProfileManager.userId
+        MemberModel.count
+
+        MatrixClient.autoLogin()
+        // Start the UI tick timer unconditionally. This drains the
+        // pending-events queue (the reliable Tokio→Qt bridge that
+        // replaces qmetaobject's broken queued_callback when created
+        // from a Tokio worker thread) and also checks whether the
+        // loading screen should transition to the main view.
+        uiTickTimer.start()
+    }
+
     // ── Hidden clipboard helper ──
     // qmetaobject 0.2 doesn't expose QClipboard directly. We use a hidden
     // TextEdit that we set the text on, select all, and call copy(). This
@@ -151,7 +216,7 @@ ApplicationWindow {
                 // ── Column 1: Space icons (narrow, like Discord server icons) ──
                 Rectangle {
                     Layout.fillHeight: true
-                    Layout.preferredWidth: 72
+                    Layout.preferredWidth: Theme.colSpacesW
                     color: Theme.sidebarBg
 
                     ColumnLayout {
@@ -161,7 +226,7 @@ ApplicationWindow {
                         // Home / DMs button
                         Item {
                             Layout.fillWidth: true
-                            Layout.preferredHeight: 56
+                            Layout.preferredHeight: Theme.headerChatH
                             Rectangle {
                                 anchors.fill: parent
                                 anchors.margins: 4
@@ -208,7 +273,7 @@ ApplicationWindow {
 
                                 delegate: Item {
                                     width: ListView.view.width
-                                    height: 48
+                                    height: Theme.spaceIconSize
                                     visible: model.kind === "space"
 
                                     Rectangle {
@@ -225,8 +290,8 @@ ApplicationWindow {
                                             anchors.right: parent.right
                                             anchors.top: parent.top
                                             anchors.margins: 2
-                                            width: 8; height: 8
-                                            radius: 4
+                                            width: Math.round(Theme.colorSwatchSize / 3); height: Math.round(Theme.colorSwatchSize / 3)
+                                            radius: Math.round(Theme.colorSwatchSize / 6)
                                             color: model.highlight > 0 ? Theme.danger : Theme.accent
                                         }
                                     }
@@ -265,7 +330,7 @@ ApplicationWindow {
                         // Settings button at bottom
                         Item {
                             Layout.fillWidth: true
-                            Layout.preferredHeight: 48
+                            Layout.preferredHeight: Theme.headerH
                             Rectangle {
                                 anchors.fill: parent
                                 anchors.margins: 4
@@ -291,7 +356,7 @@ ApplicationWindow {
                 // ── Column 2: Room list (DMs or space rooms) ──
                 Rectangle {
                     Layout.fillHeight: true
-                    Layout.preferredWidth: 240
+                    Layout.preferredWidth: Theme.colRoomsW
                     color: Qt.darker(Theme.sidebarBg, 1.05)
 
                     ColumnLayout {
@@ -301,7 +366,7 @@ ApplicationWindow {
                         // Header: back arrow + title
                         Rectangle {
                             Layout.fillWidth: true
-                            Layout.preferredHeight: 48
+                            Layout.preferredHeight: Theme.headerH
                             color: "transparent"
 
                             RowLayout {
@@ -395,7 +460,7 @@ ApplicationWindow {
                                     property bool showItem: mainViewRoot.sidebarMode === "home"
                                             ? model.is_direct
                                             : !model.is_direct
-                                    height: showItem ? 56 : 0
+                                    height: showItem ? Theme.roomRowH : 0
                                     visible: showItem
 
                                     Rectangle {
@@ -409,15 +474,15 @@ ApplicationWindow {
                                         anchors.leftMargin: Theme.paddingSm
                                         // Leave room for the × close button on DMs
                                         anchors.rightMargin: (model.is_direct && mainViewRoot.sidebarMode === "home")
-                                                              ? Theme.paddingSm + 24
+                                                              ? Theme.paddingSm + Theme.colorSwatchSize
                                                               : Theme.paddingSm
                                         spacing: Theme.spacingSm
 
                                         Rectangle {
-                                            Layout.preferredWidth: 32
-                                            Layout.preferredHeight: 32
+                                            Layout.preferredWidth: Theme.avatarListMd
+                                            Layout.preferredHeight: Theme.avatarListMd
                                             radius: model.is_direct
-                                                    ? 16  // circle for DMs
+                                                    ? Theme.avatarListMd / 2  // circle for DMs
                                                     : Theme.radiusSm  // rounded for rooms
                                             color: model.is_direct ? Theme.success : Theme.accent
                                             opacity: 0.3
@@ -454,9 +519,9 @@ ApplicationWindow {
                                         // Unread badge
                                         Rectangle {
                                             visible: model.unread_count > 0
-                                            Layout.preferredWidth: Math.max(20, unreadLbl.implicitWidth + 8)
-                                            Layout.preferredHeight: 20
-                                            radius: 10
+                                            Layout.preferredWidth: Math.max(Theme.colorSwatchSize - 4, unreadLbl.implicitWidth + Theme.paddingXs)
+                                            Layout.preferredHeight: Theme.colorSwatchSize - 4
+                                            radius: (Theme.colorSwatchSize - 4) / 2
                                             color: model.highlight_count > 0 ? Theme.danger : Theme.accent
                                             Label {
                                                 id: unreadLbl
@@ -492,8 +557,8 @@ ApplicationWindow {
                                         anchors.right: parent.right
                                         anchors.rightMargin: Theme.paddingSm
                                         anchors.verticalCenter: parent.verticalCenter
-                                        width: 24
-                                        height: 24
+                                        width: Theme.colorSwatchSize
+                                        height: Theme.colorSwatchSize
 
                                         Label {
                                             anchors.centerIn: parent
@@ -557,7 +622,7 @@ ApplicationWindow {
                 // ── Column 4: Member list (right sidebar) ──
                 MemberListPanel {
                     Layout.fillHeight: true
-                    Layout.preferredWidth: 220
+                    Layout.preferredWidth: Theme.colMembersW
                     visible: mainViewRoot.sidebarMode === "space" && mainViewRoot.activeSpaceId.length > 0
                     spaceId: mainViewRoot.activeSpaceId
                     spaceName: mainViewRoot.activeSpaceName
@@ -616,8 +681,8 @@ ApplicationWindow {
         // the inner ScrollView scrolls.
         Rectangle {
             id: settingsPanel
-            width: parent.width - 40
-            height: parent.height - 40
+            width: parent.width  - Theme.paddingLg * 2
+            height: parent.height - Theme.paddingLg * 2
             anchors.centerIn: parent
             color: Theme.windowBg
             radius: Theme.radiusLg
@@ -661,8 +726,8 @@ ApplicationWindow {
         id: userSearchDialog
         modal: true
         anchors.centerIn: parent
-        width: Math.min(560, parent.width - 80)
-        height: Math.min(520, parent.height - 80)
+        width: Math.min(Theme.dialogLgW + 60, parent.width  - Theme.paddingLg * 2)
+        height: Math.min(Theme.dialogLgW + 20, parent.height - Theme.paddingLg * 2)
         background: Rectangle {
             color: Theme.windowBg
             radius: Theme.radiusLg
@@ -725,7 +790,7 @@ ApplicationWindow {
 
                     delegate: Item {
                         width: ListView.view.width
-                        height: 56
+                        height: Theme.roomRowH
 
                         Rectangle {
                             anchors.fill: parent
@@ -744,9 +809,9 @@ ApplicationWindow {
                             // Avatar (uses mxc:// via avatar_cache if available,
                             // otherwise shows the first letter of the display name).
                             Rectangle {
-                                Layout.preferredWidth: 36
-                                Layout.preferredHeight: 36
-                                radius: 18
+                                Layout.preferredWidth: Theme.avatarListMd + 4
+                                Layout.preferredHeight: Theme.avatarListMd + 4
+                                radius: (Theme.avatarListMd + 4) / 2
                                 color: Theme.accent
                                 opacity: 0.3
                                 Label {
@@ -785,7 +850,7 @@ ApplicationWindow {
                             ToolButton {
                                 text: "\u2709"  // ✉
                                 font.pixelSize: Theme.fontSizeLg
-                                Layout.preferredWidth: 40
+                                Layout.preferredWidth: Theme.iconBtnSize
                                 onClicked: {
                                     MatrixClient.openDirectMessage(model.user_id)
                                 }
@@ -838,7 +903,7 @@ ApplicationWindow {
         id: leaveRoomDialog
         modal: true
         anchors.centerIn: parent
-        width: Math.min(420, parent.width - 80)
+        width: Math.min(Theme.dialogMdW + 60, parent.width - Theme.paddingLg * 2)
         background: Rectangle {
             color: Theme.windowBg
             radius: Theme.radiusMd
@@ -894,13 +959,13 @@ ApplicationWindow {
         property string text
         anchors.bottom: parent.bottom
         anchors.horizontalCenter: parent.horizontalCenter
-        anchors.bottomMargin: 24
+        anchors.bottomMargin: Theme.paddingLg + Theme.paddingSm
         color: text.length > 0 ? Theme.accent : "transparent"
         radius: Theme.radiusMd
         visible: text.length > 0
         opacity: 0.95
-        width: toastLabel.implicitWidth + 32
-        height: toastLabel.implicitHeight + 16
+        width: toastLabel.implicitWidth + Theme.paddingLg * 2
+        height: toastLabel.implicitHeight + Theme.paddingMd
         Label {
             id: toastLabel
             anchors.centerIn: parent
@@ -961,39 +1026,6 @@ ApplicationWindow {
             }
             root.showToast(Tr.tr(Theme.language, "Conversation closed"))
         }
-    }
-
-    Component.onCompleted: {
-        // Force a fresh re-read of every Theme-driven property so changes
-        // the user made via the Settings dialog (in a previous session)
-        // propagate even if QML cached a stale value during the initial
-        // singleton construction race.
-        Theme.applyPreset(Theme.preset)
-
-        // Force QML to eagerly create ALL the singleton models RIGHT
-        // NOW. qmetaobject creates singletons lazily on first reference,
-        // but the sync loop running on Tokio may push ApplyRooms /
-        // ApplySpaces / RefreshProfile events into the pending queue
-        // before QML ever touches RoomModel, SpaceModel, etc. If the
-        // singleton hasn't been created yet, pollPending() logs
-        // "QPointer is null, dropping N entries" and the data is lost
-        // until the next sync cycle. Touching each model's `count`
-        // property here forces singleton creation before autoLogin()
-        // kicks off the sync.
-        // eslint-disable-next-line no-unused-expressions
-        RoomModel.count
-        MessageModel.count
-        SpaceModel.count
-        ProfileManager.userId
-        MemberModel.count
-
-        MatrixClient.autoLogin()
-        // Start the UI tick timer unconditionally. This drains the
-        // pending-events queue (the reliable Tokio→Qt bridge that
-        // replaces qmetaobject's broken queued_callback when created
-        // from a Tokio worker thread) and also checks whether the
-        // loading screen should transition to the main view.
-        uiTickTimer.start()
     }
 
     // ── UI tick timer ──

@@ -10,12 +10,15 @@ Rectangle {
     ColumnLayout {
         anchors.centerIn: parent
         spacing: Theme.spacingLg
-        width: Math.min(440, parent.width - 32)
+        // Login form width scales with the window so long translated
+        // placeholder texts (e.g. German "Heimserver — Domain, IPv4 oder
+        // [IPv6] (Port optional)") don't overflow on narrow windows.
+        width: Math.min(Theme.dialogLgW - Theme.paddingLg, parent.width - Theme.paddingLg * 2)
 
         Image {
             Layout.alignment: Qt.AlignHCenter
             source: "qrc:/assets/logo.svg"
-            sourceSize: Qt.size(72, 72)
+            sourceSize: Qt.size(Theme.spaceIconSize, Theme.spaceIconSize)
         }
 
         Label {

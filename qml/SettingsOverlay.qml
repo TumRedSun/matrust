@@ -20,7 +20,7 @@ Item {
         // over them with a square edge.
         Rectangle {
             Layout.fillHeight: true
-            Layout.preferredWidth: 180
+            Layout.preferredWidth: Theme.settingsNavW
             color: Theme.sidebarBg
             radius: Theme.radiusLg
 
@@ -54,7 +54,7 @@ Item {
                     id: tabBtn
                     property bool isActive: false
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 40
+                    Layout.preferredHeight: Theme.tabBtnH
                     hoverEnabled: true
                     background: Rectangle {
                         radius: Theme.radiusSm
@@ -147,7 +147,7 @@ Item {
                         // Banner with upload
                         Rectangle {
                             Layout.fillWidth: true
-                            Layout.preferredHeight: 140
+                            Layout.preferredHeight: Theme.bannerH
                             radius: Theme.radiusMd
                             color: Theme.accent
                             opacity: ProfileManager.bannerUrl.length > 0 ? 1.0 : 0.15
@@ -199,9 +199,9 @@ Item {
                             spacing: Theme.spacingMd
 
                             Rectangle {
-                                Layout.preferredWidth: 80
-                                Layout.preferredHeight: 80
-                                radius: 40
+                                Layout.preferredWidth: Theme.avatarProfile
+                                Layout.preferredHeight: Theme.avatarProfile
+                                radius: Theme.avatarProfile / 2
                                 color: Theme.accent
                                 opacity: 0.3
 
@@ -267,7 +267,7 @@ Item {
                             ComboBox {
                                 id: presenceBox
                                 model: ["online", "unavailable", "offline"]
-                                Layout.preferredWidth: 140
+                                Layout.preferredWidth: Theme.comboBoxSmW
                             }
                             TextField {
                                 id: statusField
@@ -313,7 +313,7 @@ Item {
                             ComboBox {
                                 id: presetCombo
                                 model: JSON.parse(Theme.availablePresets())
-                                Layout.preferredWidth: 180
+                                Layout.preferredWidth: Theme.comboBoxMdW
                                 onActivated: Theme.applyPreset(currentText)
                             }
                             Item { Layout.fillWidth: true }
@@ -789,7 +789,7 @@ Item {
         id: deleteConfirm
         title: Tr.tr(Theme.language, "Delete Account")
         modal: true
-        width: 360
+        width: Theme.dialogMdW
         standardButtons: Dialog.Yes | Dialog.No
         contentItem: ColumnLayout {
             spacing: Theme.spacingSm
@@ -828,8 +828,8 @@ Item {
         Label { text: label; color: Theme.windowFg; font.pixelSize: Theme.fontSizeSm }
 
         Rectangle {
-            Layout.preferredWidth: 24
-            Layout.preferredHeight: 24
+            Layout.preferredWidth: Theme.colorSwatchSize
+            Layout.preferredHeight: Theme.colorSwatchSize
             radius: 4
             color: Theme[bind]
             border.color: Theme.border; border.width: 1
@@ -906,7 +906,7 @@ Item {
         // preset) reflect in the SpinBox.
         SpinBox {
             id: spin
-            Layout.preferredWidth: 100
+            Layout.preferredWidth: Theme.spinBoxW
             from: minValue
             to: maxValue
             value: Theme[bind]
@@ -919,7 +919,7 @@ Item {
         Rectangle {
             id: previewBox
             Layout.fillWidth: true
-            Layout.preferredHeight: 32
+            Layout.preferredHeight: Theme.previewBoxH
             color: Theme.sidebarBg
             radius: Theme.radiusSm
             border.color: Theme.border
@@ -1024,7 +1024,7 @@ Item {
         title: Tr.tr(Theme.language, "Theme JSON")
         modal: true
         anchors.centerIn: parent
-        width: 500
+        width: Theme.dialogLgW
         property string text: ""
         contentItem: ScrollView {
             TextArea {
@@ -1043,7 +1043,7 @@ Item {
         title: Tr.tr(Theme.language, "Paste theme JSON")
         modal: true
         anchors.centerIn: parent
-        width: 500
+        width: Theme.dialogLgW
         contentItem: TextArea {
             id: importField
             wrapMode: TextArea.Wrap

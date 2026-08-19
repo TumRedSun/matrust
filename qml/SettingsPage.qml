@@ -103,7 +103,7 @@ Rectangle {
                 }
             }
 
-            Item { Layout.fillHeight: true; Layout.preferredHeight: 64 }
+            Item { Layout.fillHeight: true; Layout.preferredHeight: Theme.headerH + Theme.paddingLg }
         }
     }
 }

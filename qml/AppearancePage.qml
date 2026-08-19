@@ -36,7 +36,7 @@ Rectangle {
                 ComboBox {
                     id: presetCombo
                     model: JSON.parse(Theme.availablePresets())
-                    Layout.preferredWidth: 180
+                    Layout.preferredWidth: Theme.comboBoxMdW
                     onActivated: Theme.applyPreset(currentText)
                 }
                 Item { Layout.fillWidth: true }
@@ -230,7 +230,7 @@ Rectangle {
                 }
             }
 
-            Item { Layout.fillHeight: true; Layout.preferredHeight: 32 }
+            Item { Layout.fillHeight: true; Layout.preferredHeight: Theme.previewBoxH }
         }
     }
 
@@ -246,8 +246,8 @@ Rectangle {
         Label { text: label; color: Theme.windowFg; font.pixelSize: Theme.fontSizeSm }
 
         Rectangle {
-            Layout.preferredWidth: 24
-            Layout.preferredHeight: 24
+            Layout.preferredWidth: Theme.colorSwatchSize
+            Layout.preferredHeight: Theme.colorSwatchSize
             radius: 4
             color: Theme[bind]
             border.color: Theme.border; border.width: 1
@@ -315,7 +315,7 @@ Rectangle {
 
         SpinBox {
             id: spin
-            Layout.preferredWidth: 100
+            Layout.preferredWidth: Theme.spinBoxW
             from: minValue
             to: maxValue
             value: Theme[bind]
@@ -327,7 +327,7 @@ Rectangle {
         Rectangle {
             id: previewBox
             Layout.fillWidth: true
-            Layout.preferredHeight: 32
+            Layout.preferredHeight: Theme.previewBoxH
             color: Theme.sidebarBg
             radius: Theme.radiusSm
             border.color: Theme.border
@@ -421,7 +421,7 @@ Rectangle {
         title: Tr.tr(Theme.language, "Theme JSON")
         modal: true
         anchors.centerIn: parent
-        width: 500
+        width: Theme.dialogLgW
         property string text: ""
         contentItem: ScrollView {
             TextArea {
@@ -440,7 +440,7 @@ Rectangle {
         title: Tr.tr(Theme.language, "Paste theme JSON")
         modal: true
         anchors.centerIn: parent
-        width: 500
+        width: Theme.dialogLgW
         contentItem: TextArea {
             id: importField
             wrapMode: TextArea.Wrap
